@@ -69,22 +69,22 @@ defmodule PhoenixKit.Modules.Emails.Event do
   @primary_key {:uuid, UUIDv7, autogenerate: true}
 
   schema "phoenix_kit_email_events" do
-    field :event_type, :string
-    field :event_data, :map, default: %{}
-    field :occurred_at, :utc_datetime
-    field :ip_address, :string
-    field :user_agent, :string
-    field :geo_location, :map, default: %{}
-    field :link_url, :string
-    field :bounce_type, :string
-    field :complaint_type, :string
-    field :reject_reason, :string
-    field :delay_type, :string
-    field :subscription_type, :string
-    field :failure_reason, :string
+    field(:event_type, :string)
+    field(:event_data, :map, default: %{})
+    field(:occurred_at, :utc_datetime)
+    field(:ip_address, :string)
+    field(:user_agent, :string)
+    field(:geo_location, :map, default: %{})
+    field(:link_url, :string)
+    field(:bounce_type, :string)
+    field(:complaint_type, :string)
+    field(:reject_reason, :string)
+    field(:delay_type, :string)
+    field(:subscription_type, :string)
+    field(:failure_reason, :string)
 
     # Associations
-    belongs_to :email_log, Log, foreign_key: :email_log_uuid, references: :uuid, type: UUIDv7
+    belongs_to(:email_log, Log, foreign_key: :email_log_uuid, references: :uuid, type: UUIDv7)
 
     timestamps(type: :utc_datetime)
   end

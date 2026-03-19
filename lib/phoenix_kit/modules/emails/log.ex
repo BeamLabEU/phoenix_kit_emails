@@ -174,48 +174,50 @@ defmodule PhoenixKit.Modules.Emails.Log do
   @primary_key {:uuid, UUIDv7, autogenerate: true}
 
   schema "phoenix_kit_email_logs" do
-    field :message_id, :string
-    field :aws_message_id, :string
-    field :to, :string
-    field :from, :string
-    field :subject, :string
-    field :headers, :map, default: %{}
-    field :body_preview, :string
-    field :body_full, :string
-    field :template_name, :string
-    field :locale, :string, default: "en"
-    field :campaign_id, :string
-    field :attachments_count, :integer, default: 0
-    field :size_bytes, :integer
-    field :retry_count, :integer, default: 0
-    field :error_message, :string
-    field :status, :string, default: "queued"
-    field :queued_at, :utc_datetime
-    field :sent_at, :utc_datetime
-    field :delivered_at, :utc_datetime
-    field :bounced_at, :utc_datetime
-    field :complained_at, :utc_datetime
-    field :opened_at, :utc_datetime
-    field :clicked_at, :utc_datetime
-    field :rejected_at, :utc_datetime
-    field :failed_at, :utc_datetime
-    field :delayed_at, :utc_datetime
-    field :configuration_set, :string
-    field :message_tags, :map, default: %{}
-    field :provider, :string, default: "unknown"
-    field :user_uuid, UUIDv7
+    field(:message_id, :string)
+    field(:aws_message_id, :string)
+    field(:to, :string)
+    field(:from, :string)
+    field(:subject, :string)
+    field(:headers, :map, default: %{})
+    field(:body_preview, :string)
+    field(:body_full, :string)
+    field(:template_name, :string)
+    field(:locale, :string, default: "en")
+    field(:campaign_id, :string)
+    field(:attachments_count, :integer, default: 0)
+    field(:size_bytes, :integer)
+    field(:retry_count, :integer, default: 0)
+    field(:error_message, :string)
+    field(:status, :string, default: "queued")
+    field(:queued_at, :utc_datetime)
+    field(:sent_at, :utc_datetime)
+    field(:delivered_at, :utc_datetime)
+    field(:bounced_at, :utc_datetime)
+    field(:complained_at, :utc_datetime)
+    field(:opened_at, :utc_datetime)
+    field(:clicked_at, :utc_datetime)
+    field(:rejected_at, :utc_datetime)
+    field(:failed_at, :utc_datetime)
+    field(:delayed_at, :utc_datetime)
+    field(:configuration_set, :string)
+    field(:message_tags, :map, default: %{})
+    field(:provider, :string, default: "unknown")
+    field(:user_uuid, UUIDv7)
 
     # Associations
-    belongs_to :user, PhoenixKit.Users.Auth.User,
+    belongs_to(:user, PhoenixKit.Users.Auth.User,
       foreign_key: :user_uuid,
       references: :uuid,
       define_field: false,
       type: UUIDv7
+    )
 
-    has_many :events, Event,
+    has_many(:events, Event,
       foreign_key: :email_log_uuid,
       references: :uuid,
       on_delete: :delete_all
+    )
 
     timestamps(type: :utc_datetime)
   end

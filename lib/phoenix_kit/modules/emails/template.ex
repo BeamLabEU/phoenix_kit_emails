@@ -113,23 +113,23 @@ defmodule PhoenixKit.Modules.Emails.Template do
   @primary_key {:uuid, UUIDv7, autogenerate: true}
 
   schema "phoenix_kit_email_templates" do
-    field :name, :string
-    field :slug, :string
-    field :display_name, :map, default: %{}
-    field :description, :map, default: nil
-    field :subject, :map, default: %{}
-    field :html_body, :map, default: %{}
-    field :text_body, :map, default: %{}
-    field :category, :string, default: "transactional"
-    field :status, :string, default: "draft"
-    field :variables, :map, default: %{}
-    field :metadata, :map, default: %{}
-    field :usage_count, :integer, default: 0
-    field :last_used_at, :utc_datetime
-    field :version, :integer, default: 1
-    field :is_system, :boolean, default: false
-    field :created_by_user_uuid, UUIDv7
-    field :updated_by_user_uuid, UUIDv7
+    field(:name, :string)
+    field(:slug, :string)
+    field(:display_name, :map, default: %{})
+    field(:description, :map, default: nil)
+    field(:subject, :map, default: %{})
+    field(:html_body, :map, default: %{})
+    field(:text_body, :map, default: %{})
+    field(:category, :string, default: "transactional")
+    field(:status, :string, default: "draft")
+    field(:variables, :map, default: %{})
+    field(:metadata, :map, default: %{})
+    field(:usage_count, :integer, default: 0)
+    field(:last_used_at, :utc_datetime)
+    field(:version, :integer, default: 1)
+    field(:is_system, :boolean, default: false)
+    field(:created_by_user_uuid, UUIDv7)
+    field(:updated_by_user_uuid, UUIDv7)
 
     timestamps(type: :utc_datetime)
   end
