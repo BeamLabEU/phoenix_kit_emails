@@ -741,13 +741,15 @@ defmodule PhoenixKit.Modules.Emails do
     %{
       key: "emails",
       label: "Emails",
-      icon: "hero-envelope",
+      icon: "📧",
       description: "Email delivery tracking, templates, and analytics"
     }
   end
 
   @impl PhoenixKit.Module
   def admin_tabs do
+    alias PhoenixKit.Modules.Emails.Web
+
     [
       Tab.new!(
         id: :admin_emails,
@@ -761,7 +763,8 @@ defmodule PhoenixKit.Modules.Emails do
         group: :admin_modules,
         subtab_display: :when_active,
         highlight_with_subtabs: false,
-        subtab_indent: "pl-4"
+        subtab_indent: "pl-4",
+        live_view: {Web.Metrics, :index}
       ),
       Tab.new!(
         id: :admin_emails_dashboard,
@@ -771,7 +774,8 @@ defmodule PhoenixKit.Modules.Emails do
         priority: 511,
         level: :admin,
         permission: "emails",
-        parent: :admin_emails
+        parent: :admin_emails,
+        live_view: {Web.Metrics, :index}
       ),
       Tab.new!(
         id: :admin_emails_list,
@@ -782,7 +786,20 @@ defmodule PhoenixKit.Modules.Emails do
         level: :admin,
         permission: "emails",
         parent: :admin_emails,
-        match: :exact
+        match: :exact,
+        live_view: {Web.Emails, :index}
+      ),
+      Tab.new!(
+        id: :admin_emails_details,
+        label: "Email Details",
+        icon: "hero-envelope-open",
+        path: "emails/email/:id",
+        priority: 512,
+        level: :admin,
+        permission: "emails",
+        parent: :admin_emails,
+        visible: false,
+        live_view: {Web.Details, :show}
       ),
       Tab.new!(
         id: :admin_emails_templates,
@@ -792,7 +809,32 @@ defmodule PhoenixKit.Modules.Emails do
         priority: 513,
         level: :admin,
         permission: "emails",
-        parent: :admin_emails
+        parent: :admin_emails,
+        live_view: {Web.Templates, :index}
+      ),
+      Tab.new!(
+        id: :admin_emails_template_new,
+        label: "New Template",
+        icon: "hero-document-plus",
+        path: "emails/templates/new",
+        priority: 513,
+        level: :admin,
+        permission: "emails",
+        parent: :admin_emails,
+        visible: false,
+        live_view: {Web.TemplateEditor, :new}
+      ),
+      Tab.new!(
+        id: :admin_emails_template_edit,
+        label: "Edit Template",
+        icon: "hero-pencil-square",
+        path: "emails/templates/:id/edit",
+        priority: 513,
+        level: :admin,
+        permission: "emails",
+        parent: :admin_emails,
+        visible: false,
+        live_view: {Web.TemplateEditor, :edit}
       ),
       Tab.new!(
         id: :admin_emails_queue,
@@ -802,7 +844,8 @@ defmodule PhoenixKit.Modules.Emails do
         priority: 514,
         level: :admin,
         permission: "emails",
-        parent: :admin_emails
+        parent: :admin_emails,
+        live_view: {Web.Queue, :index}
       ),
       Tab.new!(
         id: :admin_emails_blocklist,
@@ -812,7 +855,8 @@ defmodule PhoenixKit.Modules.Emails do
         priority: 515,
         level: :admin,
         permission: "emails",
-        parent: :admin_emails
+        parent: :admin_emails,
+        live_view: {Web.Blocklist, :index}
       )
     ]
   end
@@ -828,7 +872,8 @@ defmodule PhoenixKit.Modules.Emails do
         priority: 925,
         level: :admin,
         parent: :admin_settings,
-        permission: "emails"
+        permission: "emails",
+        live_view: {PhoenixKit.Modules.Emails.Web.Settings, :index}
       )
     ]
   end
