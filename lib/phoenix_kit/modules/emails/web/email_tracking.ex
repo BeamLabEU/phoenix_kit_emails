@@ -30,7 +30,11 @@ defmodule PhoenixKit.Modules.Emails.Web.EmailTracking do
   Access is restricted to users with admin or owner roles in PhoenixKit.
   """
 
-  use PhoenixKitWeb, :live_view
+  use Phoenix.LiveView
+  use Gettext, backend: PhoenixKitWeb.Gettext
+
+  import PhoenixKitWeb.Components.Core.AdminPageHeader
+  import PhoenixKitWeb.Components.Core.Icon
 
   alias PhoenixKit.Modules.Emails
 

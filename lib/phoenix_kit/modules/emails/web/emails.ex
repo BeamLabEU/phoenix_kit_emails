@@ -32,7 +32,15 @@ defmodule PhoenixKit.Modules.Emails.Web.Emails do
   Access is restricted to users with admin or owner roles in PhoenixKit.
   """
 
-  use PhoenixKitWeb, :live_view
+  use Phoenix.LiveView
+  use Gettext, backend: PhoenixKitWeb.Gettext
+
+  import PhoenixKitWeb.Components.Core.AdminPageHeader
+  import PhoenixKitWeb.Components.Core.Icon
+  import PhoenixKitWeb.Components.Core.TableDefault
+  import PhoenixKitWeb.Components.Core.TableRowMenu
+  import PhoenixKitWeb.Components.Core.EmailActivityBadges
+  import PhoenixKitWeb.Components.Core.Pagination
 
   require Logger
 

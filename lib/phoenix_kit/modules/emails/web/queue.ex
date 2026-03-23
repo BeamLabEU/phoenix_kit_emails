@@ -31,7 +31,13 @@ defmodule PhoenixKit.Modules.Emails.Web.Queue do
   Access is restricted to users with admin or owner roles in PhoenixKit.
   """
 
-  use PhoenixKitWeb, :live_view
+  use Phoenix.LiveView
+  use Gettext, backend: PhoenixKitWeb.Gettext
+
+  import PhoenixKitWeb.Components.Core.AdminPageHeader
+  import PhoenixKitWeb.Components.Core.Icon
+  import PhoenixKitWeb.Components.Core.Button
+  import PhoenixKitWeb.Components.Core.TableDefault
 
   require Logger
 
