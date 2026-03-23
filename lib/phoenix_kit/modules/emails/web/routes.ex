@@ -15,19 +15,6 @@ defmodule PhoenixKit.Modules.Emails.Web.Routes do
         # Webhook (AWS SNS)
         post("/webhooks/ses", unquote(webhook_controller), :handle)
 
-        # Email tracking
-        get(
-          "/emails/tracking/pixel/:id",
-          unquote(PhoenixKit.Modules.Emails.Web.EmailTracking),
-          :pixel
-        )
-
-        get(
-          "/emails/tracking/link/:id",
-          unquote(PhoenixKit.Modules.Emails.Web.EmailTracking),
-          :link
-        )
-
         # Export
         get("/emails/export/:format", unquote(export_controller), :export)
       end
