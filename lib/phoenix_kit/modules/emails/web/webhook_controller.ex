@@ -1,4 +1,5 @@
 defmodule PhoenixKit.Modules.Emails.Web.WebhookController do
+  @compile {:no_warn_undefined, [Hammer]}
   @moduledoc """
   Secure webhook controller for AWS SNS email events.
 

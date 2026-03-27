@@ -3,3 +3,11 @@
 /.elixir_ls/
 *.ez
 erl_crash.dump
+/doc/
+/cover/
+/tmp/
+.fetch
+/priv/plts/
+.mcp.json
+CLAUDE.md
+.claude/
