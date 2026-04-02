@@ -28,7 +28,7 @@ Add `phoenix_kit_emails` to your dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:phoenix_kit_emails, "~> 0.1.2"}
+    {:phoenix_kit_emails, "~> 0.1"}
   ]
 end
 ```
