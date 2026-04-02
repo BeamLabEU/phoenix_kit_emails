@@ -81,43 +81,45 @@
             <label class="label">
               <span class="label-text">{gettext("Status")}</span>
             </label>
-            <select name="filter[status]" class="select select-bordered">
-              <option value="">{gettext("All Statuses")}</option>
-              <option value="queued" selected={@filters.status == "queued"}>
-                {gettext("Queued")}
-              </option>
-              <option value="sent" selected={@filters.status == "sent"}>{gettext("Sent")}</option>
-              <option value="delivered" selected={@filters.status == "delivered"}>
-                {gettext("Delivered")}
-              </option>
-              <option value="opened" selected={@filters.status == "opened"}>
-                {gettext("Opened")}
-              </option>
-              <option value="clicked" selected={@filters.status == "clicked"}>
-                {gettext("Clicked")}
-              </option>
-              <option value="bounced" selected={@filters.status == "bounced"}>
-                {gettext("Bounced")}
-              </option>
-              <option value="hard_bounced" selected={@filters.status == "hard_bounced"}>
-                {gettext("Hard Bounced")}
-              </option>
-              <option value="soft_bounced" selected={@filters.status == "soft_bounced"}>
-                {gettext("Soft Bounced")}
-              </option>
-              <option value="rejected" selected={@filters.status == "rejected"}>
-                {gettext("Rejected")}
-              </option>
-              <option value="delayed" selected={@filters.status == "delayed"}>
-                {gettext("Delayed")}
-              </option>
-              <option value="complaint" selected={@filters.status == "complaint"}>
-                {gettext("Complaint")}
-              </option>
-              <option value="failed" selected={@filters.status == "failed"}>
-                {gettext("Failed")}
-              </option>
-            </select>
+            <label class="select">
+              <select name="filter[status]">
+                <option value="">{gettext("All Statuses")}</option>
+                <option value="queued" selected={@filters.status == "queued"}>
+                  {gettext("Queued")}
+                </option>
+                <option value="sent" selected={@filters.status == "sent"}>{gettext("Sent")}</option>
+                <option value="delivered" selected={@filters.status == "delivered"}>
+                  {gettext("Delivered")}
+                </option>
+                <option value="opened" selected={@filters.status == "opened"}>
+                  {gettext("Opened")}
+                </option>
+                <option value="clicked" selected={@filters.status == "clicked"}>
+                  {gettext("Clicked")}
+                </option>
+                <option value="bounced" selected={@filters.status == "bounced"}>
+                  {gettext("Bounced")}
+                </option>
+                <option value="hard_bounced" selected={@filters.status == "hard_bounced"}>
+                  {gettext("Hard Bounced")}
+                </option>
+                <option value="soft_bounced" selected={@filters.status == "soft_bounced"}>
+                  {gettext("Soft Bounced")}
+                </option>
+                <option value="rejected" selected={@filters.status == "rejected"}>
+                  {gettext("Rejected")}
+                </option>
+                <option value="delayed" selected={@filters.status == "delayed"}>
+                  {gettext("Delayed")}
+                </option>
+                <option value="complaint" selected={@filters.status == "complaint"}>
+                  {gettext("Complaint")}
+                </option>
+                <option value="failed" selected={@filters.status == "failed"}>
+                  {gettext("Failed")}
+                </option>
+              </select>
+            </label>
           </div>
 
           <%!-- Category Filter --%>
@@ -125,24 +127,26 @@
             <label class="label">
               <span class="label-text">{gettext("Category")}</span>
             </label>
-            <select name="filter[category]" class="select select-bordered">
-              <option value="">{gettext("All Categories")}</option>
-              <option value="system" selected={@filters.category == "system"}>
-                {gettext("System")}
-              </option>
-              <option value="transactional" selected={@filters.category == "transactional"}>
-                {gettext("Transactional")}
-              </option>
-              <option value="marketing" selected={@filters.category == "marketing"}>
-                {gettext("Marketing")}
-              </option>
-              <option value="notification" selected={@filters.category == "notification"}>
-                {gettext("Notification")}
-              </option>
-              <option value="newsletters" selected={@filters.category == "newsletters"}>
-                {gettext("Newsletters")}
-              </option>
-            </select>
+            <label class="select">
+              <select name="filter[category]">
+                <option value="">{gettext("All Categories")}</option>
+                <option value="system" selected={@filters.category == "system"}>
+                  {gettext("System")}
+                </option>
+                <option value="transactional" selected={@filters.category == "transactional"}>
+                  {gettext("Transactional")}
+                </option>
+                <option value="marketing" selected={@filters.category == "marketing"}>
+                  {gettext("Marketing")}
+                </option>
+                <option value="notification" selected={@filters.category == "notification"}>
+                  {gettext("Notification")}
+                </option>
+                <option value="newsletters" selected={@filters.category == "newsletters"}>
+                  {gettext("Newsletters")}
+                </option>
+              </select>
+            </label>
           </div>
 
           <%!-- Source Module Filter --%>
@@ -150,27 +154,29 @@
             <label class="label">
               <span class="label-text">{gettext("Source Module")}</span>
             </label>
-            <select name="filter[source_module]" class="select select-bordered">
-              <option value="">{gettext("All Modules")}</option>
-              <option value="users" selected={@filters.source_module == "users"}>
-                {gettext("Users")}
-              </option>
-              <option value="billing" selected={@filters.source_module == "billing"}>
-                {gettext("Billing")}
-              </option>
-              <option value="publishing" selected={@filters.source_module == "publishing"}>
-                {gettext("Publishing")}
-              </option>
-              <option value="entities" selected={@filters.source_module == "entities"}>
-                {gettext("Entities")}
-              </option>
-              <option value="admin" selected={@filters.source_module == "admin"}>
-                {gettext("Admin")}
-              </option>
-              <option value="custom" selected={@filters.source_module == "custom"}>
-                {gettext("Custom")}
-              </option>
-            </select>
+            <label class="select">
+              <select name="filter[source_module]">
+                <option value="">{gettext("All Modules")}</option>
+                <option value="users" selected={@filters.source_module == "users"}>
+                  {gettext("Users")}
+                </option>
+                <option value="billing" selected={@filters.source_module == "billing"}>
+                  {gettext("Billing")}
+                </option>
+                <option value="publishing" selected={@filters.source_module == "publishing"}>
+                  {gettext("Publishing")}
+                </option>
+                <option value="entities" selected={@filters.source_module == "entities"}>
+                  {gettext("Entities")}
+                </option>
+                <option value="admin" selected={@filters.source_module == "admin"}>
+                  {gettext("Admin")}
+                </option>
+                <option value="custom" selected={@filters.source_module == "custom"}>
+                  {gettext("Custom")}
+                </option>
+              </select>
+            </label>
           </div>
         </div>
 

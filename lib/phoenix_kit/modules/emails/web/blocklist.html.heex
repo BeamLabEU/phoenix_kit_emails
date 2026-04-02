@@ -61,32 +61,34 @@
           />
 
           <%!-- Reason Filter --%>
-          <select
-            phx-change="filter_reason"
-            name="reason"
-            class="select select-bordered select-sm"
-          >
-            <option value="">{gettext("All Reasons")}</option>
-            <%= for {reason, _count} <- Map.to_list(@statistics[:by_reason] || %{}) do %>
-              <option value={reason} selected={@reason_filter == reason}>
-                {String.capitalize(String.replace(reason, "_", " "))}
-              </option>
-            <% end %>
-          </select>
+          <label class="select select-sm">
+            <select
+              phx-change="filter_reason"
+              name="reason"
+            >
+              <option value="">{gettext("All Reasons")}</option>
+              <%= for {reason, _count} <- Map.to_list(@statistics[:by_reason] || %{}) do %>
+                <option value={reason} selected={@reason_filter == reason}>
+                  {String.capitalize(String.replace(reason, "_", " "))}
+                </option>
+              <% end %>
+            </select>
+          </label>
 
           <%!-- Status Filter --%>
-          <select
-            phx-change="filter_status"
-            name="status"
-            class="select select-bordered select-sm"
-          >
-            <option value="all" selected={@status_filter == "all"}>
-              {gettext("Active Only")}
-            </option>
-            <option value="expired" selected={@status_filter == "expired"}>
-              {gettext("Include Expired")}
-            </option>
-          </select>
+          <label class="select select-sm">
+            <select
+              phx-change="filter_status"
+              name="status"
+            >
+              <option value="all" selected={@status_filter == "all"}>
+                {gettext("Active Only")}
+              </option>
+              <option value="expired" selected={@status_filter == "expired"}>
+                {gettext("Include Expired")}
+              </option>
+            </select>
+          </label>
         </div>
 
         <%!-- Action Buttons --%>
@@ -140,13 +142,15 @@
               <label class="label">
                 <span class="label-text">{gettext("Reason")}</span>
               </label>
-              <select name="reason" class="select select-bordered" required>
-                <option value="manual_block">{gettext("Manual Block")}</option>
-                <option value="spam">{gettext("Spam")}</option>
-                <option value="bounce_limit">{gettext("Bounce Limit Exceeded")}</option>
-                <option value="complaint">{gettext("Complaint")}</option>
-                <option value="abuse">{gettext("Abuse")}</option>
-              </select>
+              <label class="select">
+                <select name="reason" required>
+                  <option value="manual_block">{gettext("Manual Block")}</option>
+                  <option value="spam">{gettext("Spam")}</option>
+                  <option value="bounce_limit">{gettext("Bounce Limit Exceeded")}</option>
+                  <option value="complaint">{gettext("Complaint")}</option>
+                  <option value="abuse">{gettext("Abuse")}</option>
+                </select>
+              </label>
             </div>
 
             <div class="form-control">

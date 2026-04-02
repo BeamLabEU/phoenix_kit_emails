@@ -95,21 +95,23 @@
             <label class="label">
               <span class="label-text">{gettext("Category")}</span>
             </label>
-            <select name="filter[category]" class="select select-bordered">
-              <option value="">{gettext("All Categories")}</option>
-              <option value="system" selected={@filters.category == "system"}>
-                {gettext("System")}
-              </option>
-              <option value="transactional" selected={@filters.category == "transactional"}>
-                {gettext("Transactional")}
-              </option>
-              <option value="marketing" selected={@filters.category == "marketing"}>
-                {gettext("Marketing")}
-              </option>
-              <option value="newsletters" selected={@filters.category == "newsletters"}>
-                {gettext("Newsletters")}
-              </option>
-            </select>
+            <label class="select">
+              <select name="filter[category]">
+                <option value="">{gettext("All Categories")}</option>
+                <option value="system" selected={@filters.category == "system"}>
+                  {gettext("System")}
+                </option>
+                <option value="transactional" selected={@filters.category == "transactional"}>
+                  {gettext("Transactional")}
+                </option>
+                <option value="marketing" selected={@filters.category == "marketing"}>
+                  {gettext("Marketing")}
+                </option>
+                <option value="newsletters" selected={@filters.category == "newsletters"}>
+                  {gettext("Newsletters")}
+                </option>
+              </select>
+            </label>
           </div>
 
           <%!-- Status Filter --%>
@@ -117,18 +119,20 @@
             <label class="label">
               <span class="label-text">{gettext("Status")}</span>
             </label>
-            <select name="filter[status]" class="select select-bordered">
-              <option value="">{gettext("All Statuses")}</option>
-              <option value="active" selected={@filters.status == "active"}>
-                {gettext("Active")}
-              </option>
-              <option value="draft" selected={@filters.status == "draft"}>
-                {gettext("Draft")}
-              </option>
-              <option value="archived" selected={@filters.status == "archived"}>
-                {gettext("Archived")}
-              </option>
-            </select>
+            <label class="select">
+              <select name="filter[status]">
+                <option value="">{gettext("All Statuses")}</option>
+                <option value="active" selected={@filters.status == "active"}>
+                  {gettext("Active")}
+                </option>
+                <option value="draft" selected={@filters.status == "draft"}>
+                  {gettext("Draft")}
+                </option>
+                <option value="archived" selected={@filters.status == "archived"}>
+                  {gettext("Archived")}
+                </option>
+              </select>
+            </label>
           </div>
 
           <%!-- System/Custom Filter --%>
@@ -136,15 +140,17 @@
             <label class="label">
               <span class="label-text">{gettext("Type")}</span>
             </label>
-            <select name="filter[is_system]" class="select select-bordered">
-              <option value="">{gettext("All Types")}</option>
-              <option value="true" selected={@filters.is_system == "true"}>
-                {gettext("System")}
-              </option>
-              <option value="false" selected={@filters.is_system == "false"}>
-                {gettext("Custom")}
-              </option>
-            </select>
+            <label class="select">
+              <select name="filter[is_system]">
+                <option value="">{gettext("All Types")}</option>
+                <option value="true" selected={@filters.is_system == "true"}>
+                  {gettext("System")}
+                </option>
+                <option value="false" selected={@filters.is_system == "false"}>
+                  {gettext("Custom")}
+                </option>
+              </select>
+            </label>
           </div>
         </div>
       </.form>

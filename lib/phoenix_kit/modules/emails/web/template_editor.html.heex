@@ -114,44 +114,45 @@
                   <label class="label">
                     <span class="label-text">{gettext("Category")}</span>
                   </label>
-                  <select
-                    name="email_template[category]"
-                    class="select select-bordered"
-                    disabled={(@mode == :edit and @template) && @template.is_system}
-                  >
-                    <option
-                      value="transactional"
-                      selected={
-                        Ecto.Changeset.get_field(@changeset, :category) == "transactional"
-                      }
+                  <label class="select">
+                    <select
+                      name="email_template[category]"
+                      disabled={(@mode == :edit and @template) && @template.is_system}
                     >
-                      {gettext("Transactional")}
-                    </option>
-                    <option
-                      value="marketing"
-                      selected={Ecto.Changeset.get_field(@changeset, :category) == "marketing"}
-                    >
-                      {gettext("Marketing")}
-                    </option>
-                    <option
-                      value="system"
-                      selected={Ecto.Changeset.get_field(@changeset, :category) == "system"}
-                    >
-                      {gettext("System")}
-                    </option>
-                    <option
-                      value="notification"
-                      selected={Ecto.Changeset.get_field(@changeset, :category) == "notification"}
-                    >
-                      {gettext("Notification")}
-                    </option>
-                    <option
-                      value="newsletters"
-                      selected={Ecto.Changeset.get_field(@changeset, :category) == "newsletters"}
-                    >
-                      {gettext("Newsletters")}
-                    </option>
-                  </select>
+                      <option
+                        value="transactional"
+                        selected={
+                          Ecto.Changeset.get_field(@changeset, :category) == "transactional"
+                        }
+                      >
+                        {gettext("Transactional")}
+                      </option>
+                      <option
+                        value="marketing"
+                        selected={Ecto.Changeset.get_field(@changeset, :category) == "marketing"}
+                      >
+                        {gettext("Marketing")}
+                      </option>
+                      <option
+                        value="system"
+                        selected={Ecto.Changeset.get_field(@changeset, :category) == "system"}
+                      >
+                        {gettext("System")}
+                      </option>
+                      <option
+                        value="notification"
+                        selected={Ecto.Changeset.get_field(@changeset, :category) == "notification"}
+                      >
+                        {gettext("Notification")}
+                      </option>
+                      <option
+                        value="newsletters"
+                        selected={Ecto.Changeset.get_field(@changeset, :category) == "newsletters"}
+                      >
+                        {gettext("Newsletters")}
+                      </option>
+                    </select>
+                  </label>
                   <% err = @changeset.action && Keyword.get(@changeset.errors, :category) %>
                   <%= if err do %>
                     <div class="text-sm text-error mt-1">{elem(err, 0)}</div>
@@ -164,29 +165,30 @@
                   </label>
                   <% current_metadata = Ecto.Changeset.get_field(@changeset, :metadata) || %{} %>
                   <% current_source_module = Map.get(current_metadata, "source_module", "custom") %>
-                  <select
-                    name="email_template[metadata][source_module]"
-                    class="select select-bordered"
-                  >
-                    <option value="users" selected={current_source_module == "users"}>
-                      {gettext("Users")}
-                    </option>
-                    <option value="billing" selected={current_source_module == "billing"}>
-                      {gettext("Billing")}
-                    </option>
-                    <option value="publishing" selected={current_source_module == "publishing"}>
-                      {gettext("Publishing")}
-                    </option>
-                    <option value="entities" selected={current_source_module == "entities"}>
-                      {gettext("Entities")}
-                    </option>
-                    <option value="admin" selected={current_source_module == "admin"}>
-                      {gettext("Admin")}
-                    </option>
-                    <option value="custom" selected={current_source_module == "custom"}>
-                      {gettext("Custom")}
-                    </option>
-                  </select>
+                  <label class="select">
+                    <select
+                      name="email_template[metadata][source_module]"
+                    >
+                      <option value="users" selected={current_source_module == "users"}>
+                        {gettext("Users")}
+                      </option>
+                      <option value="billing" selected={current_source_module == "billing"}>
+                        {gettext("Billing")}
+                      </option>
+                      <option value="publishing" selected={current_source_module == "publishing"}>
+                        {gettext("Publishing")}
+                      </option>
+                      <option value="entities" selected={current_source_module == "entities"}>
+                        {gettext("Entities")}
+                      </option>
+                      <option value="admin" selected={current_source_module == "admin"}>
+                        {gettext("Admin")}
+                      </option>
+                      <option value="custom" selected={current_source_module == "custom"}>
+                        {gettext("Custom")}
+                      </option>
+                    </select>
+                  </label>
                   <label class="label">
                     <span class="label-text-alt">{gettext("Module that sends this email")}</span>
                   </label>
@@ -196,29 +198,30 @@
                   <label class="label">
                     <span class="label-text">{gettext("Status")}</span>
                   </label>
-                  <select
-                    name="email_template[status]"
-                    class="select select-bordered"
-                  >
-                    <option
-                      value="draft"
-                      selected={Ecto.Changeset.get_field(@changeset, :status) == "draft"}
+                  <label class="select">
+                    <select
+                      name="email_template[status]"
                     >
-                      {gettext("Draft")}
-                    </option>
-                    <option
-                      value="active"
-                      selected={Ecto.Changeset.get_field(@changeset, :status) == "active"}
-                    >
-                      {gettext("Active")}
-                    </option>
-                    <option
-                      value="archived"
-                      selected={Ecto.Changeset.get_field(@changeset, :status) == "archived"}
-                    >
-                      {gettext("Archived")}
-                    </option>
-                  </select>
+                      <option
+                        value="draft"
+                        selected={Ecto.Changeset.get_field(@changeset, :status) == "draft"}
+                      >
+                        {gettext("Draft")}
+                      </option>
+                      <option
+                        value="active"
+                        selected={Ecto.Changeset.get_field(@changeset, :status) == "active"}
+                      >
+                        {gettext("Active")}
+                      </option>
+                      <option
+                        value="archived"
+                        selected={Ecto.Changeset.get_field(@changeset, :status) == "archived"}
+                      >
+                        {gettext("Archived")}
+                      </option>
+                    </select>
+                  </label>
                   <% err = @changeset.action && Keyword.get(@changeset.errors, :status) %>
                   <%= if err do %>
                     <div class="text-sm text-error mt-1">{elem(err, 0)}</div>
