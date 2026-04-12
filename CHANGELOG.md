@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.3 - 2026-04-12
+
+### Fixed
+- Add routing anti-pattern warning to AGENTS.md
+
+
 All notable changes to this project will be documented in this file.
 
 This project adheres to [Semantic Versioning](https://semver.org/).
