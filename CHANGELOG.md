@@ -8,6 +8,9 @@
 ### Fixed
 - Suppress `EmailInterceptor` Logger warnings when the configured Swoosh adapter is not AWS SES.
 
+### Changed
+- Refresh dependency lockfile to latest compatible versions (notable bumps: `bandit`, `db_connection`, `decimal`, `ecto`, `ex_doc`).
+
 ## 0.1.3 - 2026-04-12
 
 ### Fixed
