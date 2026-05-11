@@ -43,3 +43,238 @@ msgstr ""
 #: lib/phoenix_kit/modules/emails/emails.ex
 msgid "Blocklist"
 msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:4
+#, elixir-autogen, elixir-format
+msgid "Email Tracking Settings"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:5
+#, elixir-autogen, elixir-format
+msgid "Configure email tracking system behavior and data retention"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:15
+#, elixir-autogen, elixir-format
+msgid "Tracking Options"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:22
+#, elixir-autogen, elixir-format
+msgid "Save Email Bodies"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:24
+#, elixir-autogen, elixir-format
+msgid "Store the full content of sent emails for debugging and analysis"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:42
+#, elixir-autogen, elixir-format
+msgid "AWS SES Events Tracking"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:44
+#, elixir-autogen, elixir-format
+msgid "Track delivery, bounce, and complaint events from Amazon SES"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:62
+#, elixir-autogen, elixir-format
+msgid "Data Retention"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:67
+#, elixir-autogen, elixir-format
+msgid "Email Retention Period"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:70
+#, elixir-autogen, elixir-format
+msgid "Enter retention days"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:78
+#, elixir-autogen, elixir-format
+msgid "days"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:82
+#, elixir-autogen, elixir-format
+msgid "How long to keep email tracking data before automatic cleanup (1-365 days)"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:90
+#, elixir-autogen, elixir-format
+msgid "Data Privacy Notice"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:93
+#, elixir-autogen, elixir-format
+msgid "Email tracking data will be automatically deleted after the retention period expires. This helps maintain privacy compliance and reduces storage requirements."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:104
+#, elixir-autogen, elixir-format
+msgid "Current Configuration"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:106
+#, elixir-autogen, elixir-format
+msgid "System:"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:106
+#, elixir-autogen, elixir-format
+msgid "Enabled"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:108
+#, elixir-autogen, elixir-format
+msgid "Save email bodies:"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:110
+#, elixir-autogen, elixir-format
+msgid "Yes"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:110
+#, elixir-autogen, elixir-format
+msgid "No"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:115
+#, elixir-autogen, elixir-format
+msgid "AWS SES events:"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:120
+#, elixir-autogen, elixir-format
+msgid "Retention period:"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:131
+#, elixir-autogen, elixir-format
+msgid "Email Tracking Disabled"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:133
+#, elixir-autogen, elixir-format
+msgid "Enable the email tracking system above to access configuration options and start tracking email delivery events."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:142
+#, elixir-autogen, elixir-format
+msgid "Email Tracking Benefits"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:149
+#, elixir-autogen, elixir-format
+msgid "Delivery Monitoring"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:151
+#, elixir-autogen, elixir-format
+msgid "Track successful email deliveries and identify issues"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:158
+#, elixir-autogen, elixir-format
+msgid "Engagement Analytics"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:160
+#, elixir-autogen, elixir-format
+msgid "Monitor email opens, clicks, and user engagement"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:167
+#, elixir-autogen, elixir-format
+msgid "Debugging Support"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:169
+#, elixir-autogen, elixir-format
+msgid "Store email content for troubleshooting delivery issues"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:176
+#, elixir-autogen, elixir-format
+msgid "AWS SES Integration"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:178
+#, elixir-autogen, elixir-format
+msgid "Automatic webhook handling for bounce and complaint events"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:382
+#, elixir-autogen, elixir-format
+msgid "1. Create IAM User"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:394
+#, elixir-autogen, elixir-format
+msgid "Create new user with programmatic access"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:399
+#, elixir-autogen, elixir-format
+msgid "Save Access Key ID and Secret Access Key"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:405
+#, elixir-autogen, elixir-format
+msgid "2. Configure Credentials"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:410
+#, elixir-autogen, elixir-format
+msgid "Enter Secret Access Key"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:411
+#, elixir-autogen, elixir-format
+msgid "Enter AWS Region manually (e.g., eu-north-1)"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:423
+#, elixir-autogen, elixir-format
+msgid "3. Setup Infrastructure"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:430
+#, elixir-autogen, elixir-format
+msgid "Wait for setup completion (typically 30-60 seconds)"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:432
+#, elixir-autogen, elixir-format
+msgid "All created resources will be automatically filled in the form below"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:445
+#, elixir-autogen, elixir-format
+msgid "4. Verify Email/Domain in SES"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:458
+#, elixir-autogen, elixir-format
+msgid "Verify your sender email address or domain"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:459
+#, elixir-autogen, elixir-format
+msgid "Request production access (if needed to exit sandbox mode)"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:471
+#, elixir-autogen, elixir-format
+msgid "Required IAM Permissions:"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:490
+#, elixir-autogen, elixir-format
+msgid "Need more help?"
+msgstr ""

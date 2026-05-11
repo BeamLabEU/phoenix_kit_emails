@@ -1,8 +1,8 @@
 <div class="container flex flex-col mx-auto px-4 py-6">
     <.admin_page_header
       back={PhoenixKit.Utils.Routes.path("/admin/settings")}
-      title="Email Tracking Settings"
-      subtitle="Configure email tracking system behavior and data retention"
+      title={gettext("Email Tracking Settings")}
+      subtitle={gettext("Configure email tracking system behavior and data retention")}
     />
 
     <%!-- Main Content --%>
@@ -12,16 +12,16 @@
         <div class="card bg-base-100 shadow-xl">
           <div class="card-body">
             <h2 class="card-title text-2xl mb-4">
-              <.icon name="hero-adjustments-horizontal" class="w-6 h-6" /> Tracking Options
+              <.icon name="hero-adjustments-horizontal" class="w-6 h-6" /> {gettext("Tracking Options")}
             </h2>
 
             <%!-- Save Email Bodies --%>
             <div class="form-control mb-4">
               <label class="label cursor-pointer">
                 <span class="label-text text-lg">
-                  <span class="font-semibold">Save Email Bodies</span>
+                  <span class="font-semibold">{gettext("Save Email Bodies")}</span>
                   <div class="text-sm text-base-content/70 mt-1">
-                    Store the full content of sent emails for debugging and analysis
+                    {gettext("Store the full content of sent emails for debugging and analysis")}
                   </div>
                 </span>
                 <input
@@ -39,9 +39,9 @@
             <div class="form-control">
               <label class="label cursor-pointer">
                 <span class="label-text text-lg">
-                  <span class="font-semibold">AWS SES Events Tracking</span>
+                  <span class="font-semibold">{gettext("AWS SES Events Tracking")}</span>
                   <div class="text-sm text-base-content/70 mt-1">
-                    Track delivery, bounce, and complaint events from Amazon SES
+                    {gettext("Track delivery, bounce, and complaint events from Amazon SES")}
                   </div>
                 </span>
                 <input
@@ -59,17 +59,17 @@
         <div class="card bg-base-100 shadow-xl">
           <div class="card-body">
             <h2 class="card-title text-2xl mb-4">
-              <.icon name="hero-archive-box" class="w-6 h-6" /> Data Retention
+              <.icon name="hero-archive-box" class="w-6 h-6" /> {gettext("Data Retention")}
             </h2>
 
             <div class="form-control">
               <label class="label">
-                <span class="label-text text-lg font-semibold">Email Retention Period</span>
+                <span class="label-text text-lg font-semibold">{gettext("Email Retention Period")}</span>
               </label>
               <div class="input-group">
                 <input
                   type="number"
-                  placeholder="Enter retention days"
+                  placeholder={gettext("Enter retention days")}
                   class="input input-bordered w-full max-w-xs"
                   value={@email_tracking_retention_days}
                   min="1"
@@ -77,11 +77,11 @@
                   phx-blur="update_email_tracking_retention"
                   phx-value-retention_days={assigns[:email_tracking_retention_days]}
                 />
-                <span class="bg-base-200 px-4 py-3 text-sm">days</span>
+                <span class="bg-base-200 px-4 py-3 text-sm">{gettext("days")}</span>
               </div>
               <label class="label">
                 <span class="label-text-alt text-base-content/70">
-                  How long to keep email tracking data before automatic cleanup (1-365 days)
+                  {gettext("How long to keep email tracking data before automatic cleanup (1-365 days)")}
                 </span>
               </label>
             </div>
@@ -89,10 +89,9 @@
             <div class="alert alert-warning mt-4">
               <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
               <div>
-                <h3 class="font-bold">Data Privacy Notice</h3>
+                <h3 class="font-bold">{gettext("Data Privacy Notice")}</h3>
                 <p class="text-sm mt-1">
-                  Email tracking data will be automatically deleted after the retention period expires.
-                  This helps maintain privacy compliance and reduces storage requirements.
+                  {gettext("Email tracking data will be automatically deleted after the retention period expires. This helps maintain privacy compliance and reduces storage requirements.")}
                 </p>
               </div>
             </div>
@@ -103,24 +102,24 @@
         <div class="alert alert-info">
           <.icon name="hero-information-circle" class="w-5 h-5" />
           <div>
-            <h3 class="font-bold">Current Configuration</h3>
+            <h3 class="font-bold">{gettext("Current Configuration")}</h3>
             <div class="text-sm mt-1">
-              <p>System: <span class="font-semibold">Enabled</span></p>
+              <p>{gettext("System:")} <span class="font-semibold">{gettext("Enabled")}</span></p>
               <p>
-                Save email bodies:
+                {gettext("Save email bodies:")}
                 <span class="font-semibold">
-                  {if @email_tracking_save_body, do: "Yes", else: "No"}
+                  {if @email_tracking_save_body, do: gettext("Yes"), else: gettext("No")}
                 </span>
               </p>
               <p>
-                AWS SES events:
+                {gettext("AWS SES events:")}
                 <span class="font-semibold">
-                  {if @email_tracking_ses_events, do: "Yes", else: "No"}
+                  {if @email_tracking_ses_events, do: gettext("Yes"), else: gettext("No")}
                 </span>
               </p>
               <p>
-                Retention period:
-                <span class="font-semibold">{@email_tracking_retention_days} days</span>
+                {gettext("Retention period:")}
+                <span class="font-semibold">{@email_tracking_retention_days} {gettext("days")}</span>
               </p>
             </div>
           </div>
@@ -130,9 +129,9 @@
         <div class="alert alert-warning">
           <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
           <div>
-            <h3 class="font-bold">Email Tracking Disabled</h3>
+            <h3 class="font-bold">{gettext("Email Tracking Disabled")}</h3>
             <p class="text-sm mt-1">
-              Enable the email tracking system above to access configuration options and start tracking email delivery events.
+              {gettext("Enable the email tracking system above to access configuration options and start tracking email delivery events.")}
             </p>
           </div>
         </div>
@@ -141,16 +140,16 @@
         <div class="card bg-base-100 shadow-xl">
           <div class="card-body">
             <h2 class="card-title text-2xl mb-4">
-              <.icon name="hero-light-bulb" class="w-6 h-6" /> Email Tracking Benefits
+              <.icon name="hero-light-bulb" class="w-6 h-6" /> {gettext("Email Tracking Benefits")}
             </h2>
 
             <div class="space-y-3">
               <div class="flex items-start gap-3">
                 <.icon name="hero-check-circle" class="w-5 h-5 text-success mt-0.5" />
                 <div>
-                  <h3 class="font-semibold">Delivery Monitoring</h3>
+                  <h3 class="font-semibold">{gettext("Delivery Monitoring")}</h3>
                   <p class="text-sm text-base-content/70">
-                    Track successful email deliveries and identify issues
+                    {gettext("Track successful email deliveries and identify issues")}
                   </p>
                 </div>
               </div>
@@ -158,9 +157,9 @@
               <div class="flex items-start gap-3">
                 <.icon name="hero-check-circle" class="w-5 h-5 text-success mt-0.5" />
                 <div>
-                  <h3 class="font-semibold">Engagement Analytics</h3>
+                  <h3 class="font-semibold">{gettext("Engagement Analytics")}</h3>
                   <p class="text-sm text-base-content/70">
-                    Monitor email opens, clicks, and user engagement
+                    {gettext("Monitor email opens, clicks, and user engagement")}
                   </p>
                 </div>
               </div>
@@ -168,9 +167,9 @@
               <div class="flex items-start gap-3">
                 <.icon name="hero-check-circle" class="w-5 h-5 text-success mt-0.5" />
                 <div>
-                  <h3 class="font-semibold">Debugging Support</h3>
+                  <h3 class="font-semibold">{gettext("Debugging Support")}</h3>
                   <p class="text-sm text-base-content/70">
-                    Store email content for troubleshooting delivery issues
+                    {gettext("Store email content for troubleshooting delivery issues")}
                   </p>
                 </div>
               </div>
@@ -178,9 +177,9 @@
               <div class="flex items-start gap-3">
                 <.icon name="hero-check-circle" class="w-5 h-5 text-success mt-0.5" />
                 <div>
-                  <h3 class="font-semibold">AWS SES Integration</h3>
+                  <h3 class="font-semibold">{gettext("AWS SES Integration")}</h3>
                   <p class="text-sm text-base-content/70">
-                    Automatic webhook handling for bounce and complaint events
+                    {gettext("Automatic webhook handling for bounce and complaint events")}
                   </p>
                 </div>
               </div>
