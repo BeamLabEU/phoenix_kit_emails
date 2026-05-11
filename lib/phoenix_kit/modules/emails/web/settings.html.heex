@@ -6,7 +6,7 @@
     />
 
     <%!-- Main Content --%>
-    <div class="max-w-4xl mx-auto space-y-8">
+    <div class="space-y-8">
       <%= if @email_enabled do %>
         <%!-- Sender Configuration Card --%>
         <div class="card bg-base-100 shadow-xl">
@@ -379,7 +379,7 @@
               <div class="collapse-content text-sm space-y-4">
                 <%!-- Step 1: Create IAM User --%>
                 <div class="bg-base-100 border border-base-300 rounded-lg p-4">
-                  <h4 class="font-semibold mb-2 text-base-content">1. Create IAM User</h4>
+                  <h4 class="font-semibold mb-2 text-base-content">{gettext("1. Create IAM User")}</h4>
                   <ol class="list-decimal list-inside space-y-2 text-base-content/80">
                     <li>
                       Visit
@@ -391,24 +391,24 @@
                         AWS IAM Console
                       </a>
                     </li>
-                    <li>Create new user with programmatic access</li>
+                    <li>{gettext("Create new user with programmatic access")}</li>
                     <li>
                       Attach policies: <strong>SES</strong>, <strong>SQS</strong>, <strong>SNS</strong>,
                       <strong>STS:GetCallerIdentity</strong>
                     </li>
-                    <li>Save Access Key ID and Secret Access Key</li>
+                    <li>{gettext("Save Access Key ID and Secret Access Key")}</li>
                   </ol>
                 </div>
 
                 <%!-- Step 2: Configure Credentials --%>
                 <div class="bg-base-100 border border-base-300 rounded-lg p-4">
-                  <h4 class="font-semibold mb-2 text-base-content">2. Configure Credentials</h4>
+                  <h4 class="font-semibold mb-2 text-base-content">{gettext("2. Configure Credentials")}</h4>
                   <ol class="list-decimal list-inside space-y-2 text-base-content/80">
                     <li>
                       Enter Access Key ID (20 characters, e.g., <code>AKIAIOSFODNN7EXAMPLE</code>)
                     </li>
-                    <li>Enter Secret Access Key</li>
-                    <li>Enter AWS Region manually (e.g., eu-north-1)</li>
+                    <li>{gettext("Enter Secret Access Key")}</li>
+                    <li>{gettext("Enter AWS Region manually (e.g., eu-north-1)")}</li>
                     <li>Click <strong>"Verify Credentials"</strong> to test connectivity</li>
                     <li>
                       <em>Optional:</em>
@@ -421,16 +421,16 @@
                 <%!-- Step 3: Setup Infrastructure --%>
                 <div class="bg-base-100 border border-base-300 rounded-lg p-4">
                   <h4 class="font-semibold mb-2 text-base-content">
-                    3. Setup Infrastructure
+                    {gettext("3. Setup Infrastructure")}
                   </h4>
                   <ol class="list-decimal list-inside space-y-2 text-base-content/80">
                     <li>
                       Click <strong>"Setup AWS Infrastructure"</strong>
                       to create SNS/SQS resources
                     </li>
-                    <li>Wait for setup completion (typically 30-60 seconds)</li>
+                    <li>{gettext("Wait for setup completion (typically 30-60 seconds)")}</li>
                     <li>
-                      All created resources will be automatically filled in the form below
+                      {gettext("All created resources will be automatically filled in the form below")}
                     </li>
                     <li>
                       Click <strong>"Save AWS Settings"</strong>
@@ -442,7 +442,7 @@
                 <%!-- Step 4: Verify Email --%>
                 <div class="bg-base-100 border border-base-300 rounded-lg p-4">
                   <h4 class="font-semibold mb-2 text-base-content">
-                    4. Verify Email/Domain in SES
+                    {gettext("4. Verify Email/Domain in SES")}
                   </h4>
                   <ol class="list-decimal list-inside space-y-2 text-base-content/80">
                     <li>
@@ -455,8 +455,8 @@
                         AWS SES Console
                       </a>
                     </li>
-                    <li>Verify your sender email address or domain</li>
-                    <li>Request production access (if needed to exit sandbox mode)</li>
+                    <li>{gettext("Verify your sender email address or domain")}</li>
+                    <li>{gettext("Request production access (if needed to exit sandbox mode)")}</li>
                   </ol>
                 </div>
 
@@ -468,7 +468,7 @@
                       class="h-4 w-4 text-info shrink-0 mt-0.5"
                     />
                     <div class="text-base-content/80">
-                      <strong class="text-base-content">Required IAM Permissions:</strong>
+                      <strong class="text-base-content">{gettext("Required IAM Permissions:")}</strong>
                       <ul class="list-disc list-inside mt-1 space-y-1">
                         <li><code>sqs:*</code> - Simple Queue Service</li>
                         <li><code>sns:*</code> - Simple Notification Service</li>
@@ -487,7 +487,7 @@
                       class="h-4 w-4 text-success shrink-0 mt-0.5"
                     />
                     <div class="text-base-content/80">
-                      <strong class="text-base-content">Need more help?</strong>
+                      <strong class="text-base-content">{gettext("Need more help?")}</strong>
                       <p class="mt-1">
                         See <code>guides/aws_email_setup.md</code>
                         for comprehensive documentation including security best practices, cost optimization, and troubleshooting.
