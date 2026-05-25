@@ -308,7 +308,7 @@
                 <% end %>
                 <label class="label">
                   <span class="label-text-alt">
-                    Use {"{{variable}}"} syntax for dynamic content
+                    {gettext("Use")} {"{{variable}}"} {gettext("syntax for dynamic content")}
                   </span>
                 </label>
               </div>
@@ -416,10 +416,10 @@
                   <.icon name="hero-code-bracket" class="w-12 h-12 mx-auto mb-3 opacity-30" />
                   <div class="font-medium mb-2">{gettext("No variables found in template")}</div>
                   <div class="text-sm">
-                    Use {"{{variable_name}}"} syntax in subject or body to add dynamic variables.
+                    {gettext("Use")} {"{{variable_name}}"} {gettext("syntax in subject or body to add dynamic variables.")}
                   </div>
                   <div class="text-sm mt-1">
-                    Example: {"{{user_name}}"}, {"{{email}}"}, {"{{url}}"}
+                    {gettext("Example:")} {"{{user_name}}"}, {"{{email}}"}, {"{{url}}"}
                   </div>
                 </div>
               <% end %>
