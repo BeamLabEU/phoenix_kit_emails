@@ -42,7 +42,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Settings do
   alias PhoenixKit.AWS.InfrastructureSetup
   alias PhoenixKit.Config.AWS
   alias PhoenixKit.Modules.Emails
-  alias PhoenixKit.Modules.Emails.SQSPollingJob
+  alias PhoenixKit.Modules.Emails.SQSPollingManager
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Routes
 
@@ -234,34 +234,44 @@ defmodule PhoenixKit.Modules.Emails.Web.Settings do
   end
 
   def handle_event("toggle_sqs_polling", _params, socket) do
-    # Toggle SQS polling
+    # Toggle SQS polling.
+    #
+    # Route through SQSPollingManager so the poller starts/stops at RUNTIME with
+    # no app restart: enable_polling/0 persists the flag AND inserts the first
+    # Oban polling job (which self-schedules the next); disable_polling/0 clears
+    # the flag AND cancels scheduled jobs. Previously this handler only wrote the
+    # setting, so the worker would not start until the next boot.
     new_sqs_polling = !socket.assigns.sqs_polling_enabled
 
-    result = Emails.set_sqs_polling(new_sqs_polling)
+    result =
+      if new_sqs_polling do
+        SQSPollingManager.enable_polling()
+      else
+        SQSPollingManager.disable_polling()
+      end
 
-    case result do
-      {:ok, _setting} ->
-        # Cancel scheduled jobs when disabling
-        unless new_sqs_polling do
-          SQSPollingJob.cancel_scheduled()
-        end
+    success? =
+      case result do
+        :ok -> true
+        {:ok, _} -> true
+        _ -> false
+      end
 
-        socket =
-          socket
-          |> assign(:sqs_polling_enabled, new_sqs_polling)
-          |> put_flash(
-            :info,
-            if(new_sqs_polling,
-              do: gettext("SQS polling enabled"),
-              else: gettext("SQS polling disabled")
-            )
+    if success? do
+      socket =
+        socket
+        |> assign(:sqs_polling_enabled, new_sqs_polling)
+        |> put_flash(
+          :info,
+          if(new_sqs_polling,
+            do: gettext("SQS polling enabled"),
+            else: gettext("SQS polling disabled")
           )
+        )
 
-        {:noreply, socket}
-
-      {:error, _changeset} ->
-        socket = put_flash(socket, :error, gettext("Failed to update SQS polling setting"))
-        {:noreply, socket}
+      {:noreply, socket}
+    else
+      {:noreply, put_flash(socket, :error, gettext("Failed to update SQS polling setting"))}
     end
   end
 

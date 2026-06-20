@@ -75,6 +75,10 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingManager do
   def enable_polling do
     Logger.info("SQS Polling Manager: Enabling polling")
 
+    # Cancel any already-scheduled jobs first so enabling never spawns a second
+    # parallel polling chain (e.g. boot-time starter running alongside a UI toggle).
+    SQSPollingJob.cancel_scheduled()
+
     with {:ok, _setting} <- Emails.set_sqs_polling(true),
          {:ok, job} <- start_initial_job() do
       Logger.info("SQS Polling Manager: Polling enabled and first job started")

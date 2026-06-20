@@ -141,6 +141,15 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
       has_ses_headers?(email) ->
         "aws_ses"
 
+      # A configured SES configuration set means AWS SES is the provider, even
+      # when the host app uses its own Swoosh mailer (Option 1: config lives
+      # under the app's own otp_app, which detect_provider_from_config cannot
+      # read, so it would otherwise fall back to "unknown"). At log-creation
+      # time the X-SES-CONFIGURATION-SET header is not on the email yet, so
+      # has_ses_headers?/1 misses it — rely on the configured set instead.
+      not is_nil(get_configuration_set(opts)) ->
+        "aws_ses"
+
       has_smtp_headers?(email) ->
         "smtp"
 
