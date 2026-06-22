@@ -48,9 +48,6 @@ defmodule PhoenixKit.Modules.Emails.Web.Emails do
   @default_per_page 25
   @max_per_page 100
 
-  # Topic for live status updates, broadcast by PhoenixKit.Modules.Emails.Log.
-  @email_status_topic "phoenix_kit_emails:status"
-
   ## --- Lifecycle Callbacks ---
 
   @impl true
@@ -62,7 +59,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Emails do
       if connected?(socket) do
         case PhoenixKit.Config.pubsub_server() do
           nil -> :ok
-          server -> Phoenix.PubSub.subscribe(server, @email_status_topic)
+          server -> Phoenix.PubSub.subscribe(server, Emails.email_status_topic())
         end
       end
 
@@ -299,11 +296,12 @@ defmodule PhoenixKit.Modules.Emails.Web.Emails do
 
   @impl true
   def handle_info({:email_log_updated, %{uuid: uuid}}, socket) do
-    # Reload the current page (preserving filters/pagination, with proper
-    # preloads) only when the changed log is visible here, or we're on the
-    # first page where newly-sent emails appear.
-    if socket.assigns.page == 1 or Enum.any?(socket.assigns.logs, &(&1.uuid == uuid)) do
-      {:noreply, socket |> load_email_logs() |> load_stats()}
+    # Only refresh when the changed log is currently displayed. We reload the
+    # page (cheap, paginated, with the right preloads) but deliberately skip
+    # load_stats/0 — the 30-day aggregate doesn't need to recompute per event,
+    # and reloading on every system-wide event would be a query storm.
+    if Enum.any?(socket.assigns.logs, &(&1.uuid == uuid)) do
+      {:noreply, load_email_logs(socket)}
     else
       {:noreply, socket}
     end

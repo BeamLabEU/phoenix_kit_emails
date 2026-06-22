@@ -106,6 +106,15 @@ defmodule PhoenixKit.Modules.Emails do
 
   require Logger
 
+  @doc """
+  PubSub topic on which email log status changes are broadcast.
+
+  Subscribed to by admin LiveViews (e.g. the emails list) and broadcast from
+  `PhoenixKit.Modules.Emails.Log.update_log/2` whenever a log's status changes.
+  Single source of truth for both the broadcaster and the subscribers.
+  """
+  def email_status_topic, do: "phoenix_kit_emails:status"
+
   ## --- Manual Synchronization Functions ---
 
   # Check if message ID matches AWS SES format

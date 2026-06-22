@@ -50,12 +50,11 @@ This is a **library** (not a standalone Phoenix app) that provides email trackin
 
 AWS SES events flow through SQS:
 
-1. **SQSWorker** (GenServer) — long-polling SQS queue for delivery events
+1. **SQSPollingJob** (Oban worker) — the sole SQS poller; long-polls the queue and self-schedules
 2. **SQSProcessor** — parses and processes SQS messages into Event records
-3. **SQSPollingJob** (Oban worker) — alternative Oban-based polling
-4. **SQSPollingManager** — manages Oban polling lifecycle (enable/disable/status)
+3. **SQSPollingManager** — manages Oban polling lifecycle (enable/disable/status), wired to the admin UI toggle
 
-The `Supervisor` starts the SQS pipeline conditionally based on settings (`email_enabled`, `email_ses_events`, `sqs_polling_enabled`, and queue URL presence).
+The `Supervisor` kicks off Oban polling at boot conditionally based on settings (`email_enabled`, `email_ses_events`, `sqs_polling_enabled`, and queue URL presence); polling can also be toggled at runtime via `SQSPollingManager` without a restart.
 
 ### How It Works
 

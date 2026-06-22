@@ -189,7 +189,7 @@ defmodule PhoenixKit.Modules.Emails.Supervisor do
 
         case SQSPollingManager.enable_polling() do
           {:ok, job} ->
-            Logger.info("Email Supervisor: Initial SQS polling job started", %{job_id: job.id})
+            Logger.info("Email Supervisor: Initial SQS polling started", %{job: inspect(job)})
 
           {:error, reason} ->
             Logger.warning("Email Supervisor: Failed to start initial SQS polling job", %{
