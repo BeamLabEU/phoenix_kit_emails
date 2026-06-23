@@ -50,8 +50,8 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingManager do
 
   ## Integration
 
-  This manager works alongside the existing SQSWorker for backward compatibility.
-  The SQSWorker can delegate to this manager when needed.
+  This manager is the single control surface for SQS polling: it drives the
+  Oban `SQSPollingJob` and is wired to the admin UI toggle.
   """
 
   require Logger
@@ -74,6 +74,14 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingManager do
   """
   def enable_polling do
     Logger.info("SQS Polling Manager: Enabling polling")
+
+    # Clear any queued next-poll first, then start exactly one fresh job. This
+    # GUARANTEES a live polling chain on enable (critical for the off→on UI
+    # toggle), while Oban's `unique` constraint collapses a still-executing
+    # job's self-reschedule into this job, so we don't end up with two parallel
+    # chains. (A guard that skipped the insert when a job was already executing
+    # would leave no chain if that job finished its cycle while disabled.)
+    SQSPollingJob.cancel_scheduled()
 
     with {:ok, _setting} <- Emails.set_sqs_polling(true),
          {:ok, job} <- start_initial_job() do

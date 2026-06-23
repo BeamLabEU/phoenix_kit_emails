@@ -54,6 +54,15 @@ defmodule PhoenixKit.Modules.Emails.Web.Emails do
   def mount(_params, _session, socket) do
     # Check if email tracking is enabled
     if Emails.enabled?() do
+      # Subscribe to live status updates so the list reflects status changes
+      # (e.g. sent → delivered/bounced) without a manual page reload.
+      if connected?(socket) do
+        case PhoenixKit.Config.pubsub_server() do
+          nil -> :ok
+          server -> Phoenix.PubSub.subscribe(server, Emails.email_status_topic())
+        end
+      end
+
       # Get project title from settings
 
       # Load table columns configuration
@@ -286,6 +295,18 @@ defmodule PhoenixKit.Modules.Emails.Web.Emails do
   ## --- Info Handlers ---
 
   @impl true
+  def handle_info({:email_log_updated, %{uuid: uuid}}, socket) do
+    # Only refresh when the changed log is currently displayed. We reload the
+    # page (cheap, paginated, with the right preloads) but deliberately skip
+    # load_stats/0 — the 30-day aggregate doesn't need to recompute per event,
+    # and reloading on every system-wide event would be a query storm.
+    if Enum.any?(socket.assigns.logs, &(&1.uuid == uuid)) do
+      {:noreply, load_email_logs(socket)}
+    else
+      {:noreply, socket}
+    end
+  end
+
   def handle_info({:send_test_email, recipient}, socket) do
     provider =
       Application.get_env(:phoenix_kit, :email_provider, PhoenixKit.Modules.Emails.Provider)

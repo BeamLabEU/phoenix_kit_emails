@@ -505,9 +505,40 @@ defmodule PhoenixKit.Modules.Emails.Log do
       {:error, %Ecto.Changeset{}}
   """
   def update_log(%__MODULE__{} = email_log, attrs) do
-    email_log
-    |> changeset(attrs)
-    |> repo().update()
+    case email_log |> changeset(attrs) |> repo().update() do
+      {:ok, updated_log} = ok ->
+        maybe_broadcast_status_change(email_log, updated_log)
+        ok
+
+      error ->
+        error
+    end
+  end
+
+  # Broadcast a lightweight status-change event so admin LiveViews (the emails
+  # list) can refresh the affected row. update_log/2 is the chokepoint for ALL
+  # updates — including header-only backfills and no-op writes — so we only
+  # broadcast when the status actually changed, to avoid reload storms.
+  # Best-effort: a PubSub failure (raise or exit) must never break the DB write.
+  defp maybe_broadcast_status_change(%__MODULE__{status: status}, %__MODULE__{status: status}),
+    do: :ok
+
+  defp maybe_broadcast_status_change(_previous, %__MODULE__{} = log) do
+    case PhoenixKit.Config.pubsub_server() do
+      nil ->
+        :ok
+
+      server ->
+        Phoenix.PubSub.broadcast(
+          server,
+          PhoenixKit.Modules.Emails.email_status_topic(),
+          {:email_log_updated, %{uuid: log.uuid, status: log.status}}
+        )
+    end
+  rescue
+    _ -> :ok
+  catch
+    _, _ -> :ok
   end
 
   @doc """
