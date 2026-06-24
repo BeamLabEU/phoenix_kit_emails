@@ -856,13 +856,14 @@ defmodule PhoenixKit.Modules.Emails.Templates do
       {field, direction}
       when field in [:name, :usage_count, :last_used_at, :inserted_at] and
              direction in [:asc, :desc] ->
-        order_by(query, [t], [{^direction, field(t, ^field)}])
+        # Stable PK tiebreaker so equal primary-sort values page deterministically.
+        order_by(query, [t], [{^direction, field(t, ^field)}, desc: t.uuid])
 
       {field, _} when field in [:name, :usage_count, :last_used_at, :inserted_at] ->
-        order_by(query, [t], asc: field(t, ^field))
+        order_by(query, [t], asc: field(t, ^field), desc: t.uuid)
 
       _ ->
-        order_by(query, [t], desc: :inserted_at)
+        order_by(query, [t], desc: :inserted_at, desc: t.uuid)
     end
   end
 

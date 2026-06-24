@@ -383,13 +383,14 @@ defmodule PhoenixKit.Modules.Emails.RateLimiter do
     query =
       case {opts[:order_by], opts[:order_dir]} do
         {field, :desc} when field in [:email, :inserted_at, :expires_at, :reason] ->
-          order_by(query, [b], desc: field(b, ^field))
+          # Stable PK tiebreaker so equal primary-sort values page deterministically.
+          order_by(query, [b], desc: field(b, ^field), desc: b.uuid)
 
         {field, _} when field in [:email, :inserted_at, :expires_at, :reason] ->
-          order_by(query, [b], asc: field(b, ^field))
+          order_by(query, [b], asc: field(b, ^field), desc: b.uuid)
 
         _ ->
-          order_by(query, [b], desc: :inserted_at)
+          order_by(query, [b], desc: :inserted_at, desc: b.uuid)
       end
 
     # Apply pagination

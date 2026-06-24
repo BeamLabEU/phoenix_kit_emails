@@ -1114,7 +1114,9 @@ defmodule PhoenixKit.Modules.Emails.Log do
     order_by = Map.get(filters, :order_by, :sent_at)
     order_dir = Map.get(filters, :order_dir, :desc)
 
-    order_by(query, [log: l], [{^order_dir, field(l, ^order_by)}])
+    # Stable secondary sort on the PK so rows with equal primary-sort values
+    # (e.g. the same status) keep a deterministic order across pages.
+    order_by(query, [log: l], [{^order_dir, field(l, ^order_by)}, desc: l.uuid])
   end
 
   # Put a timestamp into the update map only when it isn't already set on the log,

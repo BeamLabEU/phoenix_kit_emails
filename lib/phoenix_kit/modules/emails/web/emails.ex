@@ -312,13 +312,9 @@ defmodule PhoenixKit.Modules.Emails.Web.Emails do
 
   @impl true
   def handle_event("update_table_columns", %{"column_order" => column_order}, socket) do
-    # Persist the order coming from the hidden input. "actions" is always kept
-    # (re-appended if it was excluded from the draggable list UI).
-    columns =
-      column_order
-      |> String.split(",", trim: true)
-      |> ensure_actions_column()
-
+    # Persist the order coming from the hidden input. save_and_close_column_modal
+    # drops any unknown ids and keeps "actions" last.
+    columns = String.split(column_order, ",", trim: true)
     {:noreply, save_and_close_column_modal(socket, columns)}
   end
 
@@ -326,7 +322,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Emails do
   def handle_event("update_table_columns", _params, socket) do
     # Fallback: submitted without an order (no reordering happened) — persist
     # whatever is currently in the working copy.
-    columns = ensure_actions_column(socket.assigns.temp_selected_columns || [])
+    columns = socket.assigns.temp_selected_columns || []
     {:noreply, save_and_close_column_modal(socket, columns)}
   end
 
@@ -344,9 +340,11 @@ defmodule PhoenixKit.Modules.Emails.Web.Emails do
   @impl true
   def handle_event("add_column", %{"column_id" => column_id}, socket) do
     temp = socket.assigns.temp_selected_columns || []
+    known = known_column_fields(socket.assigns.available_columns)
 
     temp =
-      if column_id in temp do
+      if column_id in temp or column_id not in known do
+        # Already present, or an unknown id from a crafted event — ignore.
         temp
       else
         # Insert before "actions" so it stays the last column.
@@ -568,8 +566,18 @@ defmodule PhoenixKit.Modules.Emails.Web.Emails do
       {:noreply, put_flash(socket, :error, gettext("Failed to update email status"))}
   end
 
-  # Persist the working column set, refresh the live selection, and close.
+  # Persist the working column set, refresh the live selection, and close. Drops
+  # any id not present in @available_columns — so a crafted client event can't
+  # persist an unknown column the table has no header for — and keeps "actions"
+  # last. This is the single chokepoint every persist path funnels through.
   defp save_and_close_column_modal(socket, columns) do
+    known = known_column_fields(socket.assigns.available_columns)
+
+    columns =
+      columns
+      |> Enum.filter(&(&1 in known))
+      |> ensure_actions_column()
+
     case TableColumns.update_user_table_columns(columns) do
       {:ok, _setting} ->
         socket
@@ -588,6 +596,12 @@ defmodule PhoenixKit.Modules.Emails.Web.Emails do
   # Ensure the always-present "actions" column sits at the end exactly once.
   defp ensure_actions_column(columns) do
     Enum.reject(columns, &(&1 == "actions")) ++ ["actions"]
+  end
+
+  # Field ids that actually exist in the available-columns metadata. Used to drop
+  # unknown ids a crafted client event might submit before they are persisted.
+  defp known_column_fields(available_columns) do
+    Enum.map(available_columns, & &1.field)
   end
 
   # Look up a column's display label from @available_columns by its field key,
