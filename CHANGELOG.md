@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.9 - 2026-07-07
+
+### Fixed
+- `Event.create_event/1` unconditionally inserted with `mode: :savepoint` (added in 0.1.8 to protect `Log.mark_as_opened/2`/`mark_as_clicked/3`'s transactional callers). `:savepoint` mode is not a no-op outside a transaction — it requires one to nest a savepoint in, and raises `DBConnection.TransactionError: transaction is not started` otherwise. Every event created by the SQS processor's non-transactional paths (delivery, bounce, complaint) was hitting this, so the `phoenix_kit_email_events` audit trail silently stopped populating for messages processed via SQS. Fixed by only requesting `:savepoint` mode when `repo().in_transaction?()` is true.
+
 ## 0.1.8 - 2026-06-24
 
 ### Added

@@ -191,14 +191,21 @@ defmodule PhoenixKit.Modules.Emails.Event do
     # core phoenix_kit. Until then the insert succeeds and the cheap
     # event_exists?/2 guard in callers remains the (racy) first line of defence.
     #
-    # mode: :savepoint is required because some callers (Log.mark_as_opened/
+    # mode: :savepoint is required when some callers (Log.mark_as_opened/
     # mark_as_clicked) run this insert inside a Repo.transaction. Without a
     # savepoint, a unique violation aborts the whole Postgres transaction, so the
     # caller's preceding status update is silently rolled back at commit even
     # though we translate the violation to {:ok, :duplicate_event} here. The
-    # savepoint scopes the rollback to just this failed insert, and is a no-op for
-    # non-transactional callers (the SQS processor paths).
-    case repo().insert(changeset, mode: :savepoint) do
+    # savepoint scopes the rollback to just this failed insert.
+    #
+    # :savepoint mode is NOT a no-op outside a transaction — Postgres/Ecto raises
+    # DBConnection.TransactionError ("transaction is not started") if there is no
+    # enclosing transaction to nest the savepoint in. The SQS processor paths call
+    # create_event/1 from a plain async Task with no transaction, so :savepoint
+    # must only be requested when one is actually open.
+    insert_opts = if repo().in_transaction?(), do: [mode: :savepoint], else: []
+
+    case repo().insert(changeset, insert_opts) do
       {:error, %Ecto.Changeset{errors: errors} = failed} ->
         if duplicate_event_error?(errors) do
           {:ok, :duplicate_event}
