@@ -72,7 +72,6 @@ defmodule PhoenixKit.Modules.Emails.Web.Metrics do
         })
         |> assign(:last_updated, UtilsDate.utc_now())
         |> assign(:mailer_status, Utils.mailer_adapter_status())
-        |> assign(:current_provider, Emails.current_provider())
         |> assign(:aws_configured, Emails.aws_configured?())
         |> load_metrics_data()
 

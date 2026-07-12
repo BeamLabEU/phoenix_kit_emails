@@ -58,16 +58,7 @@ defmodule PhoenixKit.Modules.Emails.Utils do
   """
   @spec detect_provider_from_config() :: String.t()
   def detect_provider_from_config do
-    case PhoenixKit.Config.get(:mailer) do
-      {:ok, mailer} when not is_nil(mailer) ->
-        # Try to determine provider from mailer configuration
-        config = Config.get(mailer, [])
-        adapter = Keyword.get(config, :adapter)
-        adapter_to_provider_name(adapter, "unknown")
-
-      _ ->
-        "unknown"
-    end
+    mailer_adapter_status().provider
   end
 
   @doc """
