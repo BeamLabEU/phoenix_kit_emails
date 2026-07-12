@@ -917,6 +917,39 @@ defmodule PhoenixKit.Modules.Emails do
   @impl PhoenixKit.Module
   def route_module, do: PhoenixKit.Modules.Emails.Web.Routes
 
+  # Moves plaintext `aws_access_key_id`/`aws_secret_access_key`/`aws_region`
+  # Settings into a new encrypted `aws_ses` Integrations connection, and
+  # selects it via `emails_aws_integration_uuid`. Idempotent: no-ops once
+  # an integration is already selected, or when no legacy credentials exist.
+  @impl PhoenixKit.Module
+  def migrate_legacy do
+    if Settings.get_setting("emails_aws_integration_uuid") in [nil, ""] do
+      access_key = Settings.get_setting("aws_access_key_id")
+      secret_key = Settings.get_setting("aws_secret_access_key")
+
+      if is_binary(access_key) and access_key != "" and is_binary(secret_key) and
+           secret_key != "" do
+        {:ok, %{uuid: uuid}} = Integrations.add_connection("aws_ses", "Amazon SES (migrated)")
+
+        {:ok, _} =
+          Integrations.save_setup(uuid, %{
+            "access_key" => access_key,
+            "secret_key" => secret_key,
+            "aws_region" => Settings.get_setting("aws_region") || "us-east-1"
+          })
+
+        # Mirror the admin form's connect flow (validate, then record the
+        # result) so the migrated connection ends up "connected" like a
+        # manually-configured one, not stuck at "configured".
+        Integrations.record_validation(uuid, Integrations.validate_connection(uuid))
+
+        Settings.update_setting("emails_aws_integration_uuid", uuid)
+      end
+    end
+
+    :ok
+  end
+
   @doc """
   Checks if full email body saving is enabled.
 
