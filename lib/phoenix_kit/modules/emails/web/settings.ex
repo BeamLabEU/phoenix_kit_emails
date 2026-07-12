@@ -41,6 +41,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Settings do
   alias PhoenixKit.AWS.CredentialsVerifier
   alias PhoenixKit.AWS.InfrastructureSetup
   alias PhoenixKit.Config.AWS
+  alias PhoenixKit.Integrations
   alias PhoenixKit.Modules.Emails
   alias PhoenixKit.Modules.Emails.SQSPollingManager
   alias PhoenixKit.Settings
@@ -88,6 +89,11 @@ defmodule PhoenixKit.Modules.Emails.Web.Settings do
       |> assign(:sqs_max_messages_per_poll, email_config.sqs_max_messages_per_poll)
       |> assign(:sqs_visibility_timeout, email_config.sqs_visibility_timeout)
       |> assign(:aws_settings, aws_settings)
+      |> assign(:aws_ses_connections, Integrations.list_connections("aws_ses"))
+      |> assign(
+        :selected_aws_integration_uuid,
+        Settings.get_setting("emails_aws_integration_uuid", "")
+      )
       |> assign(:saving, false)
       |> assign(:setting_up_aws, false)
       |> assign(:running_cleanup, false)
@@ -630,6 +636,34 @@ defmodule PhoenixKit.Modules.Emails.Web.Settings do
           |> put_flash(:error, gettext("Failed to save AWS settings"))
 
         {:noreply, socket}
+    end
+  end
+
+  def handle_event("select_aws_integration", %{"uuid" => uuid}, socket) do
+    # An empty uuid means "back to legacy" — clear the setting instead of
+    # writing an empty value (the key isn't in Setting's optional-value
+    # allowlist, so an empty-string write would fail changeset validation).
+    result =
+      if uuid == "" do
+        case Settings.delete_setting("emails_aws_integration_uuid") do
+          {:error, :not_found} -> {:ok, nil}
+          other -> other
+        end
+      else
+        Settings.update_setting("emails_aws_integration_uuid", uuid)
+      end
+
+    case result do
+      {:ok, _} ->
+        socket =
+          socket
+          |> assign(:selected_aws_integration_uuid, uuid)
+          |> put_flash(:info, gettext("SES credentials source updated"))
+
+        {:noreply, socket}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, gettext("Failed to update SES credentials source"))}
     end
   end
 

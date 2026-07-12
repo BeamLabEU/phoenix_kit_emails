@@ -362,6 +362,38 @@
               <.icon name="hero-cog-6-tooth" class="w-6 h-6" /> {gettext("AWS Configuration")}
             </h2>
 
+            <%!-- SES credentials source: pick an Integrations connection, or fall
+                 back to the legacy manual fields below --%>
+            <div class="form-control w-full mb-6">
+              <label class="label">
+                <span class="label-text font-medium">{gettext("SES credentials source")}</span>
+                <span class="label-text-alt text-sm text-base-content/60">
+                  {gettext("Choose which Integrations connection provides SES credentials")}
+                </span>
+              </label>
+              <form phx-change="select_aws_integration">
+                <label class="select w-full focus:select-primary">
+                  <select name="uuid">
+                    <option value="" selected={@selected_aws_integration_uuid in [nil, ""]}>
+                      {gettext("Legacy (manual settings below)")}
+                    </option>
+                    <%= for conn <- @aws_ses_connections do %>
+                      <option value={conn.uuid} selected={conn.uuid == @selected_aws_integration_uuid}>
+                        {conn.name}
+                      </option>
+                    <% end %>
+                  </select>
+                </label>
+              </form>
+              <%= if @aws_ses_connections == [] do %>
+                <label class="label">
+                  <span class="label-text-alt text-sm text-base-content/60">
+                    {gettext("No aws_ses Integrations connections yet — add one under Settings → Integrations, or use the legacy fields below.")}
+                  </span>
+                </label>
+              <% end %>
+            </div>
+
             <%!-- AWS Setup Guide (daisyUI collapse) --%>
             <div class="collapse collapse-arrow bg-base-200 mb-6">
               <input type="checkbox" class="peer" />
@@ -525,6 +557,13 @@
               phx_click="verify_aws_credentials"
               disabled={@saving or @setting_up_aws}
             />
+
+            <div class="flex items-center gap-2 mb-2">
+              <span class="badge badge-warning badge-sm">{gettext("Legacy")}</span>
+              <span class="text-sm text-base-content/60">
+                {gettext("Manual credentials below — migrate to an Integrations connection above")}
+              </span>
+            </div>
 
             <form phx-submit="save_aws_settings">
               <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
