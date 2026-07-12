@@ -514,10 +514,22 @@ defmodule PhoenixKit.Modules.Emails do
         )
         |> ExAws.request(aws_config)
         |> case do
-          {:ok, %{body: %{messages: messages}}} ->
+          {:ok, %{"Messages" => messages}} when is_list(messages) ->
             messages
 
-          {:ok, %{body: %{}}} ->
+          {:ok, %{"messages" => messages}} when is_list(messages) ->
+            messages
+
+          {:ok, %{body: %{messages: messages}}} when is_list(messages) ->
+            messages
+
+          {:ok, %{body: %{"Messages" => messages}}} when is_list(messages) ->
+            messages
+
+          {:ok, %{body: %{"messages" => messages}}} when is_list(messages) ->
+            messages
+
+          {:ok, _response} ->
             []
 
           {:error, {:http_error, status_code, %{code: error_code, message: error_message}}} ->
@@ -635,10 +647,22 @@ defmodule PhoenixKit.Modules.Emails do
         )
         |> ExAws.request(get_aws_config())
         |> case do
-          {:ok, %{body: %{messages: messages}}} ->
+          {:ok, %{"Messages" => messages}} when is_list(messages) ->
             messages
 
-          {:ok, %{body: %{}}} ->
+          {:ok, %{"messages" => messages}} when is_list(messages) ->
+            messages
+
+          {:ok, %{body: %{messages: messages}}} when is_list(messages) ->
+            messages
+
+          {:ok, %{body: %{"Messages" => messages}}} when is_list(messages) ->
+            messages
+
+          {:ok, %{body: %{"messages" => messages}}} when is_list(messages) ->
+            messages
+
+          {:ok, _response} ->
             []
 
           error ->

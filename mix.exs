@@ -57,7 +57,16 @@ defmodule PhoenixKitEmails.MixProject do
       # AWS
       {:aws_regions, "~> 0.1.0"},
       {:ex_aws, "~> 2.4"},
-      {:ex_aws_sqs, "~> 3.4"},
+      # Fork of the archived ex_aws_sqs, published as beamlab_ex_aws_sqs —
+      # same public API (ExAws.SQS), switched to the SQS JSON protocol.
+      # ex_aws_sqs (last released Jan 2023) pins `hackney ~> 1.9`, which
+      # blocks the hackney 4.x upgrade needed to clear its CVE batch and
+      # made `mix hex.audit` fail; this fork declares no hackney dependency
+      # at all. Response shapes changed: raw JSON maps like
+      # `%{"Messages" => [...]}` with string keys (e.g. "ReceiptHandle"),
+      # not the old `%{body: %{messages: [...]}}` with atom keys. Matches
+      # the switch already made in core (phoenix_kit).
+      {:beamlab_ex_aws_sqs, "~> 4.0"},
       {:ex_aws_sns, "~> 2.3"},
       {:ex_aws_sts, "~> 2.3"},
       {:ex_aws_s3, "~> 2.4"},
