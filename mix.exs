@@ -55,6 +55,7 @@ defmodule PhoenixKitEmails.MixProject do
       {:uuidv7, "~> 1.0"},
 
       # AWS
+      {:aws_regions, "~> 0.1.0"},
       {:ex_aws, "~> 2.4"},
       {:ex_aws_sqs, "~> 3.4"},
       {:ex_aws_sns, "~> 2.3"},
