@@ -75,6 +75,10 @@ defmodule PhoenixKitEmails.MixProject do
       {:sweet_xml, "~> 0.7"},
 
       # Utils
+      # Our own code uses the built-in JSON module (Elixir 1.18+) directly —
+      # kept as a direct dep because ex_aws hardcodes Jason as its default
+      # :json_codec (ex_aws/lib/ex_aws/config/defaults.ex), so every S3/SQS
+      # request still goes through it under the hood.
       {:jason, "~> 1.4"},
       {:hammer, "~> 7.1"},
       {:nimble_csv, "~> 1.2"},

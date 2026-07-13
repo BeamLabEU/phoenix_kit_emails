@@ -91,7 +91,7 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
       Logger.error("Received empty SNS message body")
       {:error, :empty_message_body}
     else
-      with {:ok, sns_data} when is_map(sns_data) <- Jason.decode(body),
+      with {:ok, sns_data} when is_map(sns_data) <- decode_json(body),
            {:ok, event_data} <- extract_ses_event(sns_data) do
         {:ok, event_data}
       else
@@ -103,10 +103,10 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
 
           {:error, :invalid_sns_format}
 
-        {:error, %Jason.DecodeError{} = error} ->
+        {:error, %JSON.DecodeError{} = error} ->
           Logger.error("Invalid JSON in SNS message body", %{
             error: inspect(error),
-            position: error.position,
+            position: error.offset,
             body_preview: String.slice(body, 0, 500)
           })
 
@@ -289,7 +289,7 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
 
   # Decodes the JSON message
   defp decode_ses_message(message_json) do
-    case Jason.decode(message_json) do
+    case decode_json(message_json) do
       {:ok, ses_event} when is_map(ses_event) ->
         {:ok, ses_event}
 
@@ -301,16 +301,24 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
 
         {:error, :invalid_ses_format}
 
-      {:error, %Jason.DecodeError{} = error} ->
+      {:error, %JSON.DecodeError{} = error} ->
         Logger.error("Failed to decode SES message JSON - invalid JSON format", %{
           error: inspect(error),
-          position: error.position,
+          position: error.offset,
           message_preview: String.slice(message_json, 0, 500),
           message_length: String.length(message_json)
         })
 
         {:error, :invalid_ses_message}
     end
+  end
+
+  # Decodes JSON via the built-in JSON module, normalizing to the
+  # {:ok, term}/{:error, %JSON.DecodeError{}} shape the call sites above match on.
+  defp decode_json(binary) do
+    {:ok, JSON.decode!(binary)}
+  rescue
+    e in JSON.DecodeError -> {:error, e}
   end
 
   # Validates required SES event fields

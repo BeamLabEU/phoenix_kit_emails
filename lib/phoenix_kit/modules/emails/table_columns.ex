@@ -60,7 +60,7 @@ defmodule PhoenixKit.Modules.Emails.TableColumns do
         @default_columns
 
       columns_json when is_binary(columns_json) ->
-        case Jason.decode(columns_json) do
+        case JSON.decode(columns_json) do
           {:ok, %{"selected" => selected}} when is_list(selected) ->
             # Validate that all required columns are present
             validated = ensure_required_columns(selected)
@@ -96,13 +96,7 @@ defmodule PhoenixKit.Modules.Emails.TableColumns do
       "order" => validated_columns
     }
 
-    case Jason.encode(columns_data) do
-      {:ok, json} ->
-        Settings.update_setting("emails_table_columns", json)
-
-      {:error, _} = error ->
-        error
-    end
+    Settings.update_setting("emails_table_columns", JSON.encode!(columns_data))
   end
 
   @doc """

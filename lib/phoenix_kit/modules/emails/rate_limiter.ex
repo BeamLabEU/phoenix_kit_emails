@@ -11,6 +11,7 @@ defmodule PhoenixKit.Modules.Emails.EmailBlocklist do
   use PhoenixKit.SchemaPrefix
   import Ecto.Changeset
 
+  @derive {JSON.Encoder, except: [:__meta__]}
   @primary_key {:uuid, UUIDv7, autogenerate: true}
   schema "phoenix_kit_email_blocklist" do
     field(:email, :string)

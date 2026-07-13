@@ -164,7 +164,7 @@ defmodule PhoenixKit.Modules.Emails.Log do
   import Ecto.Changeset
   import Ecto.Query
 
-  @derive {Jason.Encoder, except: [:__meta__, :user, :events]}
+  @derive {JSON.Encoder, except: [:__meta__, :user, :events]}
 
   alias PhoenixKit.Modules.Emails
   alias PhoenixKit.Modules.Emails.Event

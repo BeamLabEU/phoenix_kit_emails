@@ -153,7 +153,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Metrics do
          })}
 
       "json" ->
-        json_content = Jason.encode!(socket.assigns.metrics, pretty: true)
+        json_content = Utils.Json.encode_pretty!(socket.assigns.metrics)
         filename = "email_metrics_#{Date.utc_today()}.json"
 
         {:noreply,

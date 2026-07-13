@@ -62,7 +62,7 @@ defmodule PhoenixKit.Modules.Emails.Event do
   import Ecto.Changeset
   import Ecto.Query, warn: false
 
-  @derive {Jason.Encoder, except: [:__meta__, :email_log]}
+  @derive {JSON.Encoder, except: [:__meta__, :email_log]}
 
   alias PhoenixKit.Modules.Emails.Log
   alias PhoenixKit.Utils.Date, as: UtilsDate
