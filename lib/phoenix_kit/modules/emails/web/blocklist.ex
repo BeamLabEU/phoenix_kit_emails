@@ -45,6 +45,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Blocklist do
 
   alias PhoenixKit.Modules.Emails
   alias PhoenixKit.Modules.Emails.RateLimiter
+  alias PhoenixKit.Modules.Emails.Utils
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Routes
 
@@ -306,7 +307,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Blocklist do
          })}
 
       "json" ->
-        json_content = Jason.encode!(socket.assigns.blocked_emails, pretty: true)
+        json_content = Utils.Json.encode_pretty!(socket.assigns.blocked_emails)
         filename = "email_blocklist_#{Date.utc_today()}.json"
 
         {:noreply,

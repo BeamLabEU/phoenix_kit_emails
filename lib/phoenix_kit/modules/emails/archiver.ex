@@ -476,14 +476,11 @@ defmodule PhoenixKit.Modules.Emails.Archiver do
         logs
       end
 
-    Jason.encode!(
-      %{
-        exported_at: UtilsDate.utc_now(),
-        total_records: length(logs),
-        logs: archive_logs
-      },
-      pretty: false
-    )
+    JSON.encode!(%{
+      exported_at: UtilsDate.utc_now(),
+      total_records: length(logs),
+      logs: archive_logs
+    })
   end
 
   defp prepare_archive_data(logs, :csv, _include_events) do

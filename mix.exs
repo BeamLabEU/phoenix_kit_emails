@@ -48,7 +48,8 @@ defmodule PhoenixKitEmails.MixProject do
   defp deps do
     [
       # Core
-      {:phoenix_kit, "~> 1.7.106"},
+      {:hackney, "~> 4.0", override: true},
+      {:phoenix_kit, "~> 1.7.189"},
       {:gettext, "~> 1.0"},
       {:phoenix_live_view, "~> 1.1"},
       {:oban, "~> 2.20"},
@@ -67,14 +68,17 @@ defmodule PhoenixKitEmails.MixProject do
       # not the old `%{body: %{messages: [...]}}` with atom keys. Matches
       # the switch already made in core (phoenix_kit).
       {:beamlab_ex_aws_sqs, "~> 4.0"},
-      {:ex_aws_sns, "~> 2.3"},
-      {:ex_aws_sts, "~> 2.3"},
       {:ex_aws_s3, "~> 2.4"},
+      # Transitive requirement of ex_aws_s3 (parses S3's XML responses) — not
+      # called directly here, declared explicitly since we do call
+      # ExAws.S3.put_object (archiver.ex).
       {:sweet_xml, "~> 0.7"},
-      {:finch, "~> 0.18"},
-      {:saxy, "~> 1.5"},
 
       # Utils
+      # Our own code uses the built-in JSON module (Elixir 1.18+) directly —
+      # kept as a direct dep because ex_aws hardcodes Jason as its default
+      # :json_codec (ex_aws/lib/ex_aws/config/defaults.ex), so every S3/SQS
+      # request still goes through it under the hood.
       {:jason, "~> 1.4"},
       {:hammer, "~> 7.1"},
       {:nimble_csv, "~> 1.2"},

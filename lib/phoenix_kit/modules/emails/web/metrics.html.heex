@@ -252,7 +252,7 @@
             <div
               class="w-full h-64"
               id="delivery-chart-container"
-              data-chart-data={Jason.encode!(Map.get(@charts_data, :delivery_trend, %{}))}
+              data-chart-data={JSON.encode!(Map.get(@charts_data, :delivery_trend, %{}))}
             >
               <canvas id="delivery-trend-chart" width="400" height="200" phx-update="ignore">
               </canvas>
@@ -266,7 +266,7 @@
             <div
               class="w-full h-64"
               id="engagement-chart-container"
-              data-chart-data={Jason.encode!(Map.get(@charts_data, :engagement, %{}))}
+              data-chart-data={JSON.encode!(Map.get(@charts_data, :engagement, %{}))}
             >
               <canvas id="engagement-chart" width="400" height="200" phx-update="ignore"></canvas>
             </div>

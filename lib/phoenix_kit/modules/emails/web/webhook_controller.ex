@@ -63,7 +63,7 @@ defmodule PhoenixKit.Modules.Emails.Web.WebhookController do
 
       %{
         "Type" => "Notification",
-        "Message" => Jason.encode!(%{
+        "Message" => JSON.encode!(%{
           "eventType" => "bounce",
           "mail" => %{"messageId" => "abc123"},
           "bounce" => %{
@@ -344,7 +344,7 @@ defmodule PhoenixKit.Modules.Emails.Web.WebhookController do
 
   # Process email event notification
   defp process_email_event_notification(%{"Message" => message_json}) do
-    case Jason.decode(message_json) do
+    case JSON.decode(message_json) do
       {:ok, event_data} ->
         process_email_event(event_data)
 
