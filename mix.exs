@@ -49,7 +49,7 @@ defmodule PhoenixKitEmails.MixProject do
     [
       # Core
       {:hackney, "~> 4.0", override: true},
-      {:phoenix_kit, "~> 1.7.189"},
+      {:phoenix_kit, "~> 1.7.190"},
       {:gettext, "~> 1.0"},
       {:phoenix_live_view, "~> 1.1"},
       {:oban, "~> 2.20"},
