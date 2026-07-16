@@ -367,7 +367,7 @@ defmodule PhoenixKit.Modules.Emails do
         end
       else
         {:error,
-         "AWS credentials not configured. Configure via Web UI at /admin/settings/emails or set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables."}
+         "AWS credentials not configured. Configure via Web UI at /admin/settings/email-sending or set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables."}
       end
     else
       {:error, "Email system is disabled. Please enable it in settings."}
@@ -915,20 +915,27 @@ defmodule PhoenixKit.Modules.Emails do
   end
 
   @impl PhoenixKit.Module
-  def settings_tabs do
+  def settings_tabs, do: []
+
+  # Contributes to the core "Email Sending" settings page
+  # (`/admin/settings/email-sending`) instead of routing its own settings
+  # tab — see `PhoenixKit.Module.email_settings_sections/0`. Sender identity
+  # (from_name/from_email) is core's own concern now; not duplicated here.
+  @impl PhoenixKit.Module
+  def email_settings_sections do
     [
-      Tab.new!(
-        id: :admin_settings_emails,
-        label: "Emails",
-        icon: "hero-envelope",
-        path: "emails",
-        priority: 925,
-        level: :admin,
-        parent: :admin_settings,
+      %{
+        id: :emails_tracking,
+        title: "Email Tracking",
         permission: "emails",
-        gettext_backend: PhoenixKit.Modules.Emails.Gettext,
-        live_view: {PhoenixKit.Modules.Emails.Web.Settings, :index}
-      )
+        component: PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTracking
+      },
+      %{
+        id: :emails_aws_ses_sqs,
+        title: "Amazon SES & SQS",
+        permission: "emails",
+        component: PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs
+      }
     ]
   end
 

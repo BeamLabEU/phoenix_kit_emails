@@ -1,16 +1,17 @@
-defmodule PhoenixKit.Modules.Emails.Web.SettingsTest do
+defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqsTest do
   @moduledoc """
-  Unit tests for the emails Settings LiveView's SES-credentials-source
-  selector (Stage B, B3). This package ships no Endpoint/Router, so
-  there's no `Phoenix.LiveViewTest` harness available standalone — the
-  callback is exercised directly against a hand-built socket instead,
-  same as it would run inside the real LiveView process.
+  Unit tests for the "Amazon SES & SQS" settings section's SES-credentials
+  source selector (ported from the old routable Settings LiveView, Stage
+  B3 / Stage 1 A5). This package ships no Endpoint/Router, so there's no
+  `Phoenix.LiveViewTest` harness available standalone — the callback is
+  exercised directly against a hand-built socket instead, same as it would
+  run inside the real live_component process.
   """
 
   use PhoenixKitEmails.DataCase, async: true
 
   alias PhoenixKit.Integrations
-  alias PhoenixKit.Modules.Emails.Web.Settings, as: SettingsLive
+  alias PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs, as: SesSection
   alias PhoenixKit.Settings
 
   # Minimal socket that supports assign/3 and put_flash/3 without a live
@@ -27,7 +28,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsTest do
       {:ok, %{uuid: uuid}} = Integrations.add_connection("aws_ses", "primary")
 
       assert {:noreply, socket} =
-               SettingsLive.handle_event(
+               SesSection.handle_event(
                  "select_aws_integration",
                  %{"uuid" => uuid},
                  bare_socket()
@@ -41,7 +42,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsTest do
       Settings.update_setting("emails_aws_integration_uuid", "some-uuid")
 
       assert {:noreply, socket} =
-               SettingsLive.handle_event("select_aws_integration", %{"uuid" => ""}, bare_socket())
+               SesSection.handle_event("select_aws_integration", %{"uuid" => ""}, bare_socket())
 
       assert socket.assigns.selected_aws_integration_uuid == ""
       assert Settings.get_setting("emails_aws_integration_uuid") == nil

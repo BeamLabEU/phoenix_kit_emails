@@ -49,6 +49,11 @@ defmodule PhoenixKitEmails.MixProject do
     [
       # Core
       {:hackney, "~> 4.0", override: true},
+      # Implements email_settings_sections/0 (Stage-1 A5) — requires a core
+      # release with the A4 seam, not yet published to Hex. For local
+      # verification during Stage-1, temporarily override with
+      # `{:phoenix_kit, path: "/app", override: true}` against core branch
+      # feature/email-send-profiles-core; revert before committing.
       {:phoenix_kit, "~> 1.7.190"},
       {:gettext, "~> 1.0"},
       {:phoenix_live_view, "~> 1.1"},
