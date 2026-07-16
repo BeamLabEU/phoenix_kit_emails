@@ -58,7 +58,7 @@
         {gettext("Choose which Integrations connection provides SES credentials")}
       </span>
     </label>
-    <form phx-change="select_aws_integration" phx-target={@myself}>
+    <form id="aws-integration-picker-form" phx-change="select_aws_integration" phx-target={@myself}>
       <label class="select w-full focus:select-primary">
         <select name="uuid">
           <option value="" selected={@selected_aws_integration_uuid in [nil, ""]}>
@@ -244,7 +244,7 @@
     </span>
   </div>
 
-  <form phx-submit="save_aws_settings" phx-target={@myself}>
+  <form id="aws-settings-form" phx-submit="save_aws_settings" phx-target={@myself}>
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
       <%!-- AWS Access Key ID --%>
       <div class="form-control">
