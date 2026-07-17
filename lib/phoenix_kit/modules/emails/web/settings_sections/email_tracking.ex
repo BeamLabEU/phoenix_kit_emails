@@ -9,6 +9,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTracking do
   """
 
   use PhoenixKitWeb, :live_component
+  use Gettext, backend: PhoenixKit.Modules.Emails.Gettext
 
   alias PhoenixKit.Modules.Emails
 

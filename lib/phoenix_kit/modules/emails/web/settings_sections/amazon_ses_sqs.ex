@@ -10,6 +10,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
   """
 
   use PhoenixKitWeb, :live_component
+  use Gettext, backend: PhoenixKit.Modules.Emails.Gettext
 
   import PhoenixKitWeb.Components.Core.AWSCredentialsVerify
 
