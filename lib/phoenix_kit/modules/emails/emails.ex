@@ -2261,11 +2261,14 @@ defmodule PhoenixKit.Modules.Emails do
       true
   """
   def aws_configured? do
-    access_key = get_aws_access_key()
-    secret_key = get_aws_secret_key()
-
-    access_key != "" && secret_key != ""
+    # get_aws_access_key/0 and get_aws_secret_key/0 return `nil` (not `""`)
+    # when unconfigured — comparing against only `""` made this always
+    # true (`nil != ""` is true), so it never actually reflected whether
+    # AWS was configured.
+    present?(get_aws_access_key()) and present?(get_aws_secret_key())
   end
+
+  defp present?(value), do: is_binary(value) and value != ""
 
   @doc """
   Returns the email provider actually in effect, detected from the host
