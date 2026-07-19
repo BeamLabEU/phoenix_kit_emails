@@ -13,6 +13,7 @@
 - Hard (permanent) bounces are now added to the rate limiter's blocklist, so a bounced address stops receiving future sends instead of bouncing again on the next campaign.
 - `PhoenixKit.Modules.Emails.Provider` implements `PhoenixKit.Email.Provider` but never declared `@behaviour`/`@impl` — a renamed or dropped callback in core would have compiled clean here and only failed at runtime. Declared, with `@impl` on all 14 callbacks.
 - Boot-time `migrate_legacy/0` no longer makes a live SES API call (`GetSendQuota`, up to 15s) to validate the migrated connection — the credentials were already sending mail before the migration ran, so there was nothing to verify that the first real send wouldn't; this was blocking app startup on network egress.
+- `mix hex.publish` refused to build the package with `hackney` declared as `override: true` ("Can't build package with overridden dependency hackney, remove `override: true`"). The override dates back to when `ex_aws_sqs` pinned `hackney ~> 1.9`; since 0.1.11 swapped that for `beamlab_ex_aws_sqs` (which declares no hackney dependency at all), nothing in the tree needs hackney forced above its natural resolution — removed, `mix.lock` unchanged (still resolves 4.6.0).
 
 ### Added
 - First real test infrastructure for this package (`test/support/data_case.ex`, `test_repo.ex`, `config/test.exs`) — the credential-resolution and SQS bounce/blocklist paths now have DB-backed integration tests instead of being untestable.

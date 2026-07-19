@@ -48,7 +48,7 @@ defmodule PhoenixKitEmails.MixProject do
   defp deps do
     [
       # Core
-      {:hackney, "~> 4.0", override: true},
+      {:hackney, "~> 4.0"},
       # ~> 1.7.190 is the floor for email_settings_sections/0 (Stage-1 A5).
       {:phoenix_kit, "~> 1.7.190"},
       {:gettext, "~> 1.0"},
