@@ -94,7 +94,7 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
 
   import Ecto.Query
 
-  alias PhoenixKit.Email.SendProfiles
+  alias PhoenixKit.Email.SendProfile
   alias PhoenixKit.Modules.Emails
   alias PhoenixKit.Modules.Emails.SQSProcessor
 
@@ -209,25 +209,33 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
       ses_actively_configured?()
   end
 
-  # Sender-aware gate, mirroring BrevoPollingJob's: SQS credentials being
-  # *reachable* isn't the same as SES actually being the thing sending
-  # mail right now. Two ways to count as "actively configured":
+  # Sender-aware gate, mirroring the (parallel) Brevo poller design — see
+  # PR #18 (BrevoPollingJob isn't on main yet, so there's nothing to
+  # literally reference here). SQS credentials being *reachable* isn't
+  # the same as SES actually being the thing sending mail right now. Two
+  # ways to count as "actively configured":
   #
-  #   - an enabled SendProfile pointed at a "aws_ses" integration (the
-  #     current, profile-based way to wire up a sender), or
   #   - `Emails.aws_configured?/0` — the explicit override: SQS polling
   #     predates the SendProfile system, and plenty of deployments still
   #     configure SES directly (legacy `aws_access_key_id`/
   #     `aws_secret_access_key` Settings, env vars, or a bare `aws_ses`
   #     Integrations connection with no SendProfile pointed at it at
   #     all). Requiring a SendProfile unconditionally would silently stop
-  #     polling for every one of those pre-existing setups.
+  #     polling for every one of those pre-existing setups. Checked
+  #     first — it's the cached lookup (`PhoenixKit.Cache`-backed, see
+  #     `Emails.aws_ses_credentials/0`), cheaper than the DB round trip
+  #     below.
+  #   - an enabled SendProfile pointed at an `"aws_ses"` integration (the
+  #     current, profile-based way to wire up a sender).
   defp ses_actively_configured? do
-    has_enabled_ses_send_profile?() or Emails.aws_configured?()
+    Emails.aws_configured?() or has_enabled_ses_send_profile?()
   end
 
   defp has_enabled_ses_send_profile? do
-    Enum.any?(SendProfiles.list_send_profiles(), &(&1.enabled and &1.provider_kind == "aws_ses"))
+    SendProfile
+    |> where([sp], sp.enabled == true and sp.provider_kind == "aws_ses")
+    |> limit(1)
+    |> get_repo().exists?()
   end
 
   # Validate SQS configuration

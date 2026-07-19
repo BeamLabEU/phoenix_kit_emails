@@ -2251,14 +2251,11 @@ defmodule PhoenixKit.Modules.Emails do
   defp safe_percentage(_, _), do: 0.0
 
   @doc """
-  Checks if AWS credentials are configured.
-
-  Checks both Settings Database and environment variables (Settings DB takes priority).
-
-  ## Examples
-
-      iex> PhoenixKit.Modules.Emails.aws_configured?()
-      true
+  Checks if AWS credentials are configured, from any of the sources
+  `get_aws_access_key/0`/`get_aws_secret_key/0` read (highest priority
+  first): the selected `aws_ses` Integrations connection
+  (`emails_aws_integration_uuid`), then the legacy `aws_access_key_id`/
+  `aws_secret_access_key` Settings, then environment variables.
   """
   def aws_configured? do
     # get_aws_access_key/0 and get_aws_secret_key/0 return `nil` (not `""`)
