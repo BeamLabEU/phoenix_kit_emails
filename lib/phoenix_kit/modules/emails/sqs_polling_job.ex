@@ -94,6 +94,7 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
 
   import Ecto.Query
 
+  alias PhoenixKit.Email.SendProfiles
   alias PhoenixKit.Modules.Emails
   alias PhoenixKit.Modules.Emails.SQSProcessor
 
@@ -196,11 +197,37 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
 
   ## --- Private Functions ---
 
-  # Check if polling should be performed
-  defp should_poll? do
+  @doc false
+  # Check if polling should be performed. Not `defp` so the sender-aware
+  # gate can be unit-tested directly without a real SQS/network round
+  # trip — same rationale as `BrevoPollingJob`'s and `DeliveryWorker`'s
+  # internal seams.
+  def should_poll? do
     Emails.enabled?() and
       Emails.ses_events_enabled?() and
-      Emails.sqs_polling_enabled?()
+      Emails.sqs_polling_enabled?() and
+      ses_actively_configured?()
+  end
+
+  # Sender-aware gate, mirroring BrevoPollingJob's: SQS credentials being
+  # *reachable* isn't the same as SES actually being the thing sending
+  # mail right now. Two ways to count as "actively configured":
+  #
+  #   - an enabled SendProfile pointed at a "aws_ses" integration (the
+  #     current, profile-based way to wire up a sender), or
+  #   - `Emails.aws_configured?/0` — the explicit override: SQS polling
+  #     predates the SendProfile system, and plenty of deployments still
+  #     configure SES directly (legacy `aws_access_key_id`/
+  #     `aws_secret_access_key` Settings, env vars, or a bare `aws_ses`
+  #     Integrations connection with no SendProfile pointed at it at
+  #     all). Requiring a SendProfile unconditionally would silently stop
+  #     polling for every one of those pre-existing setups.
+  defp ses_actively_configured? do
+    has_enabled_ses_send_profile?() or Emails.aws_configured?()
+  end
+
+  defp has_enabled_ses_send_profile? do
+    Enum.any?(SendProfiles.list_send_profiles(), &(&1.enabled and &1.provider_kind == "aws_ses"))
   end
 
   # Validate SQS configuration
