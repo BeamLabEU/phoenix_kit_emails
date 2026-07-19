@@ -62,4 +62,42 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingManagerTest do
 
     assert BrevoPollingManager.status().active_brevo_profiles == 1
   end
+
+  test "status/0 defaults to polling every active account (empty exclusion list)" do
+    assert Emails.get_brevo_polling_excluded_integrations() == []
+
+    {:ok, %{uuid: integration_uuid}} = Integrations.add_connection("brevo_api", "Brevo test")
+    {:ok, _} = Integrations.save_setup(integration_uuid, %{"api_key" => "key"})
+
+    {:ok, _profile} =
+      SendProfiles.create_send_profile(%{
+        name: "Brevo test profile",
+        integration_uuid: integration_uuid,
+        provider_kind: "brevo_api",
+        from_email: "sender@example.com"
+      })
+
+    status = BrevoPollingManager.status()
+    assert status.total_brevo_accounts == 1
+    assert status.polling_brevo_accounts == 1
+  end
+
+  test "status/0 reflects an excluded account: N of M drops, M does not" do
+    {:ok, %{uuid: integration_uuid}} = Integrations.add_connection("brevo_api", "Brevo test")
+    {:ok, _} = Integrations.save_setup(integration_uuid, %{"api_key" => "key"})
+
+    {:ok, _profile} =
+      SendProfiles.create_send_profile(%{
+        name: "Brevo test profile",
+        integration_uuid: integration_uuid,
+        provider_kind: "brevo_api",
+        from_email: "sender@example.com"
+      })
+
+    {:ok, _} = Emails.set_brevo_polling_excluded_integrations([integration_uuid])
+
+    status = BrevoPollingManager.status()
+    assert status.total_brevo_accounts == 1
+    assert status.polling_brevo_accounts == 0
+  end
 end

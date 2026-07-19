@@ -30,11 +30,37 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingJob do
   distinct Brevo accounts, each with its own `SendProfile`). Each cycle
   polls every *distinct* integration referenced by an enabled Brevo
   profile — not once per profile, since profiles may share an
-  integration and its API key. If any integration in the cycle turns out
-  to be misconfigured (missing/invalid credentials), the *whole* cycle's
-  next poll backs off to `@misconfig_backoff_ms` rather than the
-  configured interval — same rationale as `SQSPollingJob`: keep the chain
-  alive without hammering a broken integration at full rate.
+  integration and its API key. If *any* integration in the cycle turns
+  out to be misconfigured (missing/invalid credentials), the *whole*
+  cycle's next poll backs off to `@misconfig_backoff_ms` rather than the
+  configured interval — same rationale as `SQSPollingJob`, and a
+  deliberate choice, not an oversight: a per-integration backoff would
+  need per-integration scheduling state this self-scheduling chain
+  doesn't have, and a broken integration is expected to be rare/
+  transient enough that briefly slowing the whole cycle is an acceptable
+  trade for the simplicity of one shared interval.
+
+  ## Per-cycle event cap
+
+  Each integration is capped at `@max_pages_per_integration` (10) pages
+  of `@default_page_limit` (2500, overridable — see `page_limit/0`)
+  events per cycle — at most 25,000 events per integration per poll. A
+  sender busy enough to exceed that in one `polling_interval_ms` window
+  will lag (the cap logs a warning and picks up the remainder next
+  cycle) rather than the poll cycle growing unbounded. Not expected to
+  matter at typical volumes; flagged here because it's silent otherwise.
+
+  ## Oban queue configuration
+
+  Requires a `:brevo_polling` Oban queue in the *host app's* config,
+  same as `:sqs_polling` already does:
+
+      config :your_app, Oban,
+        queues: [
+          brevo_polling: 1  # concurrency MUST stay 1 — the self-scheduling
+                             # chain assumes only one cycle runs at a time;
+                             # see SQSPollingJob's queue config docs for why
+        ]
   """
 
   use Oban.Worker,
@@ -46,12 +72,10 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingJob do
 
   import Ecto.Query
 
-  alias PhoenixKit.Email.SendProfile
-  alias PhoenixKit.Email.SendProfiles
-  alias PhoenixKit.Integrations
   alias PhoenixKit.Modules.Emails
   alias PhoenixKit.Modules.Emails.BrevoClient
   alias PhoenixKit.Modules.Emails.BrevoEventNormalizer
+  alias PhoenixKit.Modules.Emails.BrevoIntegrations
   alias PhoenixKit.Modules.Emails.SQSProcessor
   alias PhoenixKit.Utils.Date, as: UtilsDate
 
@@ -60,14 +84,30 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingJob do
   @misconfig_backoff_ms 30_000
 
   @impl Oban.Worker
-  def perform(%Oban.Job{}) do
-    if should_poll?() do
-      next_interval = run_cycle(active_brevo_integrations())
-      schedule_next_poll(next_interval)
-      :ok
-    else
-      Logger.debug("Brevo Polling Job: Polling disabled, skipping cycle")
-      :ok
+  def perform(%Oban.Job{args: args}) do
+    # `forced: true` (BrevoPollingManager.poll_now/0) bypasses the
+    # brevo_events_enabled toggle specifically — an operator asking for
+    # data right now shouldn't be silently ignored just because the
+    # background chain is off — but never bypasses Emails.enabled?/0
+    # (system disabled) or the sender-aware profile gate inside
+    # run_cycle/1. schedule_next_poll/1 re-checks should_poll?/0 on its
+    # own, so a forced run while the toggle is off still runs once
+    # without resurrecting the self-scheduling chain.
+    forced? = Map.get(args || %{}, "forced", false)
+
+    cond do
+      not Emails.enabled?() ->
+        Logger.debug("Brevo Polling Job: system disabled, skipping cycle")
+        :ok
+
+      forced? or Emails.brevo_events_enabled?() ->
+        next_interval = run_cycle(active_brevo_integrations())
+        schedule_next_poll(next_interval)
+        :ok
+
+      true ->
+        Logger.debug("Brevo Polling Job: polling disabled, skipping cycle")
+        :ok
     end
   end
 
@@ -98,6 +138,10 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingJob do
 
   defp run_cycle([]) do
     Logger.debug("Brevo Polling Job: No enabled Brevo send profiles, skipping cycle")
+    # Still recorded even though nothing was fetched: an operator watching
+    # the status panel needs to see the chain is alive and ticking, not a
+    # last_polled_at frozen from before the last profile was disabled.
+    Emails.set_brevo_last_polled_at(UtilsDate.utc_now())
     Emails.get_brevo_polling_interval()
   end
 
@@ -118,36 +162,22 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingJob do
   end
 
   # Every enabled send profile pointed at a "brevo_api" integration,
-  # deduplicated to distinct integration_uuids — the sender-aware gate.
+  # minus any the operator explicitly excluded from polling (per-account
+  # opt-out — see Emails.brevo_polling_excluded_integrations/0) — the
+  # sender-aware gate.
   defp active_brevo_integrations do
-    SendProfiles.list_send_profiles()
-    |> Enum.filter(&brevo_profile?/1)
-    |> Enum.map(& &1.integration_uuid)
-    |> Enum.uniq()
+    excluded = MapSet.new(Emails.get_brevo_polling_excluded_integrations())
+
+    BrevoIntegrations.active_integration_uuids()
+    |> Enum.reject(&MapSet.member?(excluded, &1))
   end
-
-  defp brevo_profile?(%SendProfile{
-         enabled: true,
-         provider_kind: "brevo_api",
-         integration_uuid: uuid
-       }),
-       do: is_binary(uuid) and uuid != ""
-
-  defp brevo_profile?(_profile), do: false
 
   @spec poll_integration(String.t()) :: :ok | :misconfigured
   defp poll_integration(integration_uuid) do
-    case Integrations.get_credentials(integration_uuid) do
-      {:ok, %{"api_key" => api_key}} when is_binary(api_key) and api_key != "" ->
+    case BrevoIntegrations.resolve_api_key(integration_uuid) do
+      {:ok, api_key} ->
         fetch_page(api_key, integration_uuid, 0, 0)
         :ok
-
-      {:ok, _creds} ->
-        Logger.error(
-          "Brevo Polling Job: integration #{integration_uuid} has no api_key configured"
-        )
-
-        :misconfigured
 
       {:error, reason} ->
         Logger.error(

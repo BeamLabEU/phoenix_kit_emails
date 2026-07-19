@@ -15,6 +15,7 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingManager do
 
   alias PhoenixKit.Email.SendProfiles
   alias PhoenixKit.Modules.Emails
+  alias PhoenixKit.Modules.Emails.BrevoIntegrations
   alias PhoenixKit.Modules.Emails.BrevoPollingJob
 
   @doc """
@@ -75,16 +76,24 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingManager do
   end
 
   @doc """
-  Triggers an immediate polling job, regardless of the normal schedule.
+  Triggers an immediate polling job, regardless of the normal schedule
+  or the `brevo_events_enabled` toggle — a `forced: true` job (see
+  `BrevoPollingJob.perform/1`) still fetches once even while polling is
+  disabled, rather than silently no-op'ing while claiming success. Still
+  respects `Emails.enabled?/0` (system disabled) and the sender-aware
+  profile gate: a forced poll with zero active Brevo profiles correctly
+  fetches nothing, same as a scheduled cycle would.
   """
   def poll_now do
     Logger.info("Brevo Polling Manager: Triggering immediate poll")
 
     unless polling_enabled?() do
-      Logger.warning("Brevo Polling Manager: Polling is disabled, but executing manual poll")
+      Logger.warning(
+        "Brevo Polling Manager: Polling toggle is off, forcing a one-off poll anyway"
+      )
     end
 
-    case insert_poll_job() do
+    case insert_forced_poll_job() do
       {:ok, job} ->
         Logger.info("Brevo Polling Manager: Immediate poll job created", %{job_id: job.id})
         {:ok, job}
@@ -105,15 +114,28 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingManager do
   `BrevoPollingJob`'s moduledoc): the number of *enabled* send profiles
   pointed at a `"brevo_api"` integration. When it's 0, the polling chain
   is alive (as long as `enabled` is true) but every cycle no-ops.
+
+  `total_brevo_accounts`/`polling_brevo_accounts` are the *distinct
+  integration* view the per-account opt-out list needs — several
+  profiles can share one integration, so this can differ from
+  `active_brevo_profiles`. `polling_brevo_accounts` excludes whatever's
+  in `Emails.get_brevo_polling_excluded_integrations/0`; when it's `0`
+  while `total_brevo_accounts` is not, every active account has been
+  explicitly excluded.
   """
   def status do
+    total_accounts = BrevoIntegrations.active_integration_uuids()
+    excluded = MapSet.new(Emails.get_brevo_polling_excluded_integrations())
+
     %{
       enabled: Emails.brevo_events_enabled?(),
       interval_ms: Emails.get_brevo_polling_interval(),
       pending_jobs: count_pending_jobs(),
       last_polled_at: Emails.get_brevo_last_polled_at(),
       system_enabled: Emails.enabled?(),
-      active_brevo_profiles: count_active_brevo_profiles()
+      active_brevo_profiles: count_active_brevo_profiles(),
+      total_brevo_accounts: length(total_accounts),
+      polling_brevo_accounts: Enum.count(total_accounts, &(not MapSet.member?(excluded, &1)))
     }
   end
 
@@ -121,6 +143,12 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingManager do
 
   defp insert_poll_job do
     %{}
+    |> BrevoPollingJob.new()
+    |> Oban.insert()
+  end
+
+  defp insert_forced_poll_job do
+    %{"forced" => true}
     |> BrevoPollingJob.new()
     |> Oban.insert()
   end

@@ -173,4 +173,69 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingJobTest do
       assert :ok = BrevoPollingJob.perform(%Oban.Job{})
     end
   end
+
+  describe "per-integration opt-out" do
+    test "an excluded integration is never fetched, even though it's an active profile" do
+      profile = create_brevo_profile()
+      {:ok, _} = Emails.set_brevo_polling_excluded_integrations([profile.integration_uuid])
+
+      # Not stubbed — if the excluded integration were still fetched,
+      # BrevoClient.fetch_events/3 would raise "no mock or stub".
+      assert :ok = BrevoPollingJob.perform(%Oban.Job{})
+    end
+
+    test "only the non-excluded integration is actually fetched" do
+      _kept = create_brevo_profile(api_key: "kept-key")
+      excluded = create_brevo_profile(api_key: "excluded-key")
+      {:ok, _} = Emails.set_brevo_polling_excluded_integrations([excluded.integration_uuid])
+
+      test_pid = self()
+
+      Req.Test.stub(@stub, fn conn ->
+        [api_key] = Plug.Conn.get_req_header(conn, "api-key")
+        send(test_pid, {:fetched_with_key, api_key})
+        Req.Test.json(conn, %{"events" => []})
+      end)
+
+      assert :ok = BrevoPollingJob.perform(%Oban.Job{})
+
+      assert_received {:fetched_with_key, "kept-key"}
+      refute_received {:fetched_with_key, "excluded-key"}
+    end
+  end
+
+  describe "forced (poll_now) runs" do
+    test "a forced job still runs a cycle while brevo_events_enabled is off" do
+      create_brevo_profile()
+      {:ok, _} = Emails.set_brevo_events_enabled(false)
+
+      message_id = "<forced-#{System.unique_integer([:positive])}@example.com>"
+      log = create_sent_log(message_id)
+      event = brevo_event(%{"messageId" => message_id})
+
+      Req.Test.stub(@stub, fn conn -> Req.Test.json(conn, %{"events" => [event]}) end)
+
+      assert :ok = BrevoPollingJob.perform(%Oban.Job{args: %{"forced" => true}})
+
+      assert Repo.get(Log, log.uuid).status == "delivered"
+    end
+
+    test "a forced job still no-ops when the system itself is disabled" do
+      {:ok, _} = Emails.disable_system()
+
+      # Not stubbed — the system-disabled check must short-circuit before
+      # anything (including HTTP) is touched, forced or not.
+      assert :ok = BrevoPollingJob.perform(%Oban.Job{args: %{"forced" => true}})
+    end
+  end
+
+  describe "status observability" do
+    test "last_polled_at is recorded even on a zero-profile no-op cycle" do
+      refute Emails.get_brevo_last_polled_at()
+
+      assert :ok = BrevoPollingJob.perform(%Oban.Job{})
+
+      assert Emails.get_brevo_last_polled_at()
+    end
+  end
 end

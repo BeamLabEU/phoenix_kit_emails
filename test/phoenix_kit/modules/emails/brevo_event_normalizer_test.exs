@@ -29,7 +29,7 @@ defmodule PhoenixKit.Modules.Emails.BrevoEventNormalizerTest do
 
     assert event_data == %{
              "eventType" => "delivery",
-             "mail" => %{"messageId" => @message_id},
+             "mail" => %{"messageId" => @message_id, "provider" => "brevo_api"},
              "delivery" => %{"timestamp" => @date}
            }
   end
@@ -38,7 +38,7 @@ defmodule PhoenixKit.Modules.Emails.BrevoEventNormalizerTest do
     assert {:ok, event_data} = Normalizer.normalize(brevo_event("hardBounces"))
 
     assert event_data["eventType"] == "bounce"
-    assert event_data["mail"] == %{"messageId" => @message_id}
+    assert event_data["mail"] == %{"messageId" => @message_id, "provider" => "brevo_api"}
     assert event_data["bounce"]["bounceType"] == "Permanent"
     assert event_data["bounce"]["timestamp"] == @date
 
@@ -64,7 +64,7 @@ defmodule PhoenixKit.Modules.Emails.BrevoEventNormalizerTest do
 
     assert event_data == %{
              "eventType" => "open",
-             "mail" => %{"messageId" => @message_id},
+             "mail" => %{"messageId" => @message_id, "provider" => "brevo_api"},
              "open" => %{"timestamp" => @date, "ipAddress" => "1.2.3.4"}
            }
   end
@@ -84,7 +84,7 @@ defmodule PhoenixKit.Modules.Emails.BrevoEventNormalizerTest do
 
     assert event_data == %{
              "eventType" => "click",
-             "mail" => %{"messageId" => @message_id},
+             "mail" => %{"messageId" => @message_id, "provider" => "brevo_api"},
              "click" => %{
                "timestamp" => @date,
                "link" => "https://example.com",

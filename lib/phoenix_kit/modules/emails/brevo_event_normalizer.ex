@@ -46,7 +46,7 @@ defmodule PhoenixKit.Modules.Emails.BrevoEventNormalizer do
         {:ok,
          %{
            "eventType" => event_type,
-           "mail" => %{"messageId" => message_id},
+           "mail" => %{"messageId" => message_id, "provider" => "brevo_api"},
            sub_key => sub_map
          }}
 

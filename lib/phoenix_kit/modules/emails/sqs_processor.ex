@@ -1411,7 +1411,11 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
         "x-created-from-event" => event_data["eventType"] || "unknown"
       },
       body_preview: "(email body not available - created from event)",
-      provider: "aws_ses",
+      # A normalized event carries its own provider hint under
+      # mail.provider (BrevoEventNormalizer sets it; SES/SNS events never
+      # have this key at all) — defaults to "aws_ses" for backward
+      # compatibility with every existing SES-sourced placeholder.
+      provider: Map.get(mail_data, "provider", "aws_ses"),
       template_name: "placeholder",
       campaign_id: "recovered_from_event"
     }

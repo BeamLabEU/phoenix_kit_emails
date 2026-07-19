@@ -117,4 +117,23 @@ defmodule PhoenixKit.Modules.Emails.BrevoEventsIntegrationTest do
 
     assert {:blocked, _} = RateLimiter.check_blocklist("recipient@example.com")
   end
+
+  test "a Brevo event with no matching log creates a placeholder labeled provider brevo_api, not aws_ses" do
+    {:ok, _} = Emails.set_placeholder_logs(true)
+
+    brevo_message_id = "<brevo-#{System.unique_integer([:positive])}@brevo.com>"
+
+    brevo_event = %{
+      "date" => "2026-07-19T10:00:00Z",
+      "email" => "recipient@example.com",
+      "event" => "delivered",
+      "messageId" => brevo_message_id
+    }
+
+    {:ok, normalized} = BrevoEventNormalizer.normalize(brevo_event)
+    assert {:ok, %{updated: true}} = SQSProcessor.process_email_event(normalized)
+
+    placeholder = Repo.get_by(Log, message_id: brevo_message_id)
+    assert placeholder.provider == "brevo_api"
+  end
 end
