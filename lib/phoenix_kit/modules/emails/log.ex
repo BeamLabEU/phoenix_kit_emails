@@ -172,6 +172,8 @@ defmodule PhoenixKit.Modules.Emails.Log do
   alias PhoenixKit.Utils.UUID, as: UUIDUtils
   @primary_key {:uuid, UUIDv7, autogenerate: true}
 
+  @type t :: %__MODULE__{}
+
   schema "phoenix_kit_email_logs" do
     field(:message_id, :string)
     field(:aws_message_id, :string)
