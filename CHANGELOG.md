@@ -1,10 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.1.13 - 2026-07-19
 
 ### Fixed
-- `aws_configured?/0` had always returned `true` regardless of actual configuration (`get_aws_access_key/0`/`get_aws_secret_key/0` return `nil`, not `""`, when unconfigured, and the check only compared against `""`). Now correctly reflects whether AWS credentials are actually set. This changes the observed behavior of every caller — all of them now *correctly* report "not configured" instead of always claiming configured: `sync_email_status/1` and `fetch_sqs_events_for_message/1`/`fetch_dlq_events_for_message/1` (the manual "sync status" button's SQS/DLQ search now genuinely refuses when nothing is configured, instead of attempting it anyway and failing downstream), `current_provider/0` (falls back to `"unknown"` instead of always guessing `"aws_ses"`), and the "AWS Configured" badge on the Amazon SES & SQS settings section.
-- `SQSPollingJob` now gates polling on SES actually being configured (an enabled `SendProfile` pointed at `"aws_ses"`, or the legacy/env-var override via `aws_configured?/0`) — previously it polled unconditionally once the `sqs_polling_enabled` toggle was on, regardless of whether SES was the thing sending mail.
+- The `/webhooks/ses` route was piped through the host app's `:browser` pipeline, which (per the documented default) includes `protect_from_forgery`. AWS SNS delivers webhook notifications as a cold, session-less POST with no CSRF token, so every notification 403'd with `Plug.CSRFProtection.InvalidCSRFTokenError` before ever reaching `WebhookController`. The route now runs through its own minimal `:phoenix_kit_emails_webhook` pipeline (just `plug :accepts, ["html"]`, no session/CSRF plugs), mirroring the equivalent fix in `phoenix_kit_newsletters`'s one-click-unsubscribe route. (#17)
 
 ## 0.1.12 - 2026-07-19
 
