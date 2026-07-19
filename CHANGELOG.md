@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.14 - 2026-07-19
+
+### Fixed
+- `Emails.aws_configured?/0` always returned `true` regardless of actual configuration: `get_aws_access_key/0`/`get_aws_secret_key/0` return `nil` (not `""`) when unconfigured, but the check only compared against `""` (`nil != ""` is `true` in Elixir). This silently affected `sync_email_status/1`, `fetch_sqs_events_for_message/1`, `fetch_dlq_events_for_message/1`, `current_provider/0`, and the "AWS Configured" badge on the Amazon SES & SQS settings section — all now correctly reflect whether AWS credentials are actually present. (#19)
+
+### Changed
+- `SQSPollingJob` now gates polling on whether SES is actually the thing sending mail right now, mirroring `BrevoPollingJob`'s sender-aware gate: polling requires either an enabled `SendProfile` pointed at an `"aws_ses"` integration, or `Emails.aws_configured?/0` as an explicit override for deployments that predate the `SendProfile` system (legacy Settings/env-var credentials, or a bare `aws_ses` Integrations connection with nothing pointed at it). (#19)
+
 ## 0.1.13 - 2026-07-19
 
 ### Fixed

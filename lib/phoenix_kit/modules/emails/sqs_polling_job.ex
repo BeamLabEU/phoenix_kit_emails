@@ -199,9 +199,7 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
 
   @doc false
   # Check if polling should be performed. Not `defp` so the sender-aware
-  # gate can be unit-tested directly without a real SQS/network round
-  # trip — same rationale as `BrevoPollingJob`'s and `DeliveryWorker`'s
-  # internal seams.
+  # gate can be unit-tested directly without a real SQS/network round trip.
   def should_poll? do
     Emails.enabled?() and
       Emails.ses_events_enabled?() and
