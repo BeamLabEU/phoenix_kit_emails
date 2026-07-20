@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.16 - 2026-07-20
+
+### Changed
+- `BrevoPollingJob` no longer re-fetches the fixed `[yesterday, today]` window from offset 0 every cycle. Each integration's progress is now a persisted `%{date, offset}` watermark (stored via `PhoenixKit.Settings`' JSON-by-prefix helpers), so a cycle queries a single day at its last-known offset instead of re-paying the re-fetch + dedup-lookup cost for every already-processed event, and a sender producing more events than one cycle's page cap covers can still reach its newest events over successive cycles instead of never catching up. A trailing one-day re-check (its own small page budget, independent of the forward walk's) guards against Brevo's ~30-60s indexing lag and undocumented `startDate`/`endDate` timezone. Watermarks for integrations no longer active (deleted or excluded from polling) are pruned each cycle. (#20)
+
+### Fixed
+- The above watermark's offset for *today* specifically never advanced past a non-empty short page — every cycle re-fetched and re-processed the same tail of today's events for as long as today's total stayed under the page limit, which is the common case at normal volumes. Now advances by the number of events actually returned. (#20)
+
 ## 0.1.15 - 2026-07-19
 
 ### Changed

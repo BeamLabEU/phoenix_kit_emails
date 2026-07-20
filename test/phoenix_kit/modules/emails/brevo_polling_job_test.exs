@@ -202,6 +202,27 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingJobTest do
       assert Emails.get_brevo_watermark(profile.integration_uuid) == %{date: today, offset: 5}
     end
 
+    test "a non-empty short page for today advances the offset past its own events" do
+      profile = create_brevo_profile()
+      today = Date.utc_today()
+      {:ok, _} = Emails.set_brevo_watermark(profile.integration_uuid, today, 5)
+
+      Application.put_env(:phoenix_kit_emails, :brevo_page_limit, 10)
+      on_exit(fn -> Application.delete_env(:phoenix_kit_emails, :brevo_page_limit) end)
+
+      # 2 events, well under the limit of 10 — a short (but non-empty)
+      # page. Without advancing past these, the next cycle would re-fetch
+      # and re-process the exact same 2 events forever, for as long as
+      # today's total stays under the limit.
+      Req.Test.stub(@stub, fn conn ->
+        Req.Test.json(conn, %{"events" => [brevo_event(%{}), brevo_event(%{})]})
+      end)
+
+      assert :ok = BrevoPollingJob.perform(%Oban.Job{})
+
+      assert Emails.get_brevo_watermark(profile.integration_uuid) == %{date: today, offset: 7}
+    end
+
     test "several small backlog days close within a single cycle" do
       profile = create_brevo_profile()
       today = Date.utc_today()

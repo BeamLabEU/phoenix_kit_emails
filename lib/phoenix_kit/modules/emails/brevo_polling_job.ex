@@ -444,7 +444,7 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingJob do
   defp advance_watermark(_api_key, integration_uuid, date, offset, _today, budget, pages_used)
        when pages_used >= budget do
     Logger.warning(
-      "Brevo Polling Job: hit the #{@max_pages_per_integration}-page cap for integration " <>
+      "Brevo Polling Job: hit the #{budget}-page forward-walk budget for integration " <>
         "#{integration_uuid} at #{Date.to_iso8601(date)}, offset #{offset} — remaining " <>
         "events will be picked up next cycle"
     )
@@ -469,11 +469,17 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingJob do
             pages_used
           )
         else
+          # offset + length(events), not the bare pre-fetch offset: for
+          # the date >= today branch below, this value is what gets
+          # persisted verbatim. Persisting the pre-fetch offset would
+          # pin today's watermark at the same spot forever (as long as
+          # its page count stays under `limit`), re-fetching and
+          # re-processing every event for today on every single cycle.
           advance_past_short_page(
             api_key,
             integration_uuid,
             date,
-            offset,
+            offset + length(events),
             today,
             budget,
             pages_used
