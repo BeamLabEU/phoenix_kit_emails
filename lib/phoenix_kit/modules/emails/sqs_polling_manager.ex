@@ -78,15 +78,6 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingManager do
   def enable_polling do
     Logger.info("SQS Polling Manager: Enabling polling")
 
-    # Clear any queued next-poll first, then start exactly one fresh job. This
-    # GUARANTEES a live polling chain on enable (critical for the off→on UI
-    # toggle). If a job is still executing, its end-of-cycle schedule_next_poll
-    # deletes this freshly-inserted job before inserting its own, collapsing the
-    # two into a single chain (see SQSPollingJob.schedule_next_poll/1). (A guard
-    # that skipped the insert when a job was already executing would leave no
-    # chain if that job finished its cycle while disabled.)
-    SQSPollingJob.cancel_scheduled()
-
     with {:ok, _setting} <- Emails.set_sqs_polling(true),
          {:ok, job} <- insert_poll_job() do
       Logger.info("SQS Polling Manager: Polling enabled and first job started")
@@ -104,7 +95,13 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingManager do
   @doc """
   Disables SQS polling by updating the configuration.
 
-  Note: Existing scheduled jobs will check this setting and skip execution.
+  No explicit job cancellation: `SQSPollingJob.perform/1` checks
+  `should_poll?/0` before doing any work AND before self-scheduling its
+  next cycle (see that module). At most one already-queued job fires
+  once more, sees polling disabled, does nothing, and does not
+  re-schedule — the chain dies on its own within one cycle. That one
+  harmless no-op run is the accepted cost of not doing a manual DELETE
+  here.
 
   ## Returns
 
@@ -120,8 +117,6 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingManager do
 
     case Emails.set_sqs_polling(false) do
       {:ok, _setting} ->
-        # Cancel any scheduled polling jobs
-        SQSPollingJob.cancel_scheduled()
         Logger.info("SQS Polling Manager: Polling disabled")
         :ok
 
@@ -243,11 +238,26 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingManager do
 
   ## --- Private Functions ---
 
-  # Insert an immediately-available polling job. Used both to start the chain on
-  # enable_polling/0 and to force an out-of-schedule poll via poll_now/0.
+  # Insert an immediately-available polling job. Used both to start the chain
+  # on enable_polling/0 and to force an out-of-schedule poll via poll_now/0.
+  #
+  # A per-call unique:/replace: override, NOT the job's own worker-level
+  # default (which only covers :scheduled — see SQSPollingJob's moduledoc).
+  # This one also covers :available, so a double-click or an enable while a
+  # next-tick is already queued collapses into ONE row instead of two: on a
+  # conflict, `replace:` moves the EXISTING job's scheduled_at to right now
+  # (whichever state it's in — :scheduled or already :available) rather than
+  # leaving a stray future job alongside a fresh immediate one. `:executing`
+  # is deliberately excluded here too, same self-conflict reason as the
+  # worker-level default; a job already executing when this fires just gets
+  # a genuinely new, separate immediate job queued right behind it, which is
+  # the correct "poll now" behavior, not a bug.
   defp insert_poll_job do
     %{}
-    |> SQSPollingJob.new()
+    |> SQSPollingJob.new(
+      unique: [period: :infinity, states: [:available, :scheduled]],
+      replace: [scheduled: [:scheduled_at], available: [:scheduled_at]]
+    )
     |> Oban.insert()
   end
 

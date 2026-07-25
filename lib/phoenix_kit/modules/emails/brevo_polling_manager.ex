@@ -25,8 +25,6 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingManager do
   def enable_polling do
     Logger.info("Brevo Polling Manager: Enabling polling")
 
-    BrevoPollingJob.cancel_scheduled()
-
     with {:ok, _setting} <- Emails.set_brevo_events_enabled(true),
          {:ok, job} <- insert_poll_job() do
       Logger.info("Brevo Polling Manager: Polling enabled and first job started")
@@ -42,15 +40,19 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingManager do
   end
 
   @doc """
-  Disables Brevo event polling by updating the configuration and
-  cancelling scheduled jobs.
+  Disables Brevo event polling by updating the configuration.
+
+  No explicit job cancellation: `BrevoPollingJob.perform/1` checks
+  `should_poll?/0` (unless forced) before self-scheduling its next cycle
+  — see that module. At most one already-queued job fires once more,
+  sees polling disabled, does nothing, and does not re-schedule; the
+  chain dies on its own within one cycle.
   """
   def disable_polling do
     Logger.info("Brevo Polling Manager: Disabling polling")
 
     case Emails.set_brevo_events_enabled(false) do
       {:ok, _setting} ->
-        BrevoPollingJob.cancel_scheduled()
         Logger.info("Brevo Polling Manager: Polling disabled")
         :ok
 
@@ -141,15 +143,38 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingManager do
 
   ## --- Private Functions ---
 
+  # Per-call unique:/replace: override, NOT the job's worker-level default
+  # (:scheduled only — see SQSPollingJob's moduledoc, which this mirrors).
+  # This one also covers :available, so enable_polling/0 collapses into the
+  # existing next-tick job (moved to run right now via replace:) instead of
+  # leaving two rows. :executing stays excluded — a job already executing
+  # when this fires gets a genuinely separate immediate job, which is
+  # correct here (not a bug).
   defp insert_poll_job do
     %{}
-    |> BrevoPollingJob.new()
+    |> BrevoPollingJob.new(
+      unique: [period: :infinity, states: [:available, :scheduled]],
+      replace: [scheduled: [:scheduled_at], available: [:scheduled_at]]
+    )
     |> Oban.insert()
   end
 
+  # `args: %{"forced" => true}` differs from the regular chain's `%{}` —
+  # Oban's unique check matches on args by default, so this can only ever
+  # conflict with ANOTHER forced job, never the regular chain. That's
+  # deliberate: repeated poll_now/0 clicks collapse into one (moved to run
+  # now via replace:), without ever touching — or cancelling — the regular
+  # chain's own next scheduled tick. (The old cancel_scheduled/0-based
+  # poll_now did NOT have this property: it deleted every queued job for
+  # this worker regardless of args, so a poll_now click could silently wipe
+  # out an already-scheduled regular cycle. This is a behavior fix, not
+  # just a mechanical port.)
   defp insert_forced_poll_job do
     %{"forced" => true}
-    |> BrevoPollingJob.new()
+    |> BrevoPollingJob.new(
+      unique: [period: :infinity, states: [:available, :scheduled]],
+      replace: [scheduled: [:scheduled_at], available: [:scheduled_at]]
+    )
     |> Oban.insert()
   end
 
