@@ -1,0 +1,74 @@
+defmodule PhoenixKit.Modules.Emails.SQSPollingManagerTest do
+  @moduledoc """
+  Unit tests for `SQSPollingManager`'s control surface — mirrors
+  `BrevoPollingManagerTest`'s contract (enable/disable/poll_now), backed
+  by an Oban instance in `testing: :manual` mode so `Oban.insert/1`
+  persists a row without actually running the job.
+  """
+
+  use PhoenixKitEmails.DataCase, async: false
+
+  import Ecto.Query
+
+  alias PhoenixKit.Modules.Emails
+  alias PhoenixKit.Modules.Emails.SQSPollingJob
+  alias PhoenixKit.Modules.Emails.SQSPollingManager
+  alias PhoenixKitEmails.Test.Repo
+
+  setup do
+    start_supervised!({Oban, repo: Repo, testing: :manual, queues: [], plugins: false})
+    {:ok, _} = Emails.enable_system()
+    :ok
+  end
+
+  defp worker_jobs(states) do
+    worker = SQSPollingJob.worker_name()
+    Repo.all(from(j in Oban.Job, where: j.worker == ^worker and j.state in ^states))
+  end
+
+  test "enable_polling/0 persists the setting and inserts the first job" do
+    refute Emails.sqs_polling_enabled?()
+
+    assert {:ok, %Oban.Job{}} = SQSPollingManager.enable_polling()
+    assert Emails.sqs_polling_enabled?()
+  end
+
+  test "disable_polling/0 clears the setting" do
+    {:ok, _job} = SQSPollingManager.enable_polling()
+    assert :ok = SQSPollingManager.disable_polling()
+    refute Emails.sqs_polling_enabled?()
+  end
+
+  test "set_polling_interval/1 rejects anything below 1000ms" do
+    assert {:error, _} = SQSPollingManager.set_polling_interval(999)
+    assert {:ok, _} = SQSPollingManager.set_polling_interval(5_000)
+  end
+
+  test "poll_now/0 inserts an immediate job even while polling is disabled" do
+    refute Emails.sqs_polling_enabled?()
+    assert {:ok, %Oban.Job{}} = SQSPollingManager.poll_now()
+  end
+
+  test "enable_polling/0 while a next tick is already scheduled moves it to run now, not a duplicate" do
+    {:ok, existing} = %{} |> SQSPollingJob.new(schedule_in: 3_600) |> Oban.insert()
+    assert existing.state == "scheduled"
+    far_future = existing.scheduled_at
+
+    assert {:ok, job} = SQSPollingManager.enable_polling()
+
+    # Same row, not a second one — moved up, not appended.
+    assert job.id == existing.id
+    assert DateTime.compare(job.scheduled_at, far_future) == :lt
+    assert DateTime.diff(DateTime.utc_now(), job.scheduled_at, :second) |> abs() < 5
+
+    assert [_single] = worker_jobs(["available", "scheduled"])
+  end
+
+  test "poll_now/0 called twice back to back inserts exactly one job" do
+    assert {:ok, first} = SQSPollingManager.poll_now()
+    assert {:ok, second} = SQSPollingManager.poll_now()
+
+    assert first.id == second.id
+    assert [_single] = worker_jobs(["available", "scheduled"])
+  end
+end
