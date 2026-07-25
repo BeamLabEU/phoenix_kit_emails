@@ -115,6 +115,43 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingJobTest do
     end
   end
 
+  describe "foreign mail on a shared Brevo account" do
+    test "an event whose message id matches no sent email is skipped — no placeholder, no log" do
+      create_brevo_profile()
+
+      # Even with the placeholder safety net ON (what the SES/SNS pipeline
+      # uses to catch our OWN unlogged mail), the poller must not
+      # manufacture a log for mail this app never sent — the account can be
+      # shared with other senders.
+      {:ok, _} = Emails.set_placeholder_logs(true)
+
+      foreign_id = "<foreign-#{System.unique_integer([:positive])}@someone-elses-host>"
+
+      Req.Test.stub(@stub, fn conn ->
+        Req.Test.json(conn, %{"events" => [brevo_event(%{"messageId" => foreign_id})]})
+      end)
+
+      assert :ok = BrevoPollingJob.perform(%Oban.Job{})
+
+      assert Repo.get_by(Log, message_id: foreign_id) == nil
+      assert Repo.get_by(Log, aws_message_id: foreign_id) == nil
+    end
+
+    test "an event whose message id matches a sent email is still processed normally" do
+      create_brevo_profile()
+      message_id = "<known-#{System.unique_integer([:positive])}@example.com>"
+      log = create_sent_log(message_id)
+
+      Req.Test.stub(@stub, fn conn ->
+        Req.Test.json(conn, %{"events" => [brevo_event(%{"messageId" => message_id})]})
+      end)
+
+      assert :ok = BrevoPollingJob.perform(%Oban.Job{})
+
+      assert Repo.get(Log, log.uuid).status == "delivered"
+    end
+  end
+
   describe "pagination" do
     test "a full first page triggers a second fetch at the next offset, then the day closes into today on a short page" do
       profile = create_brevo_profile()

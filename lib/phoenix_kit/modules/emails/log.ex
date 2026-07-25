@@ -468,6 +468,25 @@ defmodule PhoenixKit.Modules.Emails.Log do
   end
 
   @doc """
+  Whether any log matches `message_id` on either the internal `message_id`
+  or the provider `aws_message_id` column.
+
+  A cheap existence check — no preloads, no struct load — used to tell an
+  email this app actually sent from foreign mail before running the fuller
+  (preloading) lookup cascade. See `BrevoPollingJob.process_event/1`: on a
+  shared Brevo account most polled events are for mail this app never sent,
+  and this single indexed `SELECT ... LIMIT 1` replaces the three
+  preloading queries the not-found path would otherwise run per event.
+  """
+  def exists_by_any_message_id?(message_id) when is_binary(message_id) do
+    __MODULE__
+    |> where([l], l.aws_message_id == ^message_id or l.message_id == ^message_id)
+    |> repo().exists?()
+  end
+
+  def exists_by_any_message_id?(_), do: false
+
+  @doc """
   Creates an email log.
 
   ## Examples

@@ -1928,6 +1928,21 @@ defmodule PhoenixKit.Modules.Emails do
   end
 
   @doc """
+  Whether an email log exists for `message_id`, matched against either the
+  internal `message_id` or the provider `aws_message_id` column.
+
+  A cheap existence check (no struct load); `false` when the system is
+  disabled or the id is not a binary. Used by the Brevo poller to skip
+  events for mail this app never sent — the account may be shared with
+  other senders.
+  """
+  def email_log_exists?(message_id) when is_binary(message_id) do
+    enabled?() and Log.exists_by_any_message_id?(message_id)
+  end
+
+  def email_log_exists?(_), do: false
+
+  @doc """
   Creates an email log if system is enabled.
 
   ## Examples

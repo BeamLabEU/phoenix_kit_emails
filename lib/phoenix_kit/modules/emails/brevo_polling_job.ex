@@ -552,16 +552,7 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingJob do
   defp process_event(brevo_event) do
     case BrevoEventNormalizer.normalize(brevo_event) do
       {:ok, event_data} ->
-        case SQSProcessor.process_email_event(event_data) do
-          {:ok, _result} ->
-            :ok
-
-          {:error, reason} ->
-            Logger.warning("Brevo Polling Job: failed to process event", %{
-              reason: inspect(reason),
-              message_id: get_in(event_data, ["mail", "messageId"])
-            })
-        end
+        process_known_email_event(event_data, brevo_event)
 
       :ignore ->
         :ok
@@ -571,6 +562,46 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingJob do
           reason: inspect(reason),
           raw_event_type: brevo_event["event"]
         })
+    end
+  end
+
+  # A Brevo account may be shared with other senders (personal clients,
+  # other apps), so most polled events are for mail THIS app never sent.
+  # Such an event resolves to no `email_log`, and the shared SES/SNS
+  # processor surfaces that as a loud `[SYNC ISSUE] ... unknown email`
+  # error plus a "No email log found" warning — on every cycle, because
+  # today's page is deliberately re-read all day (see moduledoc), so the
+  # same foreign event repeats until midnight.
+  #
+  # Gate on a cheap existence check first: this app's own Brevo sends are
+  # logged with their `message_id` at send time, so a missing log means
+  # foreign mail — skip it quietly at `:debug` instead of dragging it
+  # through the processor's not-found error path (which also spares the
+  # three preloading lookups that path runs per event). Genuine
+  # processing is unchanged, and the dedicated SES/SNS pipeline keeps its
+  # loud SYNC ISSUE signal, which there really does mean our own mail
+  # failed to log.
+  defp process_known_email_event(event_data, brevo_event) do
+    message_id = get_in(event_data, ["mail", "messageId"])
+
+    if is_binary(message_id) and not Emails.email_log_exists?(message_id) do
+      Logger.debug(
+        "Brevo Polling Job: '#{brevo_event["event"]}' event for #{message_id} has no " <>
+          "matching sent email (foreign mail on a shared Brevo account) — skipping"
+      )
+
+      :ok
+    else
+      case SQSProcessor.process_email_event(event_data) do
+        {:ok, _result} ->
+          :ok
+
+        {:error, reason} ->
+          Logger.warning("Brevo Polling Job: failed to process event", %{
+            reason: inspect(reason),
+            message_id: message_id
+          })
+      end
     end
   end
 
