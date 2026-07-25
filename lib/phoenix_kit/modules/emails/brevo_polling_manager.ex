@@ -150,9 +150,15 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingManager do
   # leaving two rows. :executing stays excluded — a job already executing
   # when this fires gets a genuinely separate immediate job, which is
   # correct here (not a bug).
+  #
+  # `schedule_in: 0` is explicit and load-bearing — see SQSPollingManager's
+  # `insert_poll_job/0` for why: without it, the new insert's changeset has
+  # no `:scheduled_at` change for `replace:` to copy, and a conflicting
+  # future job would silently NOT get moved up.
   defp insert_poll_job do
     %{}
     |> BrevoPollingJob.new(
+      schedule_in: 0,
       unique: [period: :infinity, states: [:available, :scheduled]],
       replace: [scheduled: [:scheduled_at], available: [:scheduled_at]]
     )
@@ -168,10 +174,12 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingManager do
   # poll_now did NOT have this property: it deleted every queued job for
   # this worker regardless of args, so a poll_now click could silently wipe
   # out an already-scheduled regular cycle. This is a behavior fix, not
-  # just a mechanical port.)
+  # just a mechanical port.) `schedule_in: 0` — same reason as
+  # `insert_poll_job/0` above.
   defp insert_forced_poll_job do
     %{"forced" => true}
     |> BrevoPollingJob.new(
+      schedule_in: 0,
       unique: [period: :infinity, states: [:available, :scheduled]],
       replace: [scheduled: [:scheduled_at], available: [:scheduled_at]]
     )

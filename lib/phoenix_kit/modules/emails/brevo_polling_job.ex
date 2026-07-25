@@ -589,14 +589,15 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingJob do
     Application.get_env(:phoenix_kit_emails, :brevo_page_limit, @default_page_limit)
   end
 
+  @doc false
   # Relies entirely on the worker's own
   # `unique: [period: :infinity, states: [:scheduled]]` to guarantee
   # exactly one queued future job — see the module's `use Oban.Worker`
   # comment and SQSPollingJob's moduledoc for the full reasoning. A
   # conflict here (job.conflict? == true) means another :scheduled job
   # already exists; that's the expected, harmless steady state, not an
-  # error.
-  defp schedule_next_poll(interval_ms) do
+  # error. Not `defp` so the dedup behavior is unit-testable directly.
+  def schedule_next_poll(interval_ms) do
     if should_poll?() do
       %{}
       |> __MODULE__.new(schedule_in: max(div(interval_ms, 1000), 1))

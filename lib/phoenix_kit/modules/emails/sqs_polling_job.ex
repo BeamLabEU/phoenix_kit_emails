@@ -410,13 +410,16 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
     end
   end
 
+  @doc false
   # Schedule next polling job. Relies entirely on the worker's own
   # `unique: [period: :infinity, states: [:scheduled]]` (see moduledoc) to
   # guarantee exactly one queued future job — no manual delete-then-insert.
   # A conflict here (job.conflict? == true) means another :scheduled job
   # already exists; that's the expected, harmless steady state (e.g. this
-  # cycle racing an enable_polling/poll_now insert), not an error.
-  defp schedule_next_poll(interval_ms) do
+  # cycle racing an enable_polling/poll_now insert), not an error. Not
+  # `defp` so the dedup behavior is unit-testable directly — same
+  # rationale as `should_poll?/0` above.
+  def schedule_next_poll(interval_ms) do
     if should_poll?() do
       # Oban schedule_in is in whole SECONDS — div(interval_ms, 1000) is 0 for
       # any 1..999ms interval, which would queue the next poll immediately and

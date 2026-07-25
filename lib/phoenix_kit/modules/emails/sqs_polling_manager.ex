@@ -252,9 +252,22 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingManager do
   # worker-level default; a job already executing when this fires just gets
   # a genuinely new, separate immediate job queued right behind it, which is
   # the correct "poll now" behavior, not a bug.
+  #
+  # `schedule_in: 0` is explicit and load-bearing, not decorative: Oban's
+  # `replace:` only copies a field that's actually present in the NEW
+  # insert's changeset changes (`Job.put_scheduling/2`), and a bare
+  # `new(%{})` with no schedule option leaves `:scheduled_at` untouched —
+  # `replace: [scheduled: [:scheduled_at]]` would then have nothing to
+  # copy onto a conflicting future job, silently failing to move it up.
+  # (A job with `scheduled_at` == now lands in Oban's `:scheduled` state,
+  # not `:available` — see `Job.normalize_state/1` — but its
+  # `scheduled_at` has already "elapsed", so Oban's staging sweep
+  # (~1s cadence) picks it up next tick regardless; functionally
+  # immediate for this use case.)
   defp insert_poll_job do
     %{}
     |> SQSPollingJob.new(
+      schedule_in: 0,
       unique: [period: :infinity, states: [:available, :scheduled]],
       replace: [scheduled: [:scheduled_at], available: [:scheduled_at]]
     )
