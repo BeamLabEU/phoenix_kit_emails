@@ -91,6 +91,20 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingManager do
   @impl PhoenixKit.Modules.Emails.EventTracker
   def worker, do: SQSPollingJob
 
+  ## --- Admin panel duck-typed extras ---
+  #
+  # See BrevoPollingManager's own "Admin panel duck-typed extras" section
+  # for the full rationale — not part of the formal EventTracker
+  # behaviour, same informal convention as enable_polling/0, poll_now/0,
+  # status/0.
+
+  @doc """
+  SES has no multi-account concept in this codebase (one "SES
+  credentials source" picker, not a list) — 1 when a working event
+  source is configured (mirrors `eligible?/0`), 0 otherwise.
+  """
+  def integration_count, do: if(SQSPollingJob.pollable_ignoring_toggle?(), do: 1, else: 0)
+
   @doc """
   Enables SQS polling by setting the configuration and starting the first job.
 

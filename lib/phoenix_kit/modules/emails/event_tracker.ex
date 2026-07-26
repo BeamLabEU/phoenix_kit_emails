@@ -75,4 +75,87 @@ defmodule PhoenixKit.Modules.Emails.EventTracker do
   def should_run?(tracker) when is_atom(tracker) do
     tracker.eligible?() and tracker.enabled?()
   end
+
+  @typedoc "The admin panel's four-word state vocabulary (spec §5)."
+  @type state :: :active | :idle_no_integration | :off | :stalled
+
+  @doc """
+  Derives the admin panel's State column — exactly one of `:active`,
+  `:idle_no_integration`, `:off`, `:stalled` (spec §5).
+
+  `:stalled` (`should_run?` true, zero jobs across
+  `available|scheduled|executing`) is the one state that needs a false-
+  positive guard: a healthy chain inserts its own successor
+  *synchronously inside `perform`*, before returning, so at every point
+  in a normal cycle at least one row is `executing` (the current job,
+  which hasn't finished yet) or `scheduled`/`available` (its
+  already-inserted successor) — never both empty at once. Counting
+  `executing` (via `pending_jobs_count/1`) is what closes that window;
+  without it, reading queued-only states would flicker `:stalled` on
+  every single cycle. A transient miss beyond that (e.g. reconcile
+  hasn't run yet since a `SendProfile` was just added — no PubSub for
+  that today, spec §4.3) self-clears within one reconcile Cron tick;
+  this function makes no attempt to mask that window client-side, since
+  doing so would also hide a genuinely stalled chain.
+  """
+  @spec state(t()) :: state()
+  def state(tracker) when is_atom(tracker) do
+    cond do
+      not tracker.enabled?() -> :off
+      not tracker.eligible?() -> :idle_no_integration
+      pending_jobs_count(tracker) > 0 -> :active
+      true -> :stalled
+    end
+  end
+
+  @doc """
+  Oban job count for this tracker's `worker/0`, across exactly
+  `available|scheduled|executing` — the "is a chain alive" health check
+  (spec §5's "Queued" column and `state/1`'s `:stalled` detection both
+  use this; **never** queued-only, see `state/1`'s moduledoc).
+  """
+  @spec pending_jobs_count(t()) :: non_neg_integer()
+  def pending_jobs_count(tracker) when is_atom(tracker) do
+    import Ecto.Query
+
+    worker_name = inspect(tracker.worker())
+    repo = PhoenixKit.RepoHelper.repo()
+
+    from(j in Oban.Job,
+      where: j.worker == ^worker_name,
+      where: j.state in ["available", "scheduled", "executing"],
+      select: count(j.id)
+    )
+    |> repo.one()
+  rescue
+    _ -> 0
+  end
+
+  @doc """
+  Timestamp this tracker's chain last finished a cycle — derived
+  generically from Oban's own job history (the last `completed` job for
+  `worker/0`), not a per-tracker persisted setting, so it works
+  uniformly for every registered tracker with zero extra plumbing. A
+  no-op cycle (nothing to fetch) still completes normally, so this
+  reads as "the chain is alive and ticking", matching what the existing
+  per-provider `*_last_polled_at` settings already intended.
+  """
+  @spec last_polled_at(t()) :: DateTime.t() | nil
+  def last_polled_at(tracker) when is_atom(tracker) do
+    import Ecto.Query
+
+    worker_name = inspect(tracker.worker())
+    repo = PhoenixKit.RepoHelper.repo()
+
+    from(j in Oban.Job,
+      where: j.worker == ^worker_name,
+      where: j.state == "completed",
+      order_by: [desc: j.completed_at],
+      limit: 1,
+      select: j.completed_at
+    )
+    |> repo.one()
+  rescue
+    _ -> nil
+  end
 end
