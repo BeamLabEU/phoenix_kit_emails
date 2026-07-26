@@ -213,12 +213,16 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
     Emails.sqs_polling_enabled?() and pollable_ignoring_toggle?()
   end
 
+  @doc false
   # Everything the poller needs EXCEPT the sqs_polling_enabled toggle: the
   # system switch, the SES-events switch, and the sender-aware gate below.
   # A forced (poll_now/0) cycle bypasses the toggle but never these —
   # mirroring BrevoPollingJob, whose `forced?` bypasses
   # brevo_events_enabled but never Emails.enabled?/0 or its profile gate.
-  defp pollable_ignoring_toggle? do
+  # This is exactly `EventTracker.eligible?/0`'s SES definition
+  # (SQSPollingManager.eligible?/0 delegates here) — not `defp` for that
+  # reuse, same testability rationale as `should_poll?/0` above.
+  def pollable_ignoring_toggle? do
     Emails.enabled?() and
       Emails.ses_events_enabled?() and
       ses_actively_configured?()

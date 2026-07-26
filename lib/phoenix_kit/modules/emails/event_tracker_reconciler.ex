@@ -1,0 +1,123 @@
+defmodule PhoenixKit.Modules.Emails.EventTrackerReconciler do
+  @moduledoc """
+  Stateless reconcile — the single code path that starts/stops a
+  tracker's self-scheduling Oban chain, enforcing
+  `EventTracker.should_run?/1`. See spec §4.2/§4.3.
+
+  **Not a GenServer** (decision §9.1): the correctness backbone is the
+  periodic reconcile Cron (`EventTrackerReconcileWorker`), not a
+  long-lived orchestrator process. `reconcile/0`/`reconcile_tracker/1`
+  are plain functions, safe to call from anywhere (boot, a settings
+  toggle, the Cron tick, a future admin panel) — idempotent and
+  cluster-safe:
+
+  - "ensure exactly one chain" = an Oban `unique` insert (no-op, or moves
+    an existing job to run now, if one already exists) — enforced at the
+    DATABASE by Oban's own uniqueness, so two nodes reconciling
+    simultaneously cannot create two chains (spec §8a).
+  - "ensure none" = `Oban.cancel_all_jobs/1` scoped to `available`/
+    `scheduled` only (never `executing` — a running cycle is never
+    interrupted; it dies on its own next time it checks `should_run?/0`
+    and doesn't self-reschedule, same mechanism `SQSPollingJob`/
+    `BrevoPollingJob` already rely on for the disable path — see #21).
+
+  A duplicate/racing insert at worst costs one extra no-op cycle
+  (`should_run?/0`'s per-cycle gate inside the job itself is the real
+  safety net) — never two live chains.
+  """
+
+  require Logger
+
+  import Ecto.Query
+
+  alias PhoenixKit.Modules.Emails.EventTracker
+  alias PhoenixKit.Modules.Emails.EventTrackerRegistry
+
+  @doc """
+  Reconcile every registered tracker. Returns a list of
+  `{tracker, result}` pairs, `result` being whatever
+  `reconcile_tracker/1` returns for that tracker — never raises on a
+  single tracker's failure (one broken tracker must not stop the rest
+  from reconciling).
+  """
+  @spec reconcile() :: [{module(), term()}]
+  def reconcile do
+    Enum.map(EventTrackerRegistry.trackers(), fn tracker ->
+      {tracker, reconcile_tracker(tracker)}
+    end)
+  end
+
+  @doc """
+  Reconcile a single tracker against `EventTracker.should_run?/1`.
+
+  - `should_run? == true` → `{:ok, %Oban.Job{}}` (the chain's current job
+    — existing, moved-to-now, or freshly inserted).
+  - `should_run? == false` → `{:ok, :not_running}` (any queued job for
+    this tracker's worker was cancelled; a still-`executing` one is left
+    to finish and die on its own).
+  - `{:error, reason}` on an insert/cancel failure — logged, never
+    raised, so a single tracker's transient DB hiccup during a Cron tick
+    doesn't take down the rest.
+  """
+  @spec reconcile_tracker(module()) :: {:ok, Oban.Job.t() | :not_running} | {:error, term()}
+  def reconcile_tracker(tracker) when is_atom(tracker) do
+    if EventTracker.should_run?(tracker) do
+      ensure_chain(tracker)
+    else
+      cancel_chain(tracker)
+    end
+  rescue
+    error ->
+      Logger.error(
+        "EventTrackerReconciler: reconcile failed for #{inspect(tracker)}: #{Exception.message(error)}"
+      )
+
+      {:error, error}
+  end
+
+  # Mirrors the managers' own "immediate job" unique/replace shape (#21):
+  # covers :available and :scheduled (not :executing — see moduledoc),
+  # and moves an already-queued job to run right now instead of leaving
+  # a stray future job next to a fresh one. schedule_in: 0 is load-
+  # bearing — replace: only copies a field present in the new insert's
+  # changeset, and a bare new(%{}) with no schedule option leaves
+  # scheduled_at untouched.
+  defp ensure_chain(tracker) do
+    worker = tracker.worker()
+
+    result =
+      %{}
+      |> worker.new(
+        schedule_in: 0,
+        unique: [period: :infinity, states: [:available, :scheduled]],
+        replace: [scheduled: [:scheduled_at], available: [:scheduled_at]]
+      )
+      |> Oban.insert()
+
+    case result do
+      {:ok, job} ->
+        {:ok, job}
+
+      {:error, reason} ->
+        Logger.error(
+          "EventTrackerReconciler: failed to ensure a chain for #{inspect(tracker)}: #{inspect(reason)}"
+        )
+
+        {:error, reason}
+    end
+  end
+
+  defp cancel_chain(tracker) do
+    worker_name = inspect(tracker.worker())
+
+    query =
+      Oban.Job
+      |> where([j], j.worker == ^worker_name)
+      |> where([j], j.state in ["available", "scheduled"])
+
+    # Oban.cancel_all_jobs/1 always returns {:ok, count} — no error tuple
+    # to match against.
+    {:ok, _count} = Oban.cancel_all_jobs(query)
+    {:ok, :not_running}
+  end
+end

@@ -11,12 +11,45 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingManager do
   tick — the job itself still no-ops safely if the gate isn't satisfied).
   """
 
+  @behaviour PhoenixKit.Modules.Emails.EventTracker
+
   require Logger
 
   alias PhoenixKit.Email.SendProfiles
   alias PhoenixKit.Modules.Emails
   alias PhoenixKit.Modules.Emails.BrevoIntegrations
   alias PhoenixKit.Modules.Emails.BrevoPollingJob
+
+  ## --- EventTracker behaviour ---
+  #
+  # Thin wrappers over the existing BrevoPollingJob/Manager logic — see
+  # PhoenixKit.Modules.Emails.EventTracker's moduledoc for the full
+  # eligible?/enabled? split rationale. Unlike SES, Brevo has no separate
+  # feature/eligibility key — an active brevo_api SendProfile IS
+  # eligibility (BrevoIntegrations.active_integration_uuids/0's own
+  # definition, already the sender-aware gate used elsewhere in this
+  # module).
+
+  @impl PhoenixKit.Modules.Emails.EventTracker
+  def provider_kind, do: "brevo_api"
+
+  @impl PhoenixKit.Modules.Emails.EventTracker
+  def label, do: "Brevo"
+
+  @impl PhoenixKit.Modules.Emails.EventTracker
+  def eligible?, do: Emails.enabled?() and BrevoIntegrations.active_integration_uuids() != []
+
+  @impl PhoenixKit.Modules.Emails.EventTracker
+  def enabled?, do: Emails.brevo_events_enabled?()
+
+  @impl PhoenixKit.Modules.Emails.EventTracker
+  def poll_cycle(_context), do: BrevoPollingJob.perform(%Oban.Job{})
+
+  @impl PhoenixKit.Modules.Emails.EventTracker
+  def interval_ms, do: Emails.get_brevo_polling_interval()
+
+  @impl PhoenixKit.Modules.Emails.EventTracker
+  def worker, do: BrevoPollingJob
 
   @doc """
   Enables Brevo event polling by setting the configuration and starting

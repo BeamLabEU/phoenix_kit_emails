@@ -57,10 +57,39 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingManager do
   directly from host applications.
   """
 
+  @behaviour PhoenixKit.Modules.Emails.EventTracker
+
   require Logger
 
   alias PhoenixKit.Modules.Emails
   alias PhoenixKit.Modules.Emails.SQSPollingJob
+
+  ## --- EventTracker behaviour ---
+  #
+  # Thin wrappers over the existing SQSPollingJob/Manager logic — see
+  # PhoenixKit.Modules.Emails.EventTracker's moduledoc for the full
+  # eligible?/enabled? split rationale.
+
+  @impl PhoenixKit.Modules.Emails.EventTracker
+  def provider_kind, do: "aws_ses"
+
+  @impl PhoenixKit.Modules.Emails.EventTracker
+  def label, do: "Amazon SES"
+
+  @impl PhoenixKit.Modules.Emails.EventTracker
+  def eligible?, do: SQSPollingJob.pollable_ignoring_toggle?()
+
+  @impl PhoenixKit.Modules.Emails.EventTracker
+  def enabled?, do: Emails.sqs_polling_enabled?()
+
+  @impl PhoenixKit.Modules.Emails.EventTracker
+  def poll_cycle(_context), do: SQSPollingJob.perform(%Oban.Job{})
+
+  @impl PhoenixKit.Modules.Emails.EventTracker
+  def interval_ms, do: Emails.get_sqs_config().polling_interval_ms
+
+  @impl PhoenixKit.Modules.Emails.EventTracker
+  def worker, do: SQSPollingJob
 
   @doc """
   Enables SQS polling by setting the configuration and starting the first job.
