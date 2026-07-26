@@ -96,6 +96,29 @@ defmodule PhoenixKit.Modules.Emails.EventTrackerReconcilerTest do
     end
   end
 
+  describe "reconcile_tracker/1 — never two live chains, even mid-cycle" do
+    test "should_run? true while a chain is already :executing: no second row is inserted" do
+      {:ok, executing_job} = %{} |> FakeEventTrackerWorker.new(schedule_in: 60) |> Oban.insert()
+
+      Repo.update_all(
+        from(j in Oban.Job, where: j.id == ^executing_job.id),
+        set: [state: "executing"]
+      )
+
+      set_should_run(true, true)
+      assert {:ok, %Oban.Job{id: id}} = EventTrackerReconciler.reconcile_tracker(FakeEventTracker)
+
+      # The conflict resolved to the executing row itself — no new
+      # :available/:scheduled row alongside it.
+      assert id == executing_job.id
+
+      worker_name = inspect(FakeEventTrackerWorker)
+      all_jobs = Repo.all(from(j in Oban.Job, where: j.worker == ^worker_name))
+
+      assert [%Oban.Job{state: "executing"}] = all_jobs
+    end
+  end
+
   describe "reconcile_tracker/1 — transitions" do
     test "should_run? flips true -> false: the queued job is cancelled" do
       set_should_run(true, true)

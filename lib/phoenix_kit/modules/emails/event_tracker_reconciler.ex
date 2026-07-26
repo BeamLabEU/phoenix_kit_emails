@@ -75,13 +75,21 @@ defmodule PhoenixKit.Modules.Emails.EventTrackerReconciler do
       {:error, error}
   end
 
-  # Mirrors the managers' own "immediate job" unique/replace shape (#21):
-  # covers :available and :scheduled (not :executing — see moduledoc),
-  # and moves an already-queued job to run right now instead of leaving
-  # a stray future job next to a fresh one. schedule_in: 0 is load-
-  # bearing — replace: only copies a field present in the new insert's
-  # changeset, and a bare new(%{}) with no schedule option leaves
-  # scheduled_at untouched.
+  # Mirrors the managers' own "immediate job" unique/replace shape (#21),
+  # PLUS :executing — unlike the managers' insert (a per-call override on
+  # a worker-level unique that itself excludes :executing to avoid a
+  # self-reschedule from inside perform/1 conflicting with its own row),
+  # reconcile is never called FROM inside a running cycle, so there is no
+  # self-conflict to avoid here. Including :executing closes a real gap:
+  # without it, calling ensure_chain/1 while a cycle is already executing
+  # would insert a genuinely separate :available row, giving that tracker
+  # two live jobs (one running, one about to start) — briefly violating
+  # "never two live chains" for any concurrency > 1 (not forced by this
+  # code, but not something the invariant should depend on either).
+  # With :executing included, that insert instead finds the executing
+  # row as the conflict and no-ops against it (no `replace:` entry for
+  # :executing — its scheduled_at is intentionally left alone, only
+  # :scheduled/:available rows get moved to run now).
   defp ensure_chain(tracker) do
     worker = tracker.worker()
 
@@ -89,7 +97,7 @@ defmodule PhoenixKit.Modules.Emails.EventTrackerReconciler do
       %{}
       |> worker.new(
         schedule_in: 0,
-        unique: [period: :infinity, states: [:available, :scheduled]],
+        unique: [period: :infinity, states: [:available, :scheduled, :executing]],
         replace: [scheduled: [:scheduled_at], available: [:scheduled_at]]
       )
       |> Oban.insert()
