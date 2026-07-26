@@ -57,38 +57,68 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
 
   ## Implementation Notes
 
-  - Uses a short `unique` window to prevent duplicate submissions
+  - Uses Oban's own `unique:` (not a manual delete-then-insert) to keep
+    exactly one future job queued — see the `unique:` option below for
+    the full reasoning; it's the subtle part of this module.
   - Schedules next job only if polling is enabled
   - Uses `SQSProcessor` for event processing
+
+  ## Why `unique: [period: :infinity, states: [:scheduled]]`, not more
+
+  This looks under-specified at first glance — Oban's own unique-states
+  groups (`:incomplete`, or the full default) include `:executing`,
+  `:available`, `:retryable` too. Each of those is excluded here for a
+  concrete reason, not an oversight:
+
+  - **`:executing` must never be in this worker-level list.** The chain
+    works by a currently-`:executing` job inserting its own successor
+    from inside `perform/1`. Oban marks a job `:executing` in the DB
+    *before* calling `perform/1`, and its unique-conflict check has no
+    self-exclusion — an insert of the same worker/args while `:executing`
+    is in `states` finds that job's *own* row as the "existing" match and
+    no-ops against it instead of creating a new `:scheduled` row. The
+    chain would silently stop advancing every single cycle, not just on
+    a crash. (A job orphaned in `:executing` by a hard kill would make
+    this permanent, on top of merely stalling per-cycle.)
+  - **A wider list (e.g. adding `:available`) fails the build.** Oban's
+    `use Oban.Worker, unique: [...]` option is checked at compile time
+    (`Oban.Worker.__after_compile__/2` → `Job.warn_unique/1`): any
+    `:states` list other than the exact literal `[:scheduled]` that
+    doesn't cover every "incomplete" state (`:scheduled`, `:available`,
+    `:executing`, `:retryable`, `:suspended`) emits a compiler warning
+    ("may break uniqueness"), which `--warnings-as-errors` turns into a
+    build failure. `[:scheduled]` alone is Oban's own special-cased
+    exception to that check (see `Job.warn_unique/1`) — it is the *only*
+    partial list that both compiles clean and excludes `:executing`.
+  - `[:scheduled]` is exactly enough for THIS insert: self-scheduled jobs
+    always land in `:scheduled` (interval >= 1000ms ⇒ schedule_in >= 1s,
+    never `:available`), so it dedups the self-reschedule chain against
+    itself with no manual delete step. `period: :infinity` (not a short
+    window) makes that hold regardless of how long the configured
+    interval is — a short window only caught *near-simultaneous* double
+    inserts; the old delete-then-insert dance existed specifically to
+    catch the case a short window couldn't (two chains a full interval
+    apart). An unconditional `:infinity` unique check removes the need
+    for that dance entirely.
+  - The immediate job from `SQSPollingManager.enable_polling/0` /
+    `poll_now/0` is a **different** insert with its own **per-call**
+    `unique:`/`replace:` override (`states: [:available, :scheduled]`) —
+    see `SQSPollingManager`'s `insert_poll_job/0` and
+    `insert_forced_poll_job/0`. A per-call override on `new/2` does NOT
+    go through the compile-time check above (only the worker-level `use`
+    default does), so it's free to cover `:available` too. It still
+    excludes `:executing` for the same self-conflict reason. `poll_now/0`
+    additionally carries `args: %{"forced" => true}`, which puts it in a
+    separate uniqueness namespace (Oban matches on args) so a manual poll
+    never moves the regular chain's next tick.
+  - Concurrency is capped at 1 by the queue, so parallel *execution* is
+    already impossible; `unique:` is what prevents parallel *chains*.
   """
 
   use Oban.Worker,
     queue: :sqs_polling,
     max_attempts: 3,
-    # Short unique window to coalesce accidental double-submits (e.g. double
-    # clicking the toggle, or schedule_next_poll's delete-then-insert racing an
-    # enable_polling insert). It is only a backstop for *near-simultaneous*
-    # inserts — a full cycle apart they fall outside the window, so the single
-    # queued job is instead guaranteed by delete_queued_jobs/0 in
-    # schedule_next_poll (see there).
-    #
-    # NOTE: `:executing` is intentionally NOT in the states list. The chain
-    # works by an executing job inserting the next one; if `:executing` were
-    # included, that self-reschedule would be deduped against the still-running
-    # job and the chain would stall. Worse, a job orphaned in `:executing` by a
-    # hard crash (SIGKILL mid-poll) would permanently block every future insert,
-    # killing polling until manual intervention.
-    #
-    # We match only `[:scheduled]`, which is exactly enough: self-scheduled jobs
-    # always land in `:scheduled` (interval >= 1000ms ⇒ schedule_in >= 1s, never
-    # `:available`), so this dedups the self-reschedule chain; the immediate
-    # (`:available`) job from enable_polling/0 is already coalesced by
-    # delete_queued_jobs/0 cancelling queued jobs before inserting. A wider list
-    # (e.g. adding `:available`) makes Oban warn that incomplete states are
-    # missing, which `--warnings-as-errors` turns into a build failure.
-    # Concurrency is capped at 1 by the queue, so parallel *execution* is
-    # impossible; delete_queued_jobs/0 prevents parallel *chains*.
-    unique: [period: 10, states: [:scheduled]]
+    unique: [period: :infinity, states: [:scheduled]]
 
   require Logger
 
@@ -105,9 +135,20 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
   @misconfig_backoff_ms 30_000
 
   @impl Oban.Worker
-  def perform(%Oban.Job{}) do
+  def perform(%Oban.Job{args: args}) do
+    # `forced: true` (SQSPollingManager.poll_now/0) bypasses the
+    # sqs_polling_enabled toggle specifically — an operator asking for
+    # events right now shouldn't be silently ignored just because the
+    # background chain is off — but never bypasses Emails.enabled?/0, the
+    # SES-events switch, or the sender-aware gate (see
+    # pollable_ignoring_toggle?/0). schedule_next_poll/1 re-checks
+    # should_poll?/0 on its own, so a forced run while the toggle is off
+    # still runs once without resurrecting the self-scheduling chain.
+    # Mirrors BrevoPollingJob.perform/1.
+    forced? = Map.get(args || %{}, "forced", false)
+
     # Check if polling is enabled before processing
-    if should_poll?() do
+    if should_poll?() or (forced? and pollable_ignoring_toggle?()) do
       Logger.debug("SQS Polling Job: Starting polling cycle")
 
       config = Emails.get_sqs_config()
@@ -120,7 +161,8 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
       # permanently until an app restart. A transient receive error simply
       # retries on the next scheduled poll; a recoverable misconfiguration backs
       # off but keeps the chain alive so it resumes once fixed.
-      # delete_queued_jobs/0 in schedule_next_poll keeps this to exactly one chain.
+      # unique: [period: :infinity, states: [:scheduled]] on the worker (see
+      # moduledoc) keeps this to exactly one chain — no manual cleanup needed.
       next_interval =
         case validate_configuration(config) do
           :ok ->
@@ -150,27 +192,6 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
   end
 
   @doc """
-  Cancels all scheduled SQS polling jobs.
-
-  Called when polling is disabled to immediately clean up pending jobs.
-
-  ## Returns
-
-  - `{:ok, count}` - Number of cancelled jobs
-
-  ## Examples
-
-      iex> PhoenixKit.Modules.Emails.SQSPollingJob.cancel_scheduled()
-      {:ok, 2}
-  """
-  @spec cancel_scheduled() :: {:ok, non_neg_integer()}
-  def cancel_scheduled do
-    {count, _} = delete_queued_jobs()
-    Logger.info("SQSPollingJob: Cancelled #{count} scheduled jobs")
-    {:ok, count}
-  end
-
-  @doc """
   Returns the Oban `worker` column value for this job.
 
   Single source of truth for callers that query `Oban.Job` by worker name
@@ -178,18 +199,6 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
   """
   @spec worker_name() :: String.t()
   def worker_name, do: inspect(__MODULE__)
-
-  # Delete all queued (not-yet-running) polling jobs. Does NOT touch an
-  # :executing job, so the running cycle is never interrupted. Returns the
-  # Repo.delete_all/1 {count, _} tuple.
-  defp delete_queued_jobs do
-    worker = worker_name()
-
-    Oban.Job
-    |> where([j], j.worker == ^worker)
-    |> where([j], j.state in ["available", "scheduled"])
-    |> get_repo().delete_all()
-  end
 
   defp get_repo do
     PhoenixKit.RepoHelper.repo()
@@ -201,9 +210,17 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
   # Check if polling should be performed. Not `defp` so the sender-aware
   # gate can be unit-tested directly without a real SQS/network round trip.
   def should_poll? do
+    Emails.sqs_polling_enabled?() and pollable_ignoring_toggle?()
+  end
+
+  # Everything the poller needs EXCEPT the sqs_polling_enabled toggle: the
+  # system switch, the SES-events switch, and the sender-aware gate below.
+  # A forced (poll_now/0) cycle bypasses the toggle but never these —
+  # mirroring BrevoPollingJob, whose `forced?` bypasses
+  # brevo_events_enabled but never Emails.enabled?/0 or its profile gate.
+  defp pollable_ignoring_toggle? do
     Emails.enabled?() and
       Emails.ses_events_enabled?() and
-      Emails.sqs_polling_enabled?() and
       ses_actively_configured?()
   end
 
@@ -416,20 +433,17 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
     end
   end
 
-  # Schedule next polling job
-  defp schedule_next_poll(interval_ms) do
+  @doc false
+  # Schedule next polling job. Relies entirely on the worker's own
+  # `unique: [period: :infinity, states: [:scheduled]]` (see moduledoc) to
+  # guarantee exactly one queued future job — no manual delete-then-insert.
+  # A conflict here (job.conflict? == true) means another :scheduled job
+  # already exists; that's the expected, harmless steady state (e.g. this
+  # cycle racing an enable_polling/poll_now insert), not an error. Not
+  # `defp` so the dedup behavior is unit-testable directly — same
+  # rationale as `should_poll?/0` above.
+  def schedule_next_poll(interval_ms) do
     if should_poll?() do
-      # Guarantee exactly one queued future job. The `unique` window only
-      # coalesces near-simultaneous inserts (within its period); but a
-      # self-reschedule fires a full cycle later (long-poll up to 20s + the
-      # interval) than an enable_polling insert, which is outside that window —
-      # leaving two parallel chains that double SQS receive calls. Deleting any
-      # already-queued job immediately before inserting collapses such a stale
-      # duplicate into a single chain, independent of the operator-configurable
-      # interval. The :executing job (this one) is untouched, and the `unique`
-      # window still backstops the tiny delete-then-double-insert race.
-      delete_queued_jobs()
-
       # Oban schedule_in is in whole SECONDS — div(interval_ms, 1000) is 0 for
       # any 1..999ms interval, which would queue the next poll immediately and
       # spin a back-to-back loop. Floor at 1s. (validate_configuration/1 already
@@ -438,6 +452,11 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
       |> __MODULE__.new(schedule_in: max(div(interval_ms, 1000), 1))
       |> Oban.insert()
       |> case do
+        {:ok, %Oban.Job{conflict?: true}} ->
+          Logger.debug("SQS Polling Job: Next poll already scheduled, skipping duplicate insert")
+
+          :ok
+
         {:ok, _job} ->
           Logger.debug("SQS Polling Job: Next poll scheduled in #{interval_ms}ms")
           :ok

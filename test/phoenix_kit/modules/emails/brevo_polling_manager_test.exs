@@ -8,9 +8,12 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingManagerTest do
 
   use PhoenixKitEmails.DataCase, async: false
 
+  import Ecto.Query
+
   alias PhoenixKit.Email.SendProfiles
   alias PhoenixKit.Integrations
   alias PhoenixKit.Modules.Emails
+  alias PhoenixKit.Modules.Emails.BrevoPollingJob
   alias PhoenixKit.Modules.Emails.BrevoPollingManager
   alias PhoenixKitEmails.Test.Repo
 
@@ -18,6 +21,11 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingManagerTest do
     start_supervised!({Oban, repo: Repo, testing: :manual, queues: [], plugins: false})
     {:ok, _} = Emails.enable_system()
     :ok
+  end
+
+  defp worker_jobs(states) do
+    worker = BrevoPollingJob.worker_name()
+    Repo.all(from(j in Oban.Job, where: j.worker == ^worker and j.state in ^states))
   end
 
   test "enable_polling/0 persists the setting and inserts the first job" do
@@ -44,6 +52,44 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingManagerTest do
   test "poll_now/0 inserts an immediate job even while polling is disabled" do
     refute Emails.brevo_events_enabled?()
     assert {:ok, %Oban.Job{}} = BrevoPollingManager.poll_now()
+  end
+
+  test "enable_polling/0 while a next tick is already scheduled moves it to run now, not a duplicate" do
+    {:ok, existing} = %{} |> BrevoPollingJob.new(schedule_in: 3_600) |> Oban.insert()
+    assert existing.state == "scheduled"
+    far_future = existing.scheduled_at
+
+    assert {:ok, job} = BrevoPollingManager.enable_polling()
+
+    assert job.id == existing.id
+    assert DateTime.compare(job.scheduled_at, far_future) == :lt
+    assert DateTime.diff(DateTime.utc_now(), job.scheduled_at, :second) |> abs() < 5
+
+    assert [_single] = worker_jobs(["available", "scheduled"])
+  end
+
+  test "poll_now/0 called twice back to back inserts exactly one forced job" do
+    assert {:ok, first} = BrevoPollingManager.poll_now()
+    assert {:ok, second} = BrevoPollingManager.poll_now()
+
+    assert first.id == second.id
+    assert [_single] = worker_jobs(["available", "scheduled"])
+  end
+
+  test "poll_now/0 does not disturb an already-scheduled regular (non-forced) cycle" do
+    {:ok, regular} = %{} |> BrevoPollingJob.new(schedule_in: 3_600) |> Oban.insert()
+    assert regular.state == "scheduled"
+
+    assert {:ok, forced} = BrevoPollingManager.poll_now()
+
+    # Two distinct rows — different args (forced vs regular), so the
+    # forced insert must never touch the regular chain's own next tick.
+    assert forced.id != regular.id
+    assert forced.args == %{"forced" => true}
+
+    reloaded_regular = Repo.get!(Oban.Job, regular.id)
+    assert reloaded_regular.state == "scheduled"
+    assert DateTime.compare(reloaded_regular.scheduled_at, regular.scheduled_at) == :eq
   end
 
   test "status/0 reports the sender-aware profile count" do

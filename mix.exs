@@ -1,7 +1,7 @@
 defmodule PhoenixKitEmails.MixProject do
   use Mix.Project
 
-  @version "0.1.16"
+  @version "0.1.17"
   @source_url "https://github.com/BeamLabEU/phoenix_kit_emails"
 
   def project do
@@ -106,7 +106,9 @@ defmodule PhoenixKitEmails.MixProject do
   defp docs do
     [
       main: "readme",
-      source_ref: "v#{@version}",
+      # Tags in this repo are bare version numbers, not v-prefixed — a "v" ref
+      # points at a tag that does not exist and 404s every HexDocs source link.
+      source_ref: @version,
       source_url: @source_url,
       extras: ["README.md", "CHANGELOG.md", "LICENSE.md"]
     ]

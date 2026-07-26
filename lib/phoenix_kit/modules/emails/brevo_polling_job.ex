@@ -201,14 +201,23 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingJob do
         ]
   """
 
+  # unique: [period: :infinity, states: [:scheduled]] — see
+  # SQSPollingJob's moduledoc ("Why unique: ..., not more") for the full
+  # reasoning: `:executing` must never be in this list (a currently-
+  # executing job's own self-reschedule insert would find its own row and
+  # stall the chain every cycle), and `[:scheduled]` is the one partial
+  # states list Oban's compile-time unique check special-cases as
+  # warning-free (`Job.warn_unique/1`) — any other partial list fails the
+  # build under `--warnings-as-errors`. The immediate/forced job from
+  # BrevoPollingManager uses its own per-call `unique:`/`replace:`
+  # override instead (not subject to that compile-time check), covering
+  # `:available` too — see that module's `insert_poll_job/0`.
   use Oban.Worker,
     queue: :brevo_polling,
     max_attempts: 3,
-    unique: [period: 10, states: [:scheduled]]
+    unique: [period: :infinity, states: [:scheduled]]
 
   require Logger
-
-  import Ecto.Query
 
   alias PhoenixKit.Modules.Emails
   alias PhoenixKit.Modules.Emails.BrevoClient
@@ -250,17 +259,6 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingJob do
         Logger.debug("Brevo Polling Job: polling disabled, skipping cycle")
         :ok
     end
-  end
-
-  @doc """
-  Cancels all scheduled Brevo polling jobs. Called when polling is
-  disabled to immediately clean up pending jobs.
-  """
-  @spec cancel_scheduled() :: {:ok, non_neg_integer()}
-  def cancel_scheduled do
-    {count, _} = delete_queued_jobs()
-    Logger.info("BrevoPollingJob: Cancelled #{count} scheduled jobs")
-    {:ok, count}
   end
 
   @doc """
@@ -622,25 +620,27 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingJob do
     Application.get_env(:phoenix_kit_emails, :brevo_page_limit, @default_page_limit)
   end
 
-  defp delete_queued_jobs do
-    worker = worker_name()
-
-    Oban.Job
-    |> where([j], j.worker == ^worker)
-    |> where([j], j.state in ["available", "scheduled"])
-    |> get_repo().delete_all()
-  end
-
-  defp get_repo, do: PhoenixKit.RepoHelper.repo()
-
-  defp schedule_next_poll(interval_ms) do
+  @doc false
+  # Relies entirely on the worker's own
+  # `unique: [period: :infinity, states: [:scheduled]]` to guarantee
+  # exactly one queued future job — see the module's `use Oban.Worker`
+  # comment and SQSPollingJob's moduledoc for the full reasoning. A
+  # conflict here (job.conflict? == true) means another :scheduled job
+  # already exists; that's the expected, harmless steady state, not an
+  # error. Not `defp` so the dedup behavior is unit-testable directly.
+  def schedule_next_poll(interval_ms) do
     if should_poll?() do
-      delete_queued_jobs()
-
       %{}
       |> __MODULE__.new(schedule_in: max(div(interval_ms, 1000), 1))
       |> Oban.insert()
       |> case do
+        {:ok, %Oban.Job{conflict?: true}} ->
+          Logger.debug(
+            "Brevo Polling Job: next poll already scheduled, skipping duplicate insert"
+          )
+
+          :ok
+
         {:ok, _job} ->
           Logger.debug("Brevo Polling Job: next poll scheduled in #{interval_ms}ms")
           :ok
