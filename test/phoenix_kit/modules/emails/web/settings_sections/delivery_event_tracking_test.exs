@@ -212,7 +212,11 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTrackingTe
                  bare_socket()
                )
 
-      assert socket.assigns.flash["error"]
+      # Regression for P2 dual-review fix 4/5: the manager's own reason
+      # string used to get double-quoted by inspect/1 before landing in
+      # the flash.
+      assert error = socket.assigns.flash["error"]
+      refute error =~ "\""
     end
 
     test "rejects a non-numeric value without raising" do

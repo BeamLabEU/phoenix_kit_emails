@@ -128,7 +128,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTracking d
               put_flash(
                 socket,
                 :error,
-                gettext("Failed to update interval: %{reason}", reason: inspect(reason))
+                gettext("Failed to update interval: %{reason}", reason: format_reason(reason))
               )
           end
 
@@ -164,6 +164,16 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTracking d
   defp success?({:ok, _}), do: true
   defp success?(:ok), do: true
   defp success?(_), do: false
+
+  # Both managers' set_polling_interval/1 already return a
+  # human-readable string reason ("Invalid interval: ... Must be >=
+  # ...ms") — interpolating that straight into the flash used to go
+  # through inspect/1, which re-quotes an already-plain string (visible
+  # as literal double quotes in the rendered message). Kept as a
+  # fallback, not removed outright, since a reason isn't guaranteed to
+  # be a string for every conceivable future tracker.
+  defp format_reason(reason) when is_binary(reason), do: reason
+  defp format_reason(reason), do: inspect(reason)
 
   defp build_rows do
     Enum.map(EventTrackerRegistry.trackers(), &build_row/1)
