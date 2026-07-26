@@ -130,13 +130,8 @@
                   phx-click="poll_now"
                   phx-value-provider={row.provider_kind}
                   phx-target={@myself}
-                  disabled={Map.get(@busy, row.provider_kind, false)}
                 >
-                  <%= if Map.get(@busy, row.provider_kind, false) do %>
-                    <span class="loading loading-spinner loading-xs"></span>
-                  <% else %>
-                    {gettext("Poll now")}
-                  <% end %>
+                  {gettext("Poll now")}
                 </button>
               </div>
             </td>

@@ -37,7 +37,6 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTracking d
       socket
       |> assign(assigns)
       |> assign(:rows, build_rows())
-      |> assign_new(:busy, fn -> %{} end)
 
     {:ok, socket}
   end
@@ -69,14 +68,9 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTracking d
 
   def handle_event("poll_now", %{"provider" => provider_kind}, socket) do
     tracker = fetch_tracker!(provider_kind)
-    socket = put_busy(socket, provider_kind, true)
-
     result = tracker.poll_now()
 
-    socket =
-      socket
-      |> put_busy(provider_kind, false)
-      |> assign(:rows, build_rows())
+    socket = assign(socket, :rows, build_rows())
 
     socket =
       case result do
@@ -170,10 +164,6 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTracking d
   defp success?({:ok, _}), do: true
   defp success?(:ok), do: true
   defp success?(_), do: false
-
-  defp put_busy(socket, provider_kind, value?) do
-    assign(socket, :busy, Map.put(socket.assigns.busy, provider_kind, value?))
-  end
 
   defp build_rows do
     Enum.map(EventTrackerRegistry.trackers(), &build_row/1)

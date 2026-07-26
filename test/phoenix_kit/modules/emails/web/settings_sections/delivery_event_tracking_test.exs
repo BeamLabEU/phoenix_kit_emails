@@ -29,7 +29,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTrackingTe
 
   defp bare_socket(assigns \\ %{}) do
     %Phoenix.LiveView.Socket{
-      assigns: Map.merge(%{__changed__: %{}, flash: %{}, busy: %{}}, assigns),
+      assigns: Map.merge(%{__changed__: %{}, flash: %{}}, assigns),
       private: %{live_temp: %{}}
     }
   end
