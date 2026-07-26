@@ -218,7 +218,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
 
                 ⚡ Next steps:
                 1. Verify your email/domain in AWS SES Console
-                2. Enable SQS Polling below
+                2. Turn on tracking for Amazon SES in the "Delivery Event Tracking" section above
                 3. Start sending emails!
                 """)
 
