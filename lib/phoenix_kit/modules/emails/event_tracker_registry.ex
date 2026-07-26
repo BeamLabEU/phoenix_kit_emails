@@ -24,12 +24,16 @@ defmodule PhoenixKit.Modules.Emails.EventTrackerRegistry do
   - `poll_now/0` — the Poll now action (forced one-off cycle, still
     respects `Emails.enabled?/0`).
   - `set_polling_interval/1` — the per-tracker interval editor.
-  - `integration_count/0` — the Integration column's count (required).
-  - `accounts/0` / `toggle_account_polling/1` — the Accounts column's
-    per-integration opt-out. **Optional**: only define these if the
-    provider has a real multi-account opt-out concept (Brevo does; SES
-    doesn't). The panel checks `function_exported?/3` before calling
-    either — a tracker without them simply renders no Accounts cell.
+
+  `integration_count/0`, `accounts/0`, and `toggle_account_polling/1`
+  ARE part of the formal `EventTracker` behaviour, but declared
+  `@optional_callbacks` — the panel never calls a tracker module
+  directly for these; it always goes through `EventTracker.
+  integration_count/1` / `accounts/1` / `toggle_account_polling/2`,
+  which fall back to a safe default (or a no-op) when a tracker skips
+  them, so a Mailgun implementation that forgets the Accounts-column
+  extras can never crash the panel. See `EventTracker`'s own moduledoc
+  for the exact defaults.
   """
 
   alias PhoenixKit.Modules.Emails.BrevoPollingManager

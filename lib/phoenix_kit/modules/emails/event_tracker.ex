@@ -66,6 +66,37 @@ defmodule PhoenixKit.Modules.Emails.EventTracker do
   @callback worker() :: module()
 
   @doc """
+  Admin panel's Integration-column count ("2 active integrations").
+  **Optional** — trackers without a working default (there isn't one:
+  every tracker has *some* meaningful count) may still skip it; a
+  tracker that doesn't define this gets `1`/`0` from `eligible?/0`
+  instead (see `integration_count/1`). Defining it explicitly is
+  strongly recommended whenever "how many" means something more precise
+  than a bare yes/no (Brevo's multi-account case).
+  """
+  @callback integration_count() :: non_neg_integer()
+
+  @doc """
+  Per-integration opt-out list for the admin panel's Accounts column:
+  `{uuid, name, polled?}` for every currently-active account. **Optional**
+  — only define this if the provider has a genuine multi-account opt-out
+  concept (Brevo does; SES doesn't). A tracker that skips it gets `nil`
+  (see `accounts/1`), which the panel reads as "not applicable" and
+  renders no Accounts cell for.
+  """
+  @callback accounts() :: [{uuid :: String.t(), name :: String.t(), polled? :: boolean()}]
+
+  @doc """
+  Flips one integration's polling opt-out (see `accounts/0`). **Optional**
+  — a tracker that skips it (because it skipped `accounts/0` too) gets a
+  safe no-op (see `toggle_account_polling/2`) instead of an
+  `UndefinedFunctionError` from a stale/forged panel action.
+  """
+  @callback toggle_account_polling(uuid :: String.t()) :: {:ok, term()} | {:error, term()}
+
+  @optional_callbacks integration_count: 0, accounts: 0, toggle_account_polling: 1
+
+  @doc """
   `eligible?() and enabled?()` — the single condition the reconciler
   enforces "exactly one chain" against. Not a callback (every tracker
   gets this for free from the two it does implement) — takes the tracker
@@ -157,5 +188,45 @@ defmodule PhoenixKit.Modules.Emails.EventTracker do
     |> repo.one()
   rescue
     _ -> nil
+  end
+
+  @doc """
+  `integration_count/0` if the tracker defines it, otherwise a safe
+  default derived from `eligible?/0` (`1` when eligible, `0` when not) —
+  the single guarded call site the admin panel uses, so a tracker that
+  skips the optional callback can never crash the panel (spec #56 P2
+  review: this used to be called unconditionally from the panel itself).
+  """
+  @spec integration_count(t()) :: non_neg_integer()
+  def integration_count(tracker) when is_atom(tracker) do
+    if function_exported?(tracker, :integration_count, 0) do
+      tracker.integration_count()
+    else
+      if tracker.eligible?(), do: 1, else: 0
+    end
+  end
+
+  @doc """
+  `accounts/0` if the tracker defines it, otherwise `nil` ("not
+  applicable" — no per-integration opt-out concept for this provider).
+  """
+  @spec accounts(t()) :: [{String.t(), String.t(), boolean()}] | nil
+  def accounts(tracker) when is_atom(tracker) do
+    if function_exported?(tracker, :accounts, 0), do: tracker.accounts(), else: nil
+  end
+
+  @doc """
+  `toggle_account_polling/1` if the tracker defines it, otherwise a
+  no-op success — guards against a stale or forged panel action
+  targeting a tracker with no opt-out concept (e.g. SES) ever reaching
+  an undefined function and crashing the LiveView.
+  """
+  @spec toggle_account_polling(t(), String.t()) :: {:ok, term()} | {:error, term()}
+  def toggle_account_polling(tracker, uuid) when is_atom(tracker) do
+    if function_exported?(tracker, :toggle_account_polling, 1) do
+      tracker.toggle_account_polling(uuid)
+    else
+      {:ok, :not_applicable}
+    end
   end
 end

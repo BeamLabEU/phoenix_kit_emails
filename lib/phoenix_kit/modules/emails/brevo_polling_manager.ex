@@ -51,28 +51,24 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingManager do
   @impl PhoenixKit.Modules.Emails.EventTracker
   def worker, do: BrevoPollingJob
 
-  ## --- Admin panel duck-typed extras ---
+  ## --- Optional EventTracker callbacks (Accounts column) ---
   #
-  # Not part of the formal EventTracker behaviour (spec §4.1 lists 7
-  # callbacks, settled and shipped) — these follow the same informal
-  # "Manager API shared shape" convention spec §3 already documents for
-  # enable_polling/0, disable_polling/0, poll_now/0, status/0,
-  # set_polling_interval/1. A future tracker only needs to define these
-  # if it has the corresponding concept (integration_count/0 is
-  # universal; accounts/0 + toggle_account_polling/1 are genuinely
-  # optional — the admin panel checks function_exported?/3 before using
-  # them, see EventTrackerRegistry's moduledoc).
+  # integration_count/0, accounts/0, toggle_account_polling/1 are formal
+  # @optional_callbacks on EventTracker (task #56 P2 review) — the panel
+  # never calls these three directly on a tracker module, always through
+  # EventTracker.integration_count/1, accounts/1, toggle_account_polling/2,
+  # which supply a safe default/no-op for a tracker that skips them. This
+  # module defines all three because Brevo has a genuine multi-account
+  # opt-out concept.
 
-  @doc """
-  Number of distinct active `brevo_api` integrations — the admin panel's
-  "N active accounts" Integration-column count.
-  """
+  # Number of distinct active brevo_api integrations — the admin panel's
+  # "N active accounts" Integration-column count.
+  @impl PhoenixKit.Modules.Emails.EventTracker
   def integration_count, do: length(BrevoIntegrations.active_integration_uuids())
 
-  @doc """
-  Per-integration opt-out list for the admin panel's Accounts column:
-  `{uuid, name, polled?}` for every currently-active Brevo account.
-  """
+  # Per-integration opt-out list for the admin panel's Accounts column:
+  # {uuid, name, polled?} for every currently-active Brevo account.
+  @impl PhoenixKit.Modules.Emails.EventTracker
   def accounts do
     excluded = MapSet.new(Emails.get_brevo_polling_excluded_integrations())
 
@@ -80,16 +76,23 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingManager do
     |> Enum.map(fn {uuid, name} -> {uuid, name, not MapSet.member?(excluded, uuid)} end)
   end
 
-  @doc """
-  Flips one integration's polling opt-out (see `accounts/0`).
-  """
+  # Flips one integration's polling opt-out (see accounts/0). A uuid
+  # that isn't a currently-active brevo_api integration (stale, already
+  # removed, or simply forged in a phx-click) is ignored rather than
+  # written into the exclusion setting — that list should only ever
+  # contain uuids accounts/0 could plausibly have shown a checkbox for.
+  @impl PhoenixKit.Modules.Emails.EventTracker
   def toggle_account_polling(uuid) do
-    excluded = Emails.get_brevo_polling_excluded_integrations()
+    if uuid in BrevoIntegrations.active_integration_uuids() do
+      excluded = Emails.get_brevo_polling_excluded_integrations()
 
-    new_excluded =
-      if uuid in excluded, do: List.delete(excluded, uuid), else: [uuid | excluded]
+      new_excluded =
+        if uuid in excluded, do: List.delete(excluded, uuid), else: [uuid | excluded]
 
-    Emails.set_brevo_polling_excluded_integrations(new_excluded)
+      Emails.set_brevo_polling_excluded_integrations(new_excluded)
+    else
+      {:ok, :ignored}
+    end
   end
 
   @doc """

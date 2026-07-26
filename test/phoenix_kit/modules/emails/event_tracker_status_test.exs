@@ -4,6 +4,13 @@ defmodule PhoenixKit.Modules.Emails.EventTrackerStatusTest do
   the generic, `worker/0`-derived helpers the admin panel (task #56 P2)
   reads for every registered tracker. Uses `FakeEventTracker` so the
   4-state matrix can be asserted without real SES/Brevo fixtures.
+
+  Also covers `integration_count/1`, `accounts/1`, `toggle_account_
+  polling/2` — the guarded wrappers around the three optional
+  `EventTracker` callbacks (P2 dual-review fix, item 1): `FakeEventTracker`
+  defines none of the three, so it's the fixture that proves a tracker
+  skipping them gets a safe default/no-op rather than crashing whatever
+  called them.
   """
 
   use PhoenixKitEmails.DataCase, async: false
@@ -118,6 +125,24 @@ defmodule PhoenixKit.Modules.Emails.EventTrackerStatusTest do
       Repo.update_all(from(j in Oban.Job, where: j.id == ^job.id), set: [state: "executing"])
 
       assert EventTracker.state(FakeEventTracker) == :active
+    end
+  end
+
+  describe "integration_count/1, accounts/1, toggle_account_polling/2 — a tracker without the optional callbacks" do
+    test "integration_count/1 falls back to eligible? cast to 1/0" do
+      set_should_run(false, true)
+      assert EventTracker.integration_count(FakeEventTracker) == 0
+
+      set_should_run(true, true)
+      assert EventTracker.integration_count(FakeEventTracker) == 1
+    end
+
+    test "accounts/1 falls back to nil (not applicable)" do
+      assert EventTracker.accounts(FakeEventTracker) == nil
+    end
+
+    test "toggle_account_polling/2 is a safe no-op, not an UndefinedFunctionError" do
+      assert {:ok, _} = EventTracker.toggle_account_polling(FakeEventTracker, "some-uuid")
     end
   end
 end

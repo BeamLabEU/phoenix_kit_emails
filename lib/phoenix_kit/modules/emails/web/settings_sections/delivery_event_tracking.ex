@@ -149,8 +149,8 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTracking d
     tracker = fetch_tracker!(provider_kind)
 
     socket =
-      case tracker.toggle_account_polling(uuid) do
-        {:ok, _setting} ->
+      case EventTracker.toggle_account_polling(tracker, uuid) do
+        {:ok, _result} ->
           assign(socket, :rows, build_rows())
 
         {:error, _reason} ->
@@ -186,17 +186,13 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTracking d
       label: tracker.label(),
       eligible: tracker.eligible?(),
       enabled: tracker.enabled?(),
-      integration_count: tracker.integration_count(),
+      integration_count: EventTracker.integration_count(tracker),
       state: EventTracker.state(tracker),
       last_polled_at: EventTracker.last_polled_at(tracker),
       pending_jobs: EventTracker.pending_jobs_count(tracker),
       interval_ms: tracker.interval_ms(),
-      accounts: accounts_for(tracker)
+      accounts: EventTracker.accounts(tracker)
     }
-  end
-
-  defp accounts_for(tracker) do
-    if function_exported?(tracker, :accounts, 0), do: tracker.accounts(), else: nil
   end
 
   defp integration_summary(count) when is_integer(count) and count > 0 do
