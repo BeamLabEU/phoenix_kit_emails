@@ -62,6 +62,18 @@ defmodule PhoenixKit.Modules.Emails.EventTracker do
   @doc "Cadence (ms) the next self-schedule should use — the tracker's own configured interval."
   @callback interval_ms() :: pos_integer()
 
+  @doc """
+  The floor `set_polling_interval/1` (the informal Manager API — see
+  `EventTrackerRegistry`) enforces for this tracker, e.g. SES's `1_000`
+  vs Brevo's `30_000` (a lower bound driven by the provider's own API,
+  not a policy choice this behaviour makes). Not optional — every
+  tracker's interval editor needs *some* real floor to show as the
+  input's client-side `min`; a wrong/missing one either lets an operator
+  type a value the server will reject anyway, or falsely floors a
+  provider that could safely poll faster (dual-review P2 fix 2/5).
+  """
+  @callback min_interval_ms() :: pos_integer()
+
   @doc "The Oban worker module backing this tracker's self-scheduling chain."
   @callback worker() :: module()
 

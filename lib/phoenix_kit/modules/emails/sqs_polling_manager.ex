@@ -88,6 +88,12 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingManager do
   @impl PhoenixKit.Modules.Emails.EventTracker
   def interval_ms, do: Emails.get_sqs_config().polling_interval_ms
 
+  # Matches set_polling_interval/1's own guard below — single source of
+  # truth would be nicer, but the guard needs a literal for the function
+  # clause match; kept in sync by hand (both change together, rarely).
+  @impl PhoenixKit.Modules.Emails.EventTracker
+  def min_interval_ms, do: 1_000
+
   @impl PhoenixKit.Modules.Emails.EventTracker
   def worker, do: SQSPollingJob
 

@@ -48,6 +48,12 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingManager do
   @impl PhoenixKit.Modules.Emails.EventTracker
   def interval_ms, do: Emails.get_brevo_polling_interval()
 
+  # Matches set_polling_interval/1's own guard below — single source of
+  # truth would be nicer, but the guard needs a literal for the function
+  # clause match; kept in sync by hand (both change together, rarely).
+  @impl PhoenixKit.Modules.Emails.EventTracker
+  def min_interval_ms, do: 30_000
+
   @impl PhoenixKit.Modules.Emails.EventTracker
   def worker, do: BrevoPollingJob
 

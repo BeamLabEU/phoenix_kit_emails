@@ -53,8 +53,8 @@
                   name="interval"
                   value={row.interval_ms}
                   class="input input-bordered input-xs join-item w-20"
-                  min="1000"
-                  step="1000"
+                  min={row.min_interval_ms}
+                  step={row.min_interval_ms}
                   phx-blur="update_interval"
                   phx-value-provider={row.provider_kind}
                   phx-target={@myself}

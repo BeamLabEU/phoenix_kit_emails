@@ -191,6 +191,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTracking d
       last_polled_at: EventTracker.last_polled_at(tracker),
       pending_jobs: EventTracker.pending_jobs_count(tracker),
       interval_ms: tracker.interval_ms(),
+      min_interval_ms: tracker.min_interval_ms(),
       accounts: EventTracker.accounts(tracker)
     }
   end

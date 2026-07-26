@@ -27,6 +27,7 @@ defmodule PhoenixKit.Modules.Emails.EventTrackerTest do
               enabled?: 0,
               poll_cycle: 1,
               interval_ms: 0,
+              min_interval_ms: 0,
               worker: 0
             ] do
           assert function_exported?(tracker, fun, arity),
@@ -44,6 +45,13 @@ defmodule PhoenixKit.Modules.Emails.EventTrackerTest do
         assert is_atom(tracker.worker())
         assert Code.ensure_loaded?(tracker.worker())
         assert function_exported?(tracker.worker(), :perform, 1)
+      end
+
+      test "#{inspect(tracker)}: min_interval_ms/0 is a positive integer" do
+        tracker = unquote(tracker)
+
+        assert is_integer(tracker.min_interval_ms())
+        assert tracker.min_interval_ms() > 0
       end
     end
   end

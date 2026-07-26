@@ -38,5 +38,8 @@ defmodule PhoenixKit.Modules.Emails.FakeEventTracker do
   def interval_ms, do: 60_000
 
   @impl true
+  def min_interval_ms, do: 1_000
+
+  @impl true
   def worker, do: FakeEventTrackerWorker
 end

@@ -126,4 +126,10 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingManagerTest do
       assert SQSPollingManager.integration_count() == 1
     end
   end
+
+  test "min_interval_ms/0 matches set_polling_interval/1's own floor" do
+    assert SQSPollingManager.min_interval_ms() == 1_000
+    assert {:error, _} = SQSPollingManager.set_polling_interval(999)
+    assert {:ok, _} = SQSPollingManager.set_polling_interval(1_000)
+  end
 end

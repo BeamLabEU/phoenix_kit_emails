@@ -199,5 +199,18 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingManagerTest do
       assert {:ok, _} = BrevoPollingManager.toggle_account_polling(integration_uuid)
       assert [{^integration_uuid, "Brevo test", true}] = BrevoPollingManager.accounts()
     end
+
+    test "toggle_account_polling/1 ignores a uuid that isn't a currently-active integration" do
+      stale_uuid = Ecto.UUID.generate()
+
+      assert BrevoPollingManager.toggle_account_polling(stale_uuid) == {:ok, :ignored}
+      assert Emails.get_brevo_polling_excluded_integrations() == []
+    end
+  end
+
+  test "min_interval_ms/0 matches set_polling_interval/1's own floor" do
+    assert BrevoPollingManager.min_interval_ms() == 30_000
+    assert {:error, _} = BrevoPollingManager.set_polling_interval(29_999)
+    assert {:ok, _} = BrevoPollingManager.set_polling_interval(30_000)
   end
 end
