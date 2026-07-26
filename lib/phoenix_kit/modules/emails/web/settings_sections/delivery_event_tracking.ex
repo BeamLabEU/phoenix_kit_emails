@@ -27,6 +27,8 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTracking d
   use PhoenixKitWeb, :live_component
   use Gettext, backend: PhoenixKit.Modules.Emails.Gettext
 
+  require Logger
+
   alias PhoenixKit.Modules.Emails.EventTracker
   alias PhoenixKit.Modules.Emails.EventTrackerReconciler
   alias PhoenixKit.Modules.Emails.EventTrackerRegistry
@@ -43,12 +45,10 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTracking d
 
   @impl true
   def handle_event("toggle_tracking", %{"provider" => provider_kind}, socket) do
-    tracker = fetch_tracker!(provider_kind)
+    with_tracker(socket, provider_kind, fn tracker ->
+      result =
+        if tracker.enabled?(), do: tracker.disable_polling(), else: tracker.enable_polling()
 
-    result =
-      if tracker.enabled?(), do: tracker.disable_polling(), else: tracker.enable_polling()
-
-    socket =
       case success?(result) do
         true ->
           socket
@@ -62,18 +62,14 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTracking d
             gettext("Failed to update %{label} tracking", label: tracker.label())
           )
       end
-
-    {:noreply, socket}
+    end)
   end
 
   def handle_event("poll_now", %{"provider" => provider_kind}, socket) do
-    tracker = fetch_tracker!(provider_kind)
-    result = tracker.poll_now()
+    with_tracker(socket, provider_kind, fn tracker ->
+      socket = assign(socket, :rows, build_rows())
 
-    socket = assign(socket, :rows, build_rows())
-
-    socket =
-      case result do
+      case tracker.poll_now() do
         {:ok, _job} ->
           put_flash(socket, :info, gettext("%{label} poll triggered", label: tracker.label()))
 
@@ -84,14 +80,11 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTracking d
             gettext("Failed to trigger %{label} poll", label: tracker.label())
           )
       end
-
-    {:noreply, socket}
+    end)
   end
 
   def handle_event("restart", %{"provider" => provider_kind}, socket) do
-    tracker = fetch_tracker!(provider_kind)
-
-    socket =
+    with_tracker(socket, provider_kind, fn tracker ->
       case EventTrackerReconciler.reconcile_tracker(tracker) do
         {:ok, _} ->
           socket
@@ -101,15 +94,13 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTracking d
         {:error, _reason} ->
           put_flash(socket, :error, gettext("Failed to restart %{label}", label: tracker.label()))
       end
-
-    {:noreply, socket}
+    end)
   end
 
   def handle_event("update_interval", %{"provider" => provider_kind} = params, socket) do
-    tracker = fetch_tracker!(provider_kind)
-    value = Map.get(params, "interval") || Map.get(params, "value")
+    with_tracker(socket, provider_kind, fn tracker ->
+      value = Map.get(params, "interval") || Map.get(params, "value")
 
-    socket =
       case Integer.parse(value || "") do
         {interval_ms, _} ->
           case tracker.set_polling_interval(interval_ms) do
@@ -135,14 +126,11 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTracking d
         :error ->
           put_flash(socket, :error, gettext("Please enter a valid number of milliseconds"))
       end
-
-    {:noreply, socket}
+    end)
   end
 
   def handle_event("toggle_account", %{"provider" => provider_kind, "uuid" => uuid}, socket) do
-    tracker = fetch_tracker!(provider_kind)
-
-    socket =
+    with_tracker(socket, provider_kind, fn tracker ->
       case EventTracker.toggle_account_polling(tracker, uuid) do
         {:ok, _result} ->
           assign(socket, :rows, build_rows())
@@ -150,15 +138,33 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTracking d
         {:error, _reason} ->
           put_flash(socket, :error, gettext("Failed to update account polling"))
       end
-
-    {:noreply, socket}
+    end)
   end
 
   ## --- Private ---
 
-  defp fetch_tracker!(provider_kind) do
-    Enum.find(EventTrackerRegistry.trackers(), &(&1.provider_kind() == provider_kind)) ||
-      raise "no registered EventTracker for provider_kind=#{inspect(provider_kind)}"
+  # Resolves provider_kind to its registered tracker and runs fun/1
+  # against it, always returning {:noreply, socket}. A provider_kind
+  # with no registered tracker (a stale panel tab open across a
+  # deploy that removed a tracker, or a forged phx-click) is logged and
+  # otherwise ignored — a crashed LiveView is a worse failure mode than
+  # a silently no-op'd click (P2 dual-review fix 5b).
+  defp with_tracker(socket, provider_kind, fun) do
+    case fetch_tracker(provider_kind) do
+      nil ->
+        Logger.warning(
+          "DeliveryEventTracking: no registered EventTracker for provider_kind=#{inspect(provider_kind)}"
+        )
+
+        {:noreply, socket}
+
+      tracker ->
+        {:noreply, fun.(tracker)}
+    end
+  end
+
+  defp fetch_tracker(provider_kind) do
+    Enum.find(EventTrackerRegistry.trackers(), &(&1.provider_kind() == provider_kind))
   end
 
   defp success?({:ok, _}), do: true
@@ -214,8 +220,16 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTracking d
 
   defp state_hint(:active), do: gettext("Running normally.")
 
+  # Generalized rather than per-provider (P2 dual-review NOTE 5c): "add a
+  # matching integration" is literally true for Brevo, but SES's
+  # eligible?/0 also folds email_ses_events + credentials, so a
+  # single-provider-specific wording would be wrong for one of the two
+  # trackers this already renders for.
   defp state_hint(:idle_no_integration),
-    do: gettext("Turn it on by adding or configuring a matching integration.")
+    do:
+      gettext(
+        "Connect a matching integration and make sure any provider-specific event-tracking option (e.g. AWS SES Events) is turned on."
+      )
 
   defp state_hint(:off), do: gettext("Tracking is turned off.")
 

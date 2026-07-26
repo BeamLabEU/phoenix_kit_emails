@@ -404,7 +404,7 @@ msgstr ""
 #: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:231
 #: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:486
 #: lib/phoenix_kit/modules/emails/web/metrics.html.heex:338
-#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.ex:213
+#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.ex:216
 #: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:199
 #: lib/phoenix_kit/modules/emails/web/templates.html.heex:20
 #: lib/phoenix_kit/modules/emails/web/templates.html.heex:72
@@ -2618,29 +2618,29 @@ msgstr ""
 msgid "Unsupported export format"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.ex:203
+#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.ex:206
 #, elixir-autogen, elixir-format
 msgid "%{count} active integration"
 msgid_plural "%{count} active integrations"
 msgstr[0] ""
 msgstr[1] ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.ex:84
+#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.ex:74
 #, elixir-autogen, elixir-format
 msgid "%{label} poll triggered"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.ex:127
+#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.ex:112
 #, elixir-autogen, elixir-format
 msgid "%{label} polling interval updated to %{ms}ms"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.ex:105
+#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.ex:92
 #, elixir-autogen, elixir-format
 msgid "%{label} restarted"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.ex:57
+#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.ex:56
 #, elixir-autogen, elixir-format
 msgid "%{label} tracking updated"
 msgstr ""
@@ -2804,17 +2804,17 @@ msgstr ""
 msgid "Enter your AWS Access Key ID / Secret Access Key in AWS Configuration below, or set them via config :phoenix_kit, aws: [access_key_id: ..., secret_access_key: ...]."
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.ex:108
+#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.ex:95
 #, elixir-autogen, elixir-format
 msgid "Failed to restart %{label}"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.ex:90
+#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.ex:80
 #, elixir-autogen, elixir-format
 msgid "Failed to trigger %{label} poll"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.ex:63
+#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.ex:62
 #, elixir-autogen, elixir-format
 msgid "Failed to update %{label} tracking"
 msgstr ""
@@ -2824,7 +2824,7 @@ msgstr ""
 msgid "Failed to update SES credentials source"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.ex:157
+#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.ex:139
 #, elixir-autogen, elixir-format
 msgid "Failed to update account polling"
 msgstr ""
@@ -2835,7 +2835,7 @@ msgstr ""
 msgid "Failed to update email status"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.ex:137
+#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.ex:122
 #, elixir-autogen, elixir-format
 msgid "Failed to update interval: %{reason}"
 msgstr ""
@@ -2861,7 +2861,7 @@ msgstr ""
 msgid "Go to Settings to finish setup"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.ex:214
+#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.ex:217
 #, elixir-autogen, elixir-format
 msgid "Idle — no integration"
 msgstr ""
@@ -2942,7 +2942,7 @@ msgstr ""
 msgid "No columns selected yet"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.ex:227
+#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.ex:238
 #, elixir-autogen, elixir-format
 msgid "No cycle is currently queued — this can happen after a lost job. Restart to recover immediately; the automatic check also fixes this within a couple of minutes."
 msgstr ""
@@ -2957,7 +2957,7 @@ msgstr ""
 msgid "No failed emails in the last 24 hours"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.ex:206
+#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.ex:209
 #, elixir-autogen, elixir-format
 msgid "No integration configured"
 msgstr ""
@@ -2984,7 +2984,7 @@ msgstr ""
 msgid "Not Configured"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.ex:215
+#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.ex:218
 #, elixir-autogen, elixir-format
 msgid "Off"
 msgstr ""
@@ -2999,12 +2999,12 @@ msgstr ""
 msgid "Pick your AWS Region from the dropdown"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.ex:142
+#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.ex:127
 #, elixir-autogen, elixir-format
 msgid "Please enter a valid number of milliseconds"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.html.heex:138
+#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.html.heex:134
 #, elixir-autogen, elixir-format
 msgid "Poll now"
 msgstr ""
@@ -3036,7 +3036,7 @@ msgstr ""
 msgid "Restart"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.ex:218
+#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.ex:221
 #, elixir-autogen, elixir-format
 msgid "Running normally."
 msgstr ""
@@ -3067,7 +3067,7 @@ msgstr ""
 msgid "Selected Columns"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.ex:216
+#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.ex:219
 #, elixir-autogen, elixir-format
 msgid "Stalled"
 msgstr ""
@@ -3087,14 +3087,9 @@ msgstr ""
 msgid "Tracking"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.ex:223
+#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.ex:234
 #, elixir-autogen, elixir-format
 msgid "Tracking is turned off."
-msgstr ""
-
-#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.ex:221
-#, elixir-autogen, elixir-format
-msgid "Turn it on by adding or configuring a matching integration."
 msgstr ""
 
 #: lib/phoenix_kit/modules/emails/web/metrics.html.heex:33
@@ -3105,4 +3100,9 @@ msgstr ""
 #: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:417
 #, elixir-autogen, elixir-format
 msgid "SQS Worker Tuning"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.ex:230
+#, elixir-autogen, elixir-format
+msgid "Connect a matching integration and make sure any provider-specific event-tracking option (e.g. AWS SES Events) is turned on."
 msgstr ""

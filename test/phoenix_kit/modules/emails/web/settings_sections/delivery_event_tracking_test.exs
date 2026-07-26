@@ -255,4 +255,20 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTrackingTe
       assert [{^uuid, _name, true}] = row_for(socket.assigns.rows, "brevo_api").accounts
     end
   end
+
+  describe "an unknown provider_kind (P2 dual-review fix 5b)" do
+    test "every action returns {:noreply, socket} instead of raising" do
+      socket = bare_socket()
+
+      for {event, params} <- [
+            {"toggle_tracking", %{"provider" => "does-not-exist"}},
+            {"poll_now", %{"provider" => "does-not-exist"}},
+            {"restart", %{"provider" => "does-not-exist"}},
+            {"update_interval", %{"provider" => "does-not-exist", "interval" => "5000"}},
+            {"toggle_account", %{"provider" => "does-not-exist", "uuid" => "any-uuid"}}
+          ] do
+        assert {:noreply, %Phoenix.LiveView.Socket{}} = Panel.handle_event(event, params, socket)
+      end
+    end
+  end
 end
