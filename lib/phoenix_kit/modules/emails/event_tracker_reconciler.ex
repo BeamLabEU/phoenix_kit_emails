@@ -11,10 +11,15 @@ defmodule PhoenixKit.Modules.Emails.EventTrackerReconciler do
   toggle, the Cron tick, a future admin panel) — idempotent and
   cluster-safe:
 
-  - "ensure exactly one chain" = an Oban `unique` insert (no-op, or moves
-    an existing job to run now, if one already exists) — enforced at the
-    DATABASE by Oban's own uniqueness, so two nodes reconciling
-    simultaneously cannot create two chains (spec §8a).
+  - "ensure exactly one chain" = an Oban `unique` insert — a genuinely
+    dead chain gets a fresh immediate job (`schedule_in: 0`); a chain
+    that's already alive (`:available`/`:scheduled`/`:executing`) hits
+    the unique conflict and is left completely untouched, its own
+    `scheduled_at` unchanged (no `replace:` — see `ensure_chain/1`'s own
+    comment for why touching it would silently override the operator's
+    own polling interval). Enforced at the DATABASE by Oban's own
+    uniqueness, so two nodes reconciling simultaneously cannot create
+    two chains (spec §8a).
   - "ensure none" = `Oban.cancel_all_jobs/1` scoped to `available`/
     `scheduled` only (never `executing` — a running cycle is never
     interrupted; it dies on its own next time it checks `should_run?/0`
@@ -51,7 +56,8 @@ defmodule PhoenixKit.Modules.Emails.EventTrackerReconciler do
   Reconcile a single tracker against `EventTracker.should_run?/1`.
 
   - `should_run? == true` → `{:ok, %Oban.Job{}}` (the chain's current job
-    — existing, moved-to-now, or freshly inserted).
+    — the existing one, untouched, if the chain is already alive; a
+    freshly inserted one, running immediately, if it wasn't).
   - `should_run? == false` → `{:ok, :not_running}` (any queued job for
     this tracker's worker was cancelled; a still-`executing` one is left
     to finish and die on its own).
@@ -75,9 +81,9 @@ defmodule PhoenixKit.Modules.Emails.EventTrackerReconciler do
       {:error, error}
   end
 
-  # Mirrors the managers' own "immediate job" unique/replace shape (#21),
-  # PLUS :executing — unlike the managers' insert (a per-call override on
-  # a worker-level unique that itself excludes :executing to avoid a
+  # unique: mirrors the managers' own "immediate job" shape (#21), PLUS
+  # :executing — unlike the managers' insert (a per-call override on a
+  # worker-level unique that itself excludes :executing to avoid a
   # self-reschedule from inside perform/1 conflicting with its own row),
   # reconcile is never called FROM inside a running cycle, so there is no
   # self-conflict to avoid here. Including :executing closes a real gap:
@@ -86,10 +92,30 @@ defmodule PhoenixKit.Modules.Emails.EventTrackerReconciler do
   # two live jobs (one running, one about to start) — briefly violating
   # "never two live chains" for any concurrency > 1 (not forced by this
   # code, but not something the invariant should depend on either).
-  # With :executing included, that insert instead finds the executing
-  # row as the conflict and no-ops against it (no `replace:` entry for
-  # :executing — its scheduled_at is intentionally left alone, only
-  # :scheduled/:available rows get moved to run now).
+  #
+  # Deliberately NO `replace:` (Kimi review, task #56 P2 follow-up): the
+  # managers' own inserts use `replace: [scheduled: [:scheduled_at], ...]`
+  # because THEY exist to force a chain to run right now (enable_polling/0,
+  # poll_now/0). Reconcile's job is different — it should only ever
+  # RESURRECT a dead chain, never touch a live one's own schedule. A
+  # healthy chain's `:scheduled` row sits `interval_ms()` in the future;
+  # with `replace:` here, every reconcile Cron tick (every ~2 min) would
+  # find that row as a conflict and stomp its `scheduled_at` back to now —
+  # silently clamping any operator-configured interval longer than the
+  # Cron period down to the Cron period itself (e.g. a 10-minute Brevo
+  # interval degrading to an effective ~2-minute one, 5x the API calls the
+  # sender-aware gate's whole quota rationale assumes). Without `replace:`,
+  # a live chain's conflict is a pure no-op — its own `scheduled_at` is
+  # left exactly as the job itself set it. A dead chain has no conflicting
+  # row at all, so this still inserts a fresh `schedule_in: 0` job and
+  # resurrects it immediately — the one case reconcile actually needs to
+  # act on.
+  #
+  # (:retryable is not in this states list, same as the managers' own
+  # unique config — both SQSPollingJob/BrevoPollingJob perform/1 always
+  # return :ok, so a job of either never actually reaches :retryable in
+  # practice; not a gap that's expected to matter, just noted rather than
+  # silently assumed.)
   defp ensure_chain(tracker) do
     worker = tracker.worker()
 
@@ -97,8 +123,7 @@ defmodule PhoenixKit.Modules.Emails.EventTrackerReconciler do
       %{}
       |> worker.new(
         schedule_in: 0,
-        unique: [period: :infinity, states: [:available, :scheduled, :executing]],
-        replace: [scheduled: [:scheduled_at], available: [:scheduled_at]]
+        unique: [period: :infinity, states: [:available, :scheduled, :executing]]
       )
       |> Oban.insert()
 

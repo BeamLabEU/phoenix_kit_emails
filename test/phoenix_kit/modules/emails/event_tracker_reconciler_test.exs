@@ -140,17 +140,30 @@ defmodule PhoenixKit.Modules.Emails.EventTrackerReconcilerTest do
       assert [_one] = fake_tracker_jobs()
     end
 
-    test "a stale future job gets moved to run now, not duplicated" do
+    test "a healthy scheduled job (interval in the future) is left untouched, not duplicated" do
+      # Kimi review follow-up (task #56 P2): ensure_chain/1 must NOT move
+      # an already-alive chain's scheduled_at, or every reconcile Cron
+      # tick would clamp any operator-configured interval longer than the
+      # Cron period down to the Cron period itself.
       {:ok, existing} =
         %{} |> FakeEventTrackerWorker.new(schedule_in: 3_600) |> Oban.insert()
 
       far_future = existing.scheduled_at
       set_should_run(true, true)
 
-      assert {:ok, moved} = EventTrackerReconciler.reconcile_tracker(FakeEventTracker)
+      assert {:ok, untouched} = EventTrackerReconciler.reconcile_tracker(FakeEventTracker)
 
-      assert moved.id == existing.id
-      assert DateTime.compare(moved.scheduled_at, far_future) == :lt
+      assert untouched.id == existing.id
+      assert DateTime.compare(untouched.scheduled_at, far_future) == :eq
+      assert [_one] = fake_tracker_jobs()
+    end
+
+    test "a genuinely dead chain (no queued job at all) is resurrected immediately" do
+      set_should_run(true, true)
+
+      assert {:ok, resurrected} = EventTrackerReconciler.reconcile_tracker(FakeEventTracker)
+
+      assert DateTime.diff(DateTime.utc_now(), resurrected.scheduled_at, :second) |> abs() < 5
       assert [_one] = fake_tracker_jobs()
     end
   end
