@@ -13,10 +13,18 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingJob do
     integration — an idle Brevo integration with no active profile has
     nothing to correlate events against, so polling it is pure waste
     (and, unlike SQS's long-poll, would burn Brevo API quota on a timer).
-    The chain still keeps re-scheduling itself while `brevo_events_enabled`
-    stays on even when there are zero active profiles right now — a
-    profile added later must not require a manual re-trigger to be picked
-    up.
+    `should_poll?/0` — the gate `schedule_next_poll/1` re-checks every
+    cycle — folds this in: with zero active profiles the chain lets
+    itself die instead of re-scheduling. That used to be a crutch ("keep
+    spinning so a profile added later doesn't need a manual re-trigger"),
+    which is no longer needed: `EventTrackerReconciler`'s periodic
+    reconcile Cron (task #56) now resurrects a dead-but-`should_run?`
+    chain within its own tick interval regardless, and `should_poll?/0`
+    matching `EventTracker.should_run?/1`'s definition exactly (this
+    tracker's `eligible?/0`, i.e. an active profile exists, `and`
+    `enabled?/0`) is what makes the reconciler's own "a chain dies on its
+    own when it shouldn't run" assumption actually true for Brevo, not
+    just SES.
   - **No message ack step**: SQS deletes each message after processing to
     avoid redelivery. Brevo's events endpoint is a plain paginated report
     with no consumption side-effect — this job tracks its own read
@@ -271,8 +279,16 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingJob do
 
   ## --- Private Functions ---
 
+  # Matches BrevoPollingManager.eligible?/0 `and` enabled?/0 exactly
+  # (EventTracker.should_run?/1's definition for this tracker) — see
+  # moduledoc "Sender-aware gate". Only used by schedule_next_poll/1 to
+  # decide whether to keep the chain alive; perform/1's own cond has its
+  # own inline checks (a forced poll_now/0 cycle bypasses only the
+  # brevo_events_enabled toggle, never this).
   defp should_poll? do
-    Emails.enabled?() and Emails.brevo_events_enabled?()
+    Emails.enabled?() and
+      Emails.brevo_events_enabled?() and
+      BrevoIntegrations.active_integration_uuids() != []
   end
 
   defp run_cycle([]) do
