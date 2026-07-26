@@ -151,20 +151,26 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTrackingTe
   end
 
   describe "handle_event(\"poll_now\", ...)" do
-    test "inserts an immediate job for the SES worker" do
-      assert {:noreply, _socket} =
+    test "inserts an immediate job for the SES worker, and rebuilds rows AFTER the insert" do
+      assert {:noreply, socket} =
                Panel.handle_event("poll_now", %{"provider" => "aws_ses"}, bare_socket())
 
       worker = SQSPollingJob.worker_name()
       assert Repo.exists?(from(j in Oban.Job, where: j.worker == ^worker))
+
+      # Regression for P2 dual-review follow-up (Kimi): rows used to be
+      # rebuilt BEFORE poll_now/0's insert, so a Stalled/Queued=0 row
+      # stayed stale in the very socket this handler returned.
+      assert row_for(socket.assigns.rows, "aws_ses").pending_jobs >= 1
     end
 
-    test "inserts an immediate job for the Brevo worker" do
-      assert {:noreply, _socket} =
+    test "inserts an immediate job for the Brevo worker, and rebuilds rows AFTER the insert" do
+      assert {:noreply, socket} =
                Panel.handle_event("poll_now", %{"provider" => "brevo_api"}, bare_socket())
 
       worker = BrevoPollingJob.worker_name()
       assert Repo.exists?(from(j in Oban.Job, where: j.worker == ^worker))
+      assert row_for(socket.assigns.rows, "brevo_api").pending_jobs >= 1
     end
   end
 

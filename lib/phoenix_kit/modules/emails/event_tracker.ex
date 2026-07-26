@@ -94,7 +94,8 @@ defmodule PhoenixKit.Modules.Emails.EventTracker do
   — only define this if the provider has a genuine multi-account opt-out
   concept (Brevo does; SES doesn't). A tracker that skips it gets `nil`
   (see `accounts/1`), which the panel reads as "not applicable" and
-  renders no Accounts cell for.
+  renders as a plain placeholder in the Accounts cell rather than a
+  checkbox list.
   """
   @callback accounts() :: [{uuid :: String.t(), name :: String.t(), polled? :: boolean()}]
 

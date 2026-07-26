@@ -67,11 +67,11 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTracking d
 
   def handle_event("poll_now", %{"provider" => provider_kind}, socket) do
     with_tracker(socket, provider_kind, fn tracker ->
-      socket = assign(socket, :rows, build_rows())
-
       case tracker.poll_now() do
         {:ok, _job} ->
-          put_flash(socket, :info, gettext("%{label} poll triggered", label: tracker.label()))
+          socket
+          |> assign(:rows, build_rows())
+          |> put_flash(:info, gettext("%{label} poll triggered", label: tracker.label()))
 
         {:error, _reason} ->
           put_flash(
