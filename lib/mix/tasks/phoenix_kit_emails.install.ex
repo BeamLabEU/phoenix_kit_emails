@@ -116,9 +116,31 @@ defmodule Mix.Tasks.PhoenixKitEmails.Install do
 
     Next steps:
     1. Run `mix deps.get` if you haven't already
-    2. Add Oban queues to config/config.exs:
-       queues: [emails: 50, sqs_polling: 1]
-    3. Configure AWS SES credentials in Settings UI or config/prod.exs
+    2. Add Oban queues AND the reconcile Cron entry to config/config.exs —
+       ALL FOUR queues below are required (not just emails/sqs_polling):
+       one per event-tracker chain (sqs_polling, brevo_polling), plus
+       event_tracker_reconcile for the tracker-lifecycle correctness
+       backbone (see PhoenixKit.Modules.Emails.EventTrackerReconcileWorker's
+       moduledoc — without this queue+crontab entry, a tracker whose chain
+       dies or was never started is never resurrected until the next app
+       restart, only masked by the one-time boot reconcile):
+
+         config :your_app, Oban,
+           queues: [
+             emails: 50,
+             sqs_polling: 1,
+             brevo_polling: 1,
+             event_tracker_reconcile: 1
+           ],
+           plugins: [
+             {Oban.Plugins.Cron,
+              crontab: [
+                {"*/2 * * * *", PhoenixKit.Modules.Emails.EventTrackerReconcileWorker}
+              ]}
+           ]
+
+    3. Configure AWS SES and/or Brevo credentials in Settings UI or
+       config/prod.exs
     4. Run `mix phoenix_kit.update` to apply email migrations
     5. Enable the Emails module in Admin → Modules
     """)
