@@ -102,7 +102,9 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
     # Route through SQSPollingManager so the poller starts/stops at RUNTIME
     # with no app restart: enable_polling/0 persists the flag AND inserts
     # the first Oban polling job (which self-schedules the next);
-    # disable_polling/0 clears the flag AND cancels scheduled jobs.
+    # disable_polling/0 clears the flag, and the already-queued job's own
+    # should_poll?/0 check lets the chain die on its own next tick (no
+    # explicit cancellation — see SQSPollingManager.disable_polling/0).
     new_sqs_polling = !socket.assigns.sqs_polling_enabled
 
     result =

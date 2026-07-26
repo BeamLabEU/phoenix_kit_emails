@@ -44,9 +44,13 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingManagerTest do
     assert {:ok, _} = SQSPollingManager.set_polling_interval(5_000)
   end
 
-  test "poll_now/0 inserts an immediate job even while polling is disabled" do
+  test "poll_now/0 inserts an immediate forced job even while polling is disabled" do
     refute Emails.sqs_polling_enabled?()
-    assert {:ok, %Oban.Job{}} = SQSPollingManager.poll_now()
+    assert {:ok, %Oban.Job{} = job} = SQSPollingManager.poll_now()
+
+    # The `forced` flag is what makes this actually poll rather than
+    # insert a job that no-ops on SQSPollingJob's should_poll?/0 gate.
+    assert job.args == %{"forced" => true}
   end
 
   test "enable_polling/0 while a next tick is already scheduled moves it to run now, not a duplicate" do
@@ -70,5 +74,21 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingManagerTest do
 
     assert first.id == second.id
     assert [_single] = worker_jobs(["available", "scheduled"])
+  end
+
+  test "poll_now/0 does not disturb an already-scheduled regular (non-forced) cycle" do
+    {:ok, regular} = %{} |> SQSPollingJob.new(schedule_in: 3_600) |> Oban.insert()
+    assert regular.state == "scheduled"
+
+    assert {:ok, forced} = SQSPollingManager.poll_now()
+
+    # Two distinct rows — different args (forced vs regular), so the
+    # forced insert must never move the regular chain's own next tick.
+    assert forced.id != regular.id
+    assert forced.args == %{"forced" => true}
+
+    reloaded_regular = Repo.get!(Oban.Job, regular.id)
+    assert reloaded_regular.state == "scheduled"
+    assert DateTime.compare(reloaded_regular.scheduled_at, regular.scheduled_at) == :eq
   end
 end

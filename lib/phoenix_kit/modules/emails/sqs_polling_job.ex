@@ -100,13 +100,17 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
     catch the case a short window couldn't (two chains a full interval
     apart). An unconditional `:infinity` unique check removes the need
     for that dance entirely.
-  - The `:available` immediate job from `SQSPollingManager.enable_polling/0`
-    / `poll_now/0` is a **different** insert with its own **per-call**
+  - The immediate job from `SQSPollingManager.enable_polling/0` /
+    `poll_now/0` is a **different** insert with its own **per-call**
     `unique:`/`replace:` override (`states: [:available, :scheduled]`) —
-    see `SQSPollingManager`'s `insert_poll_job/0`. A per-call override on
-    `new/2` does NOT go through the compile-time check above (only the
-    worker-level `use` default does), so it's free to cover `:available`
-    too. It still excludes `:executing` for the same self-conflict reason.
+    see `SQSPollingManager`'s `insert_poll_job/0` and
+    `insert_forced_poll_job/0`. A per-call override on `new/2` does NOT
+    go through the compile-time check above (only the worker-level `use`
+    default does), so it's free to cover `:available` too. It still
+    excludes `:executing` for the same self-conflict reason. `poll_now/0`
+    additionally carries `args: %{"forced" => true}`, which puts it in a
+    separate uniqueness namespace (Oban matches on args) so a manual poll
+    never moves the regular chain's next tick.
   - Concurrency is capped at 1 by the queue, so parallel *execution* is
     already impossible; `unique:` is what prevents parallel *chains*.
   """
@@ -131,9 +135,20 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
   @misconfig_backoff_ms 30_000
 
   @impl Oban.Worker
-  def perform(%Oban.Job{}) do
+  def perform(%Oban.Job{args: args}) do
+    # `forced: true` (SQSPollingManager.poll_now/0) bypasses the
+    # sqs_polling_enabled toggle specifically — an operator asking for
+    # events right now shouldn't be silently ignored just because the
+    # background chain is off — but never bypasses Emails.enabled?/0, the
+    # SES-events switch, or the sender-aware gate (see
+    # pollable_ignoring_toggle?/0). schedule_next_poll/1 re-checks
+    # should_poll?/0 on its own, so a forced run while the toggle is off
+    # still runs once without resurrecting the self-scheduling chain.
+    # Mirrors BrevoPollingJob.perform/1.
+    forced? = Map.get(args || %{}, "forced", false)
+
     # Check if polling is enabled before processing
-    if should_poll?() do
+    if should_poll?() or (forced? and pollable_ignoring_toggle?()) do
       Logger.debug("SQS Polling Job: Starting polling cycle")
 
       config = Emails.get_sqs_config()
@@ -195,9 +210,17 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
   # Check if polling should be performed. Not `defp` so the sender-aware
   # gate can be unit-tested directly without a real SQS/network round trip.
   def should_poll? do
+    Emails.sqs_polling_enabled?() and pollable_ignoring_toggle?()
+  end
+
+  # Everything the poller needs EXCEPT the sqs_polling_enabled toggle: the
+  # system switch, the SES-events switch, and the sender-aware gate below.
+  # A forced (poll_now/0) cycle bypasses the toggle but never these —
+  # mirroring BrevoPollingJob, whose `forced?` bypasses
+  # brevo_events_enabled but never Emails.enabled?/0 or its profile gate.
+  defp pollable_ignoring_toggle? do
     Emails.enabled?() and
       Emails.ses_events_enabled?() and
-      Emails.sqs_polling_enabled?() and
       ses_actively_configured?()
   end
 

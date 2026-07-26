@@ -163,6 +163,16 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingManager do
   This creates a new job that will execute as soon as possible,
   regardless of the normal polling schedule.
 
+  The job carries `args: %{"forced" => true}`, which
+  `SQSPollingJob.perform/1` honours by bypassing the
+  `sqs_polling_enabled` toggle for that single cycle (it still respects
+  the system switch, the SES-events switch, and the sender-aware gate).
+  Without it a manual poll while the toggle is off would insert a job
+  that runs, sees polling disabled, and silently does nothing. The
+  distinct args also keep this insert in its own uniqueness namespace,
+  so it never moves or cancels the regular chain's next scheduled tick
+  — see `insert_forced_poll_job/0`.
+
   ## Returns
 
   - `{:ok, job}` - Successfully created immediate job
@@ -180,7 +190,7 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingManager do
       Logger.warning("SQS Polling Manager: Polling is disabled, but executing manual poll")
     end
 
-    case insert_poll_job() do
+    case insert_forced_poll_job() do
       {:ok, job} ->
         Logger.info("SQS Polling Manager: Immediate poll job created", %{job_id: job.id})
         {:ok, job}
@@ -238,8 +248,9 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingManager do
 
   ## --- Private Functions ---
 
-  # Insert an immediately-available polling job. Used both to start the chain
-  # on enable_polling/0 and to force an out-of-schedule poll via poll_now/0.
+  # Insert an immediately-available polling job to start the chain on
+  # enable_polling/0. (poll_now/0 uses insert_forced_poll_job/0 below —
+  # deliberately a separate insert, see there.)
   #
   # A per-call unique:/replace: override, NOT the job's own worker-level
   # default (which only covers :scheduled — see SQSPollingJob's moduledoc).
@@ -266,6 +277,32 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingManager do
   # immediate for this use case.)
   defp insert_poll_job do
     %{}
+    |> SQSPollingJob.new(
+      schedule_in: 0,
+      unique: [period: :infinity, states: [:available, :scheduled]],
+      replace: [scheduled: [:scheduled_at], available: [:scheduled_at]]
+    )
+    |> Oban.insert()
+  end
+
+  # `args: %{"forced" => true}` differs from the regular chain's `%{}` in two
+  # load-bearing ways (mirrors BrevoPollingManager.insert_forced_poll_job/0):
+  #
+  #   1. `SQSPollingJob.perform/1` treats it as "run this cycle even though
+  #      the sqs_polling_enabled toggle is off". Reusing insert_poll_job/0
+  #      here made poll_now/0 a silent no-op whenever polling was disabled —
+  #      the one case an operator is most likely to click it — even though
+  #      poll_now/0 logs "Polling is disabled, but executing manual poll".
+  #   2. Oban's unique check matches on args by default, so this can only
+  #      ever conflict with ANOTHER forced job, never the regular chain.
+  #      Repeated poll_now/0 calls collapse into one (moved to run now via
+  #      replace:) without touching the regular chain's own next scheduled
+  #      tick — which sharing insert_poll_job/0 did, resetting the cadence
+  #      on every manual poll.
+  #
+  # `schedule_in: 0` — same reason as insert_poll_job/0 above.
+  defp insert_forced_poll_job do
+    %{"forced" => true}
     |> SQSPollingJob.new(
       schedule_in: 0,
       unique: [period: :infinity, states: [:available, :scheduled]],

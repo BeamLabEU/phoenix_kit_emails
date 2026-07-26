@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.17 - 2026-07-26
+
+### Changed
+- Both polling chains (`SQSPollingJob`, `BrevoPollingJob`) now guarantee "exactly one queued future job" with Oban's own uniqueness instead of a manual delete-then-insert. The workers carry `unique: [period: :infinity, states: [:scheduled]]` (`:executing` deliberately excluded — Oban's conflict check has no self-exclusion, so a self-rescheduling job would match its own row and stall the chain every cycle), and the managers' immediate inserts use a per-call `unique: [:available, :scheduled]` + `replace: [scheduled_at]` override so enabling while a tick is already queued moves that job up rather than appending a second one. `cancel_scheduled/0` is gone from both jobs, and `disable_polling/0` no longer deletes anything — the queued job's own `should_poll?/0` check ends the chain on its next tick. (#21)
+- `BrevoPollingManager.poll_now/0` now inserts `args: %{"forced" => true}`, which `BrevoPollingJob.perform/1` honours by running one cycle regardless of the `brevo_events_enabled` toggle (still subject to `Emails.enabled?/0` and the sender-aware gate). The distinct args also keep manual polls in their own uniqueness namespace, so they never move or cancel the regular chain's next scheduled tick. (#21)
+
+### Fixed
+- `SQSPollingManager.poll_now/0` was a silent no-op whenever SQS polling was disabled — the one case an operator is most likely to use it. It inserted a job with the regular chain's args, which `SQSPollingJob.perform/1` then dropped on its `should_poll?/0` gate, even though the manager logged "Polling is disabled, but executing manual poll". It now inserts a forced job (`args: %{"forced" => true}`) that bypasses the `sqs_polling_enabled` toggle for that single cycle, mirroring Brevo; `Emails.enabled?/0`, the SES-events switch, and the sender-aware profile gate are still enforced, and `schedule_next_poll/1` still refuses to resurrect the chain. (#21)
+- `SQSPollingManager.poll_now/0` also reset the regular chain's cadence: sharing the regular chain's args made its `unique`/`replace` insert conflict with the already-scheduled next tick and move that job's `scheduled_at` to now. Manual polls are now independent of the chain. (#21)
+
 ## 0.1.16 - 2026-07-20
 
 ### Changed
