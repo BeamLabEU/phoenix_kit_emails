@@ -16,6 +16,22 @@ defmodule PhoenixKit.Modules.Emails.EventTrackerReconcileWorker do
   `:brevo_polling`) — it must never be blocked behind either provider's
   own chain.
 
+  ## Multi-node
+
+  `Oban.Plugins.Cron` is not node-scoped by default — on a multi-node
+  cluster, every node's Oban instance fires this Cron entry on its own
+  schedule, so a single tick can produce N concurrent `perform/1` calls
+  (one per node), each running a full `reconcile/0`. This is safe and
+  cheap, not a bug to work around: `reconcile/0` is idempotent and its
+  "ensure exactly one chain" step is enforced at the database by Oban's
+  own `unique` (spec §8a) — N simultaneous reconciles collapse to the
+  same single chain regardless. If a host genuinely needs only one node
+  running this Cron entry (e.g. to avoid N redundant reconcile queries
+  on a very large tracker registry), that requires a host-side node
+  filter (e.g. `Oban.Plugins.Cron`'s own node-targeting options, or an
+  application-level leader check) — this worker itself does nothing to
+  enforce single-node execution.
+
   ## Oban queue + cron configuration
 
   Add to your `config/config.exs`:
