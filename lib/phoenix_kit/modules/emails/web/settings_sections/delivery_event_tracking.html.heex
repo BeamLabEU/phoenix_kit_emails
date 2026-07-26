@@ -1,0 +1,148 @@
+<div class="space-y-4">
+  <p class="text-sm text-base-content/70">
+    {gettext(
+      "One row per registered delivery-event tracker. A tracker runs only while a matching integration is configured and tracking is turned on."
+    )}
+  </p>
+
+  <div class="overflow-x-auto">
+    <table class="table table-zebra table-sm">
+      <thead>
+        <tr>
+          <th>{gettext("Provider")}</th>
+          <th>{gettext("Integration")}</th>
+          <th>{gettext("Tracking")}</th>
+          <th>{gettext("State")}</th>
+          <th>{gettext("Interval")}</th>
+          <th>{gettext("Last poll")}</th>
+          <th>{gettext("Queued")}</th>
+          <th>{gettext("Accounts")}</th>
+          <th class="text-right">{gettext("Actions")}</th>
+        </tr>
+      </thead>
+      <tbody>
+        <%= for row <- @rows do %>
+          <tr>
+            <td class="font-medium">{row.label}</td>
+
+            <td class="text-sm">{integration_summary(row.integration_count)}</td>
+
+            <td>
+              <input
+                type="checkbox"
+                class="toggle toggle-primary toggle-sm"
+                checked={row.enabled}
+                phx-click="toggle_tracking"
+                phx-value-provider={row.provider_kind}
+                phx-target={@myself}
+              />
+            </td>
+
+            <td>
+              <div class="tooltip" data-tip={state_hint(row.state)}>
+                <span class={["badge badge-sm", state_badge_class(row.state)]}>
+                  {state_label(row.state)}
+                </span>
+              </div>
+            </td>
+
+            <td>
+              <div class="join">
+                <input
+                  type="number"
+                  name="interval"
+                  value={row.interval_ms}
+                  class="input input-bordered input-xs join-item w-20"
+                  min="1000"
+                  step="1000"
+                  phx-blur="update_interval"
+                  phx-value-provider={row.provider_kind}
+                  phx-target={@myself}
+                />
+                <span class="join-item bg-base-200 px-2 text-xs flex items-center">ms</span>
+              </div>
+            </td>
+
+            <td class="text-xs text-base-content/70">
+              <%= if row.last_polled_at do %>
+                {gettext("Last polled: %{time}", time: row.last_polled_at)}
+              <% else %>
+                {gettext("Never polled yet")}
+              <% end %>
+            </td>
+
+            <td>{row.pending_jobs}</td>
+
+            <td>
+              <%= if row.accounts do %>
+                <details class="dropdown">
+                  <summary class="btn btn-xs btn-outline">
+                    {gettext("%{polled}/%{total}",
+                      polled: Enum.count(row.accounts, fn {_uuid, _name, polled?} -> polled? end),
+                      total: length(row.accounts)
+                    )}
+                  </summary>
+                  <ul class="dropdown-content menu bg-base-100 rounded-box z-10 w-64 p-2 shadow-sm">
+                    <%= if row.accounts == [] do %>
+                      <li class="text-xs text-base-content/60 px-2 py-1">
+                        {gettext("No accounts yet")}
+                      </li>
+                    <% end %>
+                    <%= for {uuid, name, polled?} <- row.accounts do %>
+                      <li>
+                        <label class="label cursor-pointer justify-start gap-2">
+                          <input
+                            type="checkbox"
+                            class="checkbox checkbox-xs"
+                            checked={polled?}
+                            phx-click="toggle_account"
+                            phx-value-provider={row.provider_kind}
+                            phx-value-uuid={uuid}
+                            phx-target={@myself}
+                          />
+                          <span class="label-text text-xs">{name}</span>
+                        </label>
+                      </li>
+                    <% end %>
+                  </ul>
+                </details>
+              <% else %>
+                <span class="text-base-content/40">—</span>
+              <% end %>
+            </td>
+
+            <td class="text-right">
+              <div class="flex gap-1 justify-end">
+                <%= if row.state == :stalled do %>
+                  <button
+                    type="button"
+                    class="btn btn-xs btn-warning"
+                    phx-click="restart"
+                    phx-value-provider={row.provider_kind}
+                    phx-target={@myself}
+                  >
+                    {gettext("Restart")}
+                  </button>
+                <% end %>
+                <button
+                  type="button"
+                  class="btn btn-xs btn-outline"
+                  phx-click="poll_now"
+                  phx-value-provider={row.provider_kind}
+                  phx-target={@myself}
+                  disabled={Map.get(@busy, row.provider_kind, false)}
+                >
+                  <%= if Map.get(@busy, row.provider_kind, false) do %>
+                    <span class="loading loading-spinner loading-xs"></span>
+                  <% else %>
+                    {gettext("Poll now")}
+                  <% end %>
+                </button>
+              </div>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+</div>

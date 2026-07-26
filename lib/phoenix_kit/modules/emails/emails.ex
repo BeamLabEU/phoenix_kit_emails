@@ -936,16 +936,16 @@ defmodule PhoenixKit.Modules.Emails do
         component: PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTracking
       },
       %{
+        id: :emails_delivery_event_tracking,
+        title: gettext("Delivery Event Tracking"),
+        permission: "emails",
+        component: PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTracking
+      },
+      %{
         id: :emails_aws_ses_sqs,
         title: gettext("Amazon SES & SQS"),
         permission: "emails",
         component: PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs
-      },
-      %{
-        id: :emails_brevo_events,
-        title: gettext("Brevo Events"),
-        permission: "emails",
-        component: PhoenixKit.Modules.Emails.Web.SettingsSections.BrevoEvents
       }
     ]
   end
