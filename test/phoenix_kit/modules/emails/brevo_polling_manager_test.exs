@@ -35,7 +35,7 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingManagerTest do
     assert Emails.brevo_events_enabled?()
   end
 
-  test "disable_polling/0 clears the setting and cancels scheduled jobs" do
+  test "disable_polling/0 clears the setting" do
     {:ok, _job} = BrevoPollingManager.enable_polling()
     assert :ok = BrevoPollingManager.disable_polling()
     refute Emails.brevo_events_enabled?()
@@ -49,9 +49,13 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingManagerTest do
     assert Emails.get_brevo_polling_interval() == 60_000
   end
 
-  test "poll_now/0 inserts an immediate job even while polling is disabled" do
+  test "poll_now/0 inserts an immediate forced job even while polling is disabled" do
     refute Emails.brevo_events_enabled?()
-    assert {:ok, %Oban.Job{}} = BrevoPollingManager.poll_now()
+    assert {:ok, %Oban.Job{} = job} = BrevoPollingManager.poll_now()
+
+    # The `forced` flag is what makes this actually poll rather than
+    # insert a job that no-ops on BrevoPollingJob's should_poll?/0 gate.
+    assert job.args == %{"forced" => true}
   end
 
   test "enable_polling/0 while a next tick is already scheduled moves it to run now, not a duplicate" do

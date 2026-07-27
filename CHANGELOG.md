@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.18 - 2026-07-27
+
+### Fixed
+- Brevo event polling no longer stays dead across app restarts when `brevo_events_enabled` is still on but no Oban job row survived (crash before `schedule_next_poll/1`, wiped jobs table, etc.). The supervisor now re-seeds the Brevo chain at boot the same way it already re-seeds SQS — via `BrevoPollingManager.enable_polling/0` after Oban is ready. Zero active Brevo profiles is fine; the job no-ops each cycle and still records `last_polled_at`.
+
+### Changed
+- `Supervisor.system_status/0` also reports `brevo_polling_status` (alongside the existing SQS `polling_status`).
+- Clarified `BrevoPollingManager` docs: `poll_now/0` bypasses only the `brevo_events_enabled` toggle, not the sender-aware profile gate or `Emails.enabled?/0`.
+
 ## 0.1.17 - 2026-07-26
 
 ### Changed

@@ -514,6 +514,25 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingJobTest do
       assert Repo.get(Log, log.uuid).status == "delivered"
     end
 
+    test "a forced run does not resurrect the self-scheduling chain" do
+      create_brevo_profile()
+      {:ok, _} = Emails.set_brevo_events_enabled(false)
+
+      Req.Test.stub(@stub, fn conn -> Req.Test.json(conn, %{"events" => []}) end)
+
+      assert :ok = BrevoPollingJob.perform(%Oban.Job{args: %{"forced" => true}})
+
+      # schedule_next_poll/1 re-checks should_poll?/0, which is still false.
+      worker = BrevoPollingJob.worker_name()
+
+      assert [] =
+               Repo.all(
+                 from(j in Oban.Job,
+                   where: j.worker == ^worker and j.state in ["available", "scheduled"]
+                 )
+               )
+    end
+
     test "a forced job still no-ops when the system itself is disabled" do
       {:ok, _} = Emails.disable_system()
 
