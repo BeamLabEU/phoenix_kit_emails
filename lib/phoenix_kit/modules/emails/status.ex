@@ -78,9 +78,15 @@ defmodule PhoenixKit.Modules.Emails.Status do
     end
   end
 
+  # Mirrors PhoenixKit.Mailer.default_send_integration_uuid/0 — including the
+  # `connected?/1` gate. Without it a configured-but-disconnected integration
+  # would be named here as the transport while the mailer quietly falls back to
+  # the static one: a status card that reports the wrong sender is worse than no
+  # card.
   defp default_integration do
     with uuid when is_binary(uuid) and uuid != "" <-
            PhoenixKit.Settings.get_setting("default_email_integration_uuid"),
+         true <- PhoenixKit.Integrations.connected?(uuid),
          {:ok, integration} <- PhoenixKit.Integrations.get_integration_by_uuid(uuid) do
       {:ok, uuid, integration[:name] || integration["name"]}
     else
@@ -113,18 +119,11 @@ defmodule PhoenixKit.Modules.Emails.Status do
     Map.merge(base, job_counts())
   end
 
-  # The queue name lives in the HOST's Oban config; without it jobs are inserted
-  # and never picked up, which looks exactly like "the queue is broken".
-  defp oban_queue_configured? do
-    app = PhoenixKit.Config.get_parent_app()
-
-    app
-    |> Application.get_env(Oban, [])
-    |> Keyword.get(:queues, [])
-    |> Keyword.has_key?(:emails)
-  rescue
-    _ -> false
-  end
+  # The queue name lives in the HOST's Oban config; without it jobs would be
+  # inserted and never picked up, so Queue refuses to enqueue and sends inline.
+  # Surfaced here so the operator learns it from the page rather than from mail
+  # that goes out without ever appearing in the queue.
+  defp oban_queue_configured?, do: Queue.runnable?()
 
   defp job_counts do
     counts =

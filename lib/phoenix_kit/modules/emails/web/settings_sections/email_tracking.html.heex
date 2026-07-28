@@ -20,11 +20,14 @@
         </span>
       </div>
 
-      <div :if={@status.queue.enabled? and not @status.queue.oban_queue_configured?} class="alert alert-warning py-2">
+      <div
+        :if={@status.queue.enabled? and not @status.queue.oban_queue_configured?}
+        class="alert alert-warning py-2"
+      >
         <.icon name="hero-exclamation-triangle" class="w-5 h-5 shrink-0" />
         <span class="text-sm">
           {gettext(
-            "The queue is on, but this application has no :emails Oban queue configured — queued messages would never be picked up. Add `emails: 10` to the host's Oban queues."
+            "The queue is on, but this application has no :emails Oban queue configured, so nothing can drain it — messages are being sent immediately instead. Add `emails: 10` to the host's Oban queues to use the queue."
           )}
         </span>
       </div>

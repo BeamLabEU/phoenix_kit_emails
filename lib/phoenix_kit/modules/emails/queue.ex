@@ -23,7 +23,9 @@ defmodule PhoenixKit.Modules.Emails.Queue do
       worse than the throughput is worth;
     * a caller may always opt out per message with `queue: false`;
     * messages with attachments are sent inline. The job carries the message as
-      JSON args, and attachment payloads have no business in the jobs table.
+      JSON args, and attachment payloads have no business in the jobs table;
+    * nothing is queued unless the host application actually declared the
+      `:emails` Oban queue (`runnable?/0`) — see the warning in that function.
 
   Each of these is a `:continue`, i.e. "not mine, send it now" — never an error.
   A queue that swallows mail on a bad day is worse than one that never engages.
@@ -58,6 +60,27 @@ defmodule PhoenixKit.Modules.Emails.Queue do
   @spec enabled? :: boolean()
   def enabled?, do: Settings.get_boolean_setting("email_queue_enabled", true)
 
+  @doc """
+  Whether the host application actually declared the `:emails` Oban queue.
+
+  Load-bearing, not diagnostic: `Oban.insert/1` happily accepts a job for a queue
+  nobody runs, so on a host that never added `emails: N` the message would be
+  stored and never sent — the queue would look enabled and quietly swallow the
+  mail. We therefore refuse to queue at all unless the host can drain it.
+  """
+  @spec runnable? :: boolean()
+  def runnable? do
+    PhoenixKit.Config.get_parent_app()
+    |> Application.get_env(Oban, [])
+    |> Keyword.get(:queues, [])
+    |> then(fn
+      queues when is_list(queues) -> Keyword.has_key?(queues, :emails)
+      _ -> false
+    end)
+  rescue
+    _ -> false
+  end
+
   @doc "Whether authentication mail is queued too — `email_queue_auth_mail`, defaults to false."
   @spec auth_mail_enabled? :: boolean()
   def auth_mail_enabled?, do: Settings.get_boolean_setting("email_queue_auth_mail", false)
@@ -83,11 +106,12 @@ defmodule PhoenixKit.Modules.Emails.Queue do
 
   `:ok` means it would.
   """
-  @spec status :: :ok | :system_disabled | :queue_disabled
+  @spec status :: :ok | :system_disabled | :queue_disabled | :no_oban_queue
   def status do
     cond do
       not Emails.enabled?() -> :system_disabled
       not enabled?() -> :queue_disabled
+      not runnable?() -> :no_oban_queue
       true -> :ok
     end
   end
@@ -95,7 +119,7 @@ defmodule PhoenixKit.Modules.Emails.Queue do
   # --- decision --------------------------------------------------------------
 
   defp queue?(email, opts) do
-    Emails.enabled?() and enabled?() and
+    Emails.enabled?() and enabled?() and runnable?() and
       Keyword.get(opts, :queue, true) != false and
       not auth_mail_excluded?(opts) and
       not has_attachments?(email)
@@ -121,11 +145,20 @@ defmodule PhoenixKit.Modules.Emails.Queue do
 
       {:error, reason} ->
         # Fall through to an inline send rather than drop the message: an Oban
-        # that cannot accept jobs (missing queue, DB hiccup) must not become a
-        # mail outage.
+        # that cannot accept jobs must not become a mail outage.
         Logger.error("[Emails.Queue] could not enqueue, sending inline: #{inspect(reason)}")
         :continue
     end
+  rescue
+    # `Oban.insert/1` only *returns* {:error, changeset} for a failed changeset —
+    # a connection error, a pool timeout or a missing table RAISES. Without this
+    # the raise escapes through deliver_email/2 into the caller, and the message
+    # is neither queued nor sent: exactly the outage the clause above exists to
+    # prevent, just via the other door.
+    error ->
+      Logger.error("[Emails.Queue] enqueue raised, sending inline: #{Exception.message(error)}")
+
+      :continue
   end
 
   defp log_uuid(%Email{headers: headers}) when is_map(headers), do: Map.get(headers, @log_header)

@@ -29,6 +29,8 @@ defmodule PhoenixKit.Modules.Emails.SendJob do
 
   require Logger
 
+  alias PhoenixKit.Modules.Emails
+  alias PhoenixKit.Modules.Emails.Interceptor
   alias PhoenixKit.Modules.Emails.Queue
 
   @impl Oban.Worker
@@ -39,6 +41,16 @@ defmodule PhoenixKit.Modules.Emails.SendJob do
     case PhoenixKit.Mailer.deliver_email(email, Keyword.put(opts, :skip_queue, true)) do
       {:ok, _result} ->
         :ok
+
+      # The recipient was blocklisted (hard bounce, complaint, manual block)
+      # between enqueue and dequeue. `deliver_email/2` refuses before it ever
+      # reaches the after-send hook, so retrying can only fail the same way five
+      # more times — and the log row would sit at "queued" forever. Cancel and
+      # close the row out instead.
+      {:error, {:blocked, _} = reason} ->
+        Logger.info("[Emails.SendJob] recipient blocked, cancelling: #{inspect(reason)}")
+        fail_log(email, reason)
+        {:cancel, :recipient_blocked}
 
       {:error, reason} ->
         # Return the error so Oban records it and retries with backoff; the log
@@ -54,5 +66,20 @@ defmodule PhoenixKit.Modules.Emails.SendJob do
     # times against the same malformed args.
     Logger.error("[Emails.SendJob] malformed job args: #{inspect(args)}")
     {:cancel, :malformed_args}
+  end
+
+  # The log row was written before the hop and is still "queued"; nothing else
+  # will close it out once we cancel the job.
+  defp fail_log(email, reason) do
+    with log_uuid when is_binary(log_uuid) <- Map.get(email.headers || %{}, "X-PhoenixKit-Log-Id"),
+         %Emails.Log{} = log <- Emails.get_log(log_uuid) do
+      Interceptor.update_after_failure(log, reason)
+    end
+
+    :ok
+  rescue
+    error ->
+      Logger.warning("[Emails.SendJob] could not close the log row: #{Exception.message(error)}")
+      :ok
   end
 end
