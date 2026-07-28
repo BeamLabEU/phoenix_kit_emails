@@ -4,13 +4,15 @@ defmodule PhoenixKit.Modules.Emails.SendJob do
 
   `PhoenixKit.Modules.Emails.Queue` enqueues the serialized `Swoosh.Email`; this
   worker rebuilds it and hands it back to `PhoenixKit.Mailer.deliver_email/2`
-  with `skip_queue: true`, so the real send takes the ordinary path — recipient
-  blocklist, integration-or-static-mailer choice, post-send tracking — without
-  being offered back to the queue it just came from.
+  with `skip_queue: true` and `already_intercepted: true`, so the real send takes
+  the ordinary path — recipient blocklist, integration-or-static-mailer choice,
+  post-send tracking — without being offered back to the queue it just came from
+  and without being run through interception a second time.
 
-  The message carries its `X-PhoenixKit-Log-Id` header across the hop, so the
-  interceptor recognises the already-logged message and updates that row instead
-  of writing a second one.
+  The message also carries its `X-PhoenixKit-Log-Id` header across the hop, so
+  `handle_after_send/2` updates the row this message already has. The
+  interceptor's own idempotency check on that header stays as a second line of
+  defence for a core old enough not to know `already_intercepted`.
 
   ## Delivery is at-least-once
 
@@ -46,7 +48,9 @@ defmodule PhoenixKit.Modules.Emails.SendJob do
     email = Queue.deserialize(email_args)
     opts = args |> Map.get("opts", %{}) |> Queue.deserialize_opts()
 
-    case PhoenixKit.Mailer.deliver_email(email, Keyword.put(opts, :skip_queue, true)) do
+    send_opts = opts |> Keyword.put(:skip_queue, true) |> Keyword.put(:already_intercepted, true)
+
+    case PhoenixKit.Mailer.deliver_email(email, send_opts) do
       {:ok, _result} ->
         :ok
 
@@ -57,7 +61,9 @@ defmodule PhoenixKit.Modules.Emails.SendJob do
       # close the row out instead.
       {:error, {:blocked, _} = reason} ->
         Logger.info("[Emails.SendJob] recipient blocked, cancelling: #{inspect(reason)}")
-        fail_log(email, reason)
+        # A readable sentence, not an inspected tuple: this lands in the log
+        # row's error_message column, which an operator reads in the UI.
+        fail_log(email, "Recipient is on the blocklist")
         {:cancel, :recipient_blocked}
 
       {:error, reason} ->

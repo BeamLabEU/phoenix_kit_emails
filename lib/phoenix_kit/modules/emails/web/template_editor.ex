@@ -387,9 +387,12 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditor do
       |> Swoosh.Email.html_body(rendered.html_body)
       |> Swoosh.Email.text_body(rendered.text_body)
 
+    # skip_queue: the flash below reports the outcome, so the send must be the
+    # real one — a queued test would report success before anything was sent.
     case PhoenixKit.Mailer.deliver_email(email,
            template_name: temp_template.name,
-           campaign_id: "template_test"
+           campaign_id: "template_test",
+           skip_queue: true
          ) do
       {:ok, _email} ->
         {:noreply,

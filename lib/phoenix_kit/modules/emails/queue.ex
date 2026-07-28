@@ -67,6 +67,11 @@ defmodule PhoenixKit.Modules.Emails.Queue do
   nobody runs, so on a host that never added `emails: N` the message would be
   stored and never sent — the queue would look enabled and quietly swallow the
   mail. We therefore refuse to queue at all unless the host can drain it.
+
+  Reads the parent app's compile-time Oban config, which is how PhoenixKit
+  installs Oban. A host that declares queues as a map, or starts Oban at runtime
+  with `Oban.start_link/1`, reads as "not runnable" here — that is the safe
+  direction (inline send, never a stuck queue), not a mail outage.
   """
   @spec runnable? :: boolean()
   def runnable? do
@@ -253,6 +258,11 @@ defmodule PhoenixKit.Modules.Emails.Queue do
   end
 
   defp put_headers(email, _headers), do: email
+
+  @doc false
+  # Exposed for tests: the allowlist is the reason a job's args cannot carry a
+  # caller's secrets into the jobs table, which is worth pinning down.
+  def serialize_opts_for_test(opts), do: serialize_opts(opts)
 
   # Only the opts the send path actually reads survive the round trip — they
   # have to be JSON-safe, and a worker resurrecting arbitrary caller state is a

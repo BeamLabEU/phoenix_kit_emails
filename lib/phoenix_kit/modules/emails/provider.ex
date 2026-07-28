@@ -133,10 +133,14 @@ defmodule PhoenixKit.Modules.Emails.Provider do
         Templates.track_usage(template)
         # template_name / user_uuid / source_module opts → recorded on the email
         # log by the interceptor (so Details shows the template, user, and module).
+        # skip_queue: a test send exists to give an immediate verdict. Queued,
+        # it would flash "sent successfully" the moment Oban accepted the job —
+        # before a relay had seen it, and while a later failure went unreported.
         PhoenixKit.Mailer.deliver_email(email,
           template_name: template.name,
           user_uuid: user_uuid,
-          source_module: "emails"
+          source_module: "emails",
+          skip_queue: true
         )
 
       _ ->
@@ -155,7 +159,8 @@ defmodule PhoenixKit.Modules.Emails.Provider do
         PhoenixKit.Mailer.deliver_email(email,
           template_name: "test_email",
           user_uuid: user_uuid,
-          source_module: "emails"
+          source_module: "emails",
+          skip_queue: true
         )
     end
   rescue
