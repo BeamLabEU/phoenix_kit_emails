@@ -24,10 +24,12 @@ defmodule PhoenixKit.Modules.Emails.Status do
   alias PhoenixKit.Modules.Emails.Queue
   alias PhoenixKit.RepoHelper
 
-  # Mirrors the Log changeset's own rule. A sender that fails it makes every
-  # insert fail, which the interceptor logs and swallows — the "enabled but
-  # recording nothing" trap this module exists to expose.
-  @sender_regex ~r/^[^\s]+@[^\s]+\.[^\s]+$/
+  # The Log changeset's own rule, taken from the schema rather than re-declared
+  # here: a sender that fails it makes every insert fail, which the interceptor
+  # logs and swallows — the "enabled but recording nothing" trap this module
+  # exists to expose. Core keeps its own copy on purpose (it must not depend on
+  # this optional package); inside the package there is no reason to drift.
+  @sender_regex Log.email_format_regex()
 
   @type t :: %{
           system_enabled: boolean(),

@@ -25,11 +25,14 @@ defmodule PhoenixKit.Modules.Emails.Provider do
   @impl PhoenixKit.Email.Provider
   def intercept_before_send(email, opts), do: Interceptor.intercept_before_send(email, opts)
 
-  # Deliberately NOT annotated with `@impl`: `maybe_enqueue/2` is an optional
-  # callback that only exists in newer core. Against an older core the
-  # annotation would warn "function does not exist in behaviour", which fails a
-  # host that compiles with --warnings-as-errors. Core calls this through
-  # `function_exported?/3`, so the plain definition is enough.
+  # `maybe_enqueue/2` is an OPTIONAL callback that exists only in core versions
+  # that ship the queue hook. There is no annotation that is warning-free against
+  # both: with `@impl` an older core warns "function does not exist in
+  # behaviour", without it a newer core warns "@impl was not set". We keep the
+  # annotation and treat the newer core as the target — the floor in mix.exs must
+  # be bumped to the first core release containing the callback when this ships,
+  # which makes the older-core case impossible rather than merely quiet.
+  @impl PhoenixKit.Email.Provider
   def maybe_enqueue(email, opts), do: Queue.maybe_enqueue(email, opts)
 
   @impl PhoenixKit.Email.Provider

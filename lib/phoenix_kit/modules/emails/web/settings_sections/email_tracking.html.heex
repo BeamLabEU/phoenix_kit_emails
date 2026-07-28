@@ -77,10 +77,17 @@
         <div class="flex justify-between gap-2">
           <dt class="text-base-content/60">{gettext("Queue")}</dt>
           <dd class="font-medium">
-            {cond do
-              @status.queue.status == :system_disabled -> gettext("Off (system disabled)")
-              @status.queue.status == :queue_disabled -> gettext("Off — sending inline")
-              true ->
+            {case @status.queue.status do
+              :system_disabled ->
+                gettext("Off (system disabled)")
+
+              :queue_disabled ->
+                gettext("Off — sending inline")
+
+              :no_oban_queue ->
+                gettext("Off — no :emails Oban queue, sending inline")
+
+              :ok ->
                 gettext("On — %{pending} waiting, %{executing} sending, %{retryable} retrying",
                   pending: @status.queue.pending,
                   executing: @status.queue.executing,

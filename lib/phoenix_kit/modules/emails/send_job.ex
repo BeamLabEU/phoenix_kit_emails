@@ -12,6 +12,14 @@ defmodule PhoenixKit.Modules.Emails.SendJob do
   interceptor recognises the already-logged message and updates that row instead
   of writing a second one.
 
+  ## Delivery is at-least-once
+
+  If the relay accepts the message but the connection drops before its reply,
+  the send looks like a failure, Oban retries, and the recipient gets the mail
+  twice (up to `max_attempts`). That is inherent to handing delivery to a queue
+  — it is why authentication mail is excluded by default, and why a caller that
+  cannot tolerate a duplicate should pass `queue: false`.
+
   ## Host setup
 
   The `:emails` queue must exist in the **host application's** Oban config — a

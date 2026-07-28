@@ -151,13 +151,19 @@ defmodule PhoenixKit.Modules.Emails.Queue do
     end
   rescue
     # `Oban.insert/1` only *returns* {:error, changeset} for a failed changeset —
-    # a connection error, a pool timeout or a missing table RAISES. Without this
-    # the raise escapes through deliver_email/2 into the caller, and the message
-    # is neither queued nor sent: exactly the outage the clause above exists to
-    # prevent, just via the other door.
+    # a connection error, a pool timeout, a missing table or no running Oban
+    # instance RAISES. Without this the raise escapes through deliver_email/2
+    # into the caller, and the message is neither queued nor sent: exactly the
+    # outage the clause above exists to prevent, just via the other door.
     error ->
       Logger.error("[Emails.Queue] enqueue raised, sending inline: #{Exception.message(error)}")
 
+      :continue
+  catch
+    # DBConnection ownership errors (sandbox, checkout timeouts) exit rather than
+    # raise. Same verdict: send it now.
+    :exit, reason ->
+      Logger.error("[Emails.Queue] enqueue exited, sending inline: #{inspect(reason)}")
       :continue
   end
 
@@ -170,6 +176,12 @@ defmodule PhoenixKit.Modules.Emails.Queue do
   Only the fields a send needs: recipients, subject, bodies and headers. The
   tracking header rides along, which is what makes the worker's send reuse the
   log row this message already has instead of writing a second one.
+
+  Deliberately **dropped**: `attachments` (queued mail with attachments is sent
+  inline instead — see the moduledoc), and `provider_options` / `assigns` /
+  `private`, which are not JSON-safe in the general case. Nothing sets
+  `provider_options` per-email today; if that changes, round-trip it here or
+  queued mail will silently lose options that an inline send keeps.
   """
   @spec serialize(Email.t()) :: map()
   def serialize(%Email{} = email) do
