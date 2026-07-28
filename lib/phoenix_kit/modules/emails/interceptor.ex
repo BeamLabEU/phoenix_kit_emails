@@ -82,6 +82,24 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
       %Swoosh.Email{headers: %{"X-PhoenixKit-Log-Id" => "456"}}
   """
   def intercept_before_send(%Email{} = email, opts \\ []) do
+    # Already tracked: this message is coming back through the mailer a second
+    # time — the queue worker re-sending what it dequeued. Logging it again
+    # would double every queued message in the log and leave the first row stuck
+    # at "queued" forever, since only the header's row gets the after-send
+    # update.
+    if already_tracked?(email) do
+      email
+    else
+      do_intercept_before_send(email, opts)
+    end
+  end
+
+  defp already_tracked?(%Email{headers: headers}) when is_map(headers),
+    do: Map.has_key?(headers, "X-PhoenixKit-Log-Id")
+
+  defp already_tracked?(_email), do: false
+
+  defp do_intercept_before_send(%Email{} = email, opts) do
     if Emails.enabled?() and should_log_email?(email, opts) do
       case create_email_log(email, opts) do
         {:ok, log} ->

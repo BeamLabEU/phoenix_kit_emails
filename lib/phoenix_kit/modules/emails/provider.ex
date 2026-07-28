@@ -15,6 +15,7 @@ defmodule PhoenixKit.Modules.Emails.Provider do
 
   alias PhoenixKit.Modules.Emails
   alias PhoenixKit.Modules.Emails.Interceptor
+  alias PhoenixKit.Modules.Emails.Queue
   alias PhoenixKit.Modules.Emails.Template
   alias PhoenixKit.Modules.Emails.Templates
   alias PhoenixKit.Modules.Emails.Utils
@@ -23,6 +24,9 @@ defmodule PhoenixKit.Modules.Emails.Provider do
 
   @impl PhoenixKit.Email.Provider
   def intercept_before_send(email, opts), do: Interceptor.intercept_before_send(email, opts)
+
+  @impl PhoenixKit.Email.Provider
+  def maybe_enqueue(email, opts), do: Queue.maybe_enqueue(email, opts)
 
   @impl PhoenixKit.Email.Provider
   def handle_after_send(email, result) do

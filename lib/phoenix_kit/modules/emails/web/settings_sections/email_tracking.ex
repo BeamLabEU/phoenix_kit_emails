@@ -12,12 +12,17 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTracking do
   use Gettext, backend: PhoenixKit.Modules.Emails.Gettext
 
   alias PhoenixKit.Modules.Emails
+  alias PhoenixKit.Modules.Emails.Status
 
   @dialyzer {:nowarn_function, handle_event: 3}
 
   @impl true
   def update(assigns, socket) do
     socket = assign(socket, assigns)
+
+    # Recomputed on every update, not just the first: a toggle on this very page
+    # changes what the status card says, and a stale card is worse than none.
+    socket = assign(socket, :status, Status.summary())
 
     socket =
       if Map.has_key?(socket.assigns, :email_save_body) do
