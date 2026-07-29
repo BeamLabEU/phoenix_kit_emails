@@ -56,6 +56,16 @@ AWS SES events flow through SQS:
 
 The `Supervisor` kicks off Oban polling at boot conditionally based on settings (`email_enabled`, `email_ses_events`, `sqs_polling_enabled`, and queue URL presence); polling can also be toggled at runtime via `SQSPollingManager` without a restart.
 
+### Outgoing Send Queue
+
+Core offers every outgoing message to `Provider.maybe_enqueue/2` (optional `PhoenixKit.Email.Provider` callback, floor `phoenix_kit ~> 1.7.217`) right after interception, on both delivery paths:
+
+1. **Queue** — decides inline-vs-queued and serializes the `Swoosh.Email` into JSON job args. Every decline is `:continue` ("send it now"), never an error. Never queues when the system is off, `email_queue_enabled` is off, the host declared no `:emails` Oban queue (`runnable?/0`), the caller passed `queue: false`, the message has attachments, or it is authentication mail (unless `email_queue_auth_mail`)
+2. **SendJob** — Oban worker (`queue: :emails`, `max_attempts: 5`) that rebuilds the email and re-sends it with `skip_queue: true` + `already_intercepted: true`, so tracking is not duplicated and the job is not offered back to its own queue. Delivery is at-least-once
+3. **Status** — one snapshot (`summary/0`) of what the module is actually doing, rendered as the system-status card in the Email Tracking settings section
+
+Callers that route through an explicitly chosen integration (`Mailer.deliver_via_integration/3` with a non-default uuid) must pass `queue: false` — the job re-sends through `deliver_email/2`, which resolves the *default* transport.
+
 ### How It Works
 
 1. Parent app adds this as a dependency in `mix.exs`
@@ -88,6 +98,8 @@ All stored via PhoenixKit Settings with module `"email_system"`:
 - `email_create_placeholder_logs` — create placeholder logs for orphaned events
 - `sqs_polling_enabled` — enable SQS polling
 - `sqs_polling_interval_ms` — polling interval
+- `email_queue_enabled` — hand outgoing mail to the `:emails` Oban queue (default: **true**, but inert unless the host declared the queue)
+- `email_queue_auth_mail` — queue authentication mail too (default: false)
 
 ### File Layout
 
@@ -104,6 +116,9 @@ lib/
     ├── email_log_data.ex            # EmailLogData struct
     ├── templates.ex                 # Templates context (CRUD, rendering)
     ├── interceptor.ex               # Before/after send hooks
+    ├── queue.ex                     # Send-queue decision (maybe_enqueue/2) + settings
+    ├── send_job.ex                  # Oban worker that delivers one queued message
+    ├── status.ex                    # Runtime status snapshot for the settings card
     ├── metrics.ex                   # Analytics and engagement metrics
     ├── archiver.ex                  # Cleanup, compression, S3 archival
     ├── rate_limiter.ex              # Rate limiting via Hammer

@@ -29,6 +29,18 @@ defmodule PhoenixKit.Modules.Emails.Queue do
 
   Each of these is a `:continue`, i.e. "not mine, send it now" — never an error.
   A queue that swallows mail on a bad day is worse than one that never engages.
+
+  ## Callers that pick their own transport must opt out
+
+  The queue offer sits inside **both** of core's delivery paths, including
+  `PhoenixKit.Mailer.deliver_via_integration/3` — but the opts core hands us do
+  not carry the integration uuid that call was made with, only its `:provider`
+  string. `SendJob` therefore re-sends through `deliver_email/2`, which resolves
+  the *default* integration. For a send routed at an explicitly chosen
+  connection (a newsletter send profile, a per-tenant relay) that is a silent
+  change of transport, so such callers must pass `queue: false` until core
+  carries the uuid into the job. Sends that were already going out through the
+  default integration are unaffected — it is the same resolution either way.
   """
 
   require Logger
@@ -172,8 +184,9 @@ defmodule PhoenixKit.Modules.Emails.Queue do
       :continue
   end
 
-  defp log_uuid(%Email{headers: headers}) when is_map(headers), do: Map.get(headers, @log_header)
-  defp log_uuid(_email), do: nil
+  # One clause: `Swoosh.Email`'s `headers` is always a map (the struct default),
+  # so a fallback clause is unreachable and dialyzer says so.
+  defp log_uuid(%Email{headers: headers}), do: Map.get(headers, @log_header)
 
   @doc """
   Serializes a `Swoosh.Email` into JSON-safe job args.
@@ -186,7 +199,16 @@ defmodule PhoenixKit.Modules.Emails.Queue do
   inline instead — see the moduledoc), and `provider_options` / `assigns` /
   `private`, which are not JSON-safe in the general case. Nothing sets
   `provider_options` per-email today; if that changes, round-trip it here or
-  queued mail will silently lose options that an inline send keeps.
+  queued mail will silently lose options that an inline send keeps. (The SES
+  configuration set and message tags travel as *headers*, so those are kept.)
+
+  > #### Recipients and bodies land in `oban_jobs` {: .warning}
+  >
+  > Queued mail carries its full body in the job's args until the row is
+  > pruned — independent of `email_save_body` and of `email_retention_days`,
+  > which only govern this module's own tables. A deployment that keeps
+  > completed jobs forever keeps the message content forever; configure
+  > `Oban.Plugins.Pruner` accordingly.
   """
   @spec serialize(Email.t()) :: map()
   def serialize(%Email{} = email) do

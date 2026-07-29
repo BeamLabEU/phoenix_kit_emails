@@ -31,6 +31,12 @@ defmodule PhoenixKit.Modules.Emails.Status do
   # this optional package); inside the package there is no reason to drift.
   @sender_regex Log.email_format_regex()
 
+  # `to_string/1` rather than an `is_binary/1` guard on the address: core's
+  # `get_from_email/0` is typed as returning a string, so dialyzer proves the
+  # guard's false branch unreachable and fails this project's gate — while at
+  # runtime a host that configures `from_email: nil` really can hand us nil.
+  # `to_string(nil)` is "", which fails the regex, which is the right verdict.
+
   @type t :: %{
           system_enabled: boolean(),
           logging: :active | :system_disabled | :sender_invalid,
@@ -60,13 +66,20 @@ defmodule PhoenixKit.Modules.Emails.Status do
     }
   end
 
-  defp logging_state(false, _sender), do: :system_disabled
-  defp logging_state(true, %{loggable?: false}), do: :sender_invalid
-  defp logging_state(true, _sender), do: :active
+  # `cond`, not clauses matching on `false`/`true` literals: dialyzer resolves
+  # both of these to a single value in isolation and calls the other clause
+  # unreachable, which fails this project's `--warnings-as-errors` gate.
+  defp logging_state(system_enabled, sender) do
+    cond do
+      not system_enabled -> :system_disabled
+      not sender.loggable? -> :sender_invalid
+      true -> :active
+    end
+  end
 
   defp sender_info do
     email = PhoenixKit.Mailer.get_from_email()
-    %{email: email, loggable?: is_binary(email) and Regex.match?(@sender_regex, email)}
+    %{email: email, loggable?: Regex.match?(@sender_regex, to_string(email))}
   end
 
   defp transport_info do
@@ -90,11 +103,19 @@ defmodule PhoenixKit.Modules.Emails.Status do
            PhoenixKit.Settings.get_setting("default_email_integration_uuid"),
          true <- PhoenixKit.Integrations.connected?(uuid),
          {:ok, integration} <- PhoenixKit.Integrations.get_integration_by_uuid(uuid) do
-      {:ok, uuid, integration[:name] || integration["name"]}
+      {:ok, uuid, present(integration[:name] || integration["name"])}
     else
       _ -> :none
     end
   end
+
+  # A connection saved without a name comes back as "", which is truthy — the
+  # card would render an empty "Sending through" instead of falling back to its
+  # own label. nil is the only thing the template can react to.
+  defp present(value) when is_binary(value),
+    do: if(String.trim(value) == "", do: nil, else: value)
+
+  defp present(_value), do: nil
 
   defp adapter_name(mailer) do
     app = PhoenixKit.Config.get_parent_app()

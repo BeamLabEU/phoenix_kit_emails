@@ -20,10 +20,10 @@
         </span>
       </div>
 
-      <div
-        :if={@status.queue.enabled? and not @status.queue.oban_queue_configured?}
-        class="alert alert-warning py-2"
-      >
+      <%!-- `:no_oban_queue`, not `enabled? and not configured?`: with the whole
+           system off the queue is off for that reason (the row below says so),
+           and warning about a missing Oban queue then contradicts it. --%>
+      <div :if={@status.queue.status == :no_oban_queue} class="alert alert-warning py-2">
         <.icon name="hero-exclamation-triangle" class="w-5 h-5 shrink-0" />
         <span class="text-sm">
           {gettext(
@@ -120,6 +120,42 @@
         </div>
       </dl>
     </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <%!-- Send queue — the card above only reports these two; without a switch the
+       operator's only way to turn a default-on queue off is the settings table. --%>
+  <div class="form-control">
+    <.checkbox
+      name="email_tracking[queue_enabled]"
+      checked={@status.queue.enabled?}
+      phx-click="toggle_email_queue"
+      phx-target={@myself}
+      label={gettext("Queue Outgoing Emails")}
+    >
+      <:description>
+        {gettext(
+          "Hand outgoing mail to the :emails Oban queue instead of sending it on the request. Requires `emails: N` in the host application's Oban queues; without it mail is sent immediately."
+        )}
+      </:description>
+    </.checkbox>
+  </div>
+
+  <div :if={@status.queue.enabled?} class="form-control mt-2">
+    <.checkbox
+      name="email_tracking[queue_auth_mail]"
+      checked={@status.queue.auth_mail?}
+      phx-click="toggle_email_queue_auth_mail"
+      phx-target={@myself}
+      label={gettext("Queue Authentication Emails Too")}
+    >
+      <:description>
+        {gettext(
+          "Off by default: password resets and confirmations are sent immediately, so a stuck queue cannot turn into \"I never got the email\"."
+        )}
+      </:description>
+    </.checkbox>
   </div>
 
   <div class="divider"></div>

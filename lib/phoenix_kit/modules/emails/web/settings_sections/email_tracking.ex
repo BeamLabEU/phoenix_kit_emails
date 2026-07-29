@@ -4,7 +4,9 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTracking do
   (`/admin/settings/email-sending`).
 
   Covers what to store for each outgoing email (body, headers, sampling
-  rate) and how long to keep it (retention, compression, S3 archival).
+  rate), how long to keep it (retention, compression, S3 archival), and the
+  send queue's two switches — plus the system-status card, which reports what
+  the module is actually doing rather than what it is configured to do.
   Contributed via `PhoenixKit.Modules.Emails.email_settings_sections/0`.
   """
 
@@ -12,6 +14,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTracking do
   use Gettext, backend: PhoenixKit.Modules.Emails.Gettext
 
   alias PhoenixKit.Modules.Emails
+  alias PhoenixKit.Modules.Emails.Queue
   alias PhoenixKit.Modules.Emails.Status
 
   @dialyzer {:nowarn_function, handle_event: 3}
@@ -74,6 +77,55 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTracking do
       {:error, _changeset} ->
         socket = put_flash(socket, :error, gettext("Failed to update email body saving setting"))
         {:noreply, socket}
+    end
+  end
+
+  # The queue's two switches read their current value off @status (refreshed on
+  # every event), so there is no separate assign to keep in step.
+  def handle_event("toggle_email_queue", _params, socket) do
+    new_enabled = !socket.assigns.status.queue.enabled?
+
+    case Queue.set_enabled(new_enabled) do
+      {:ok, _setting} ->
+        socket =
+          socket
+          |> refresh_status()
+          |> put_flash(
+            :info,
+            if(new_enabled,
+              do: gettext("Outgoing emails are now queued"),
+              else: gettext("Outgoing emails are now sent immediately")
+            )
+          )
+
+        {:noreply, socket}
+
+      {:error, _changeset} ->
+        {:noreply, put_flash(socket, :error, gettext("Failed to update the send queue setting"))}
+    end
+  end
+
+  def handle_event("toggle_email_queue_auth_mail", _params, socket) do
+    new_enabled = !socket.assigns.status.queue.auth_mail?
+
+    case Queue.set_auth_mail_enabled(new_enabled) do
+      {:ok, _setting} ->
+        socket =
+          socket
+          |> refresh_status()
+          |> put_flash(
+            :info,
+            if(new_enabled,
+              do: gettext("Authentication emails are now queued"),
+              else: gettext("Authentication emails are now sent immediately")
+            )
+          )
+
+        {:noreply, socket}
+
+      {:error, _changeset} ->
+        {:noreply,
+         put_flash(socket, :error, gettext("Failed to update the authentication mail setting"))}
     end
   end
 
