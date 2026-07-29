@@ -308,6 +308,17 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
   @doc """
   Updates an email log after send failure.
 
+  Writes `failed_at` and records a `failed` event alongside the status, because
+  the admin list does not read `status` at all: `<.email_activity_badges>` builds
+  its badges from event rows and timestamp columns. A log with `status: "failed"`
+  and no `failed_at` therefore renders with only its `send` badge — the list says
+  the message was sent while the detail page says it failed. `Log.mark_as_failed/3`
+  always wrote both; this path did not, and it is the path every retry-exhausted
+  queue job takes.
+
+  Unlike `mark_as_failed/3` this also bumps `retry_count`, which is why it stays a
+  separate function rather than delegating.
+
   ## Examples
 
       iex> PhoenixKit.Modules.Emails.Interceptor.update_after_failure(log, error)
@@ -315,14 +326,32 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
   """
   def update_after_failure(%Log{} = log, error) do
     error_message = extract_error_message(error)
+    failed_at = PhoenixKit.Utils.Date.utc_now()
 
     update_attrs = %{
       status: "failed",
       error_message: error_message,
+      failed_at: failed_at,
       retry_count: log.retry_count + 1
     }
 
-    Log.update_log(log, update_attrs)
+    case Log.update_log(log, update_attrs) do
+      {:ok, updated_log} ->
+        # Best effort: the status update is what matters, and a missing event row
+        # must not turn a failed send into an error the caller has to handle.
+        Event.create_event(%{
+          email_log_uuid: updated_log.uuid,
+          event_type: "failed",
+          occurred_at: failed_at,
+          event_data: %{reason: error_message},
+          failure_reason: error_message
+        })
+
+        {:ok, updated_log}
+
+      other ->
+        other
+    end
   end
 
   ## --- Private Helper Functions ---
