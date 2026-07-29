@@ -129,7 +129,14 @@ defmodule PhoenixKit.Modules.Emails.Event do
       "reject",
       "delivery_delay",
       "subscription",
-      "rendering_failure"
+      "rendering_failure",
+      # A send that failed outright (no provider verdict — the relay refused, the
+      # connection dropped, retries ran out). Distinct from "reject", which is the
+      # provider's own refusal, and from "bounce", which is a delivery verdict.
+      # `Log.mark_as_failed/3` and `Interceptor.update_after_failure/2` both write
+      # it, and `<.email_activity_badges>` renders it; without it here their
+      # inserts failed validation and were silently dropped as best effort.
+      "failed"
     ])
     |> validate_inclusion(:bounce_type, ["hard", "soft"], message: "must be hard or soft")
     |> validate_bounce_type_consistency()

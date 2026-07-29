@@ -275,7 +275,11 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
 
     update_attrs = %{
       status: "sent",
-      sent_at: UtilsDate.utc_now()
+      sent_at: UtilsDate.utc_now(),
+      # Clear the failure trail left by earlier attempts — see
+      # clear_failure_trail/1 for why it is there and why retry_count stays.
+      failed_at: nil,
+      error_message: nil
     }
 
     update_attrs = maybe_extract_provider_data(log, provider_response, update_attrs)
@@ -291,6 +295,8 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
 
         # Create send event
         Event.create_send_event(updated_log.uuid, updated_log.provider)
+
+        clear_failure_trail(updated_log)
 
         {:ok, updated_log}
 
@@ -326,7 +332,7 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
   """
   def update_after_failure(%Log{} = log, error) do
     error_message = extract_error_message(error)
-    failed_at = PhoenixKit.Utils.Date.utc_now()
+    failed_at = UtilsDate.utc_now()
 
     update_attrs = %{
       status: "failed",
@@ -355,6 +361,28 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
   end
 
   ## --- Private Helper Functions ---
+
+  # A send that succeeded on a retry carries the trail of the attempts before it.
+  # `update_after_failure/2` runs from the after-send hook on *every* failed
+  # attempt, not just the last one — nothing in that hook knows which attempt it
+  # is — so it has already written `failed_at`, `error_message` and a `failed`
+  # event by the time a later attempt goes through.
+  #
+  # Left in place, that trail outlives the failure it described: the admin list
+  # builds its badges from event rows and timestamp columns and never reads
+  # `status`, so a delivered message renders a red `failed` badge, and the detail
+  # page shows its error alert. That is the same false verdict, inverted, that
+  # writing `failed_at` was meant to fix.
+  #
+  # `retry_count` is deliberately kept: it is the honest record that this send
+  # took more than one attempt, and nothing renders it as a failure.
+  defp clear_failure_trail(%Log{} = log) do
+    log.uuid
+    |> Event.for_email_log_by_type("failed")
+    |> Enum.each(&Event.delete_event/1)
+
+    :ok
+  end
 
   # Only AWS SES returns a MessageId we can recover; for Test/Local/SMTP/etc.
   # the response carries no useful provider data and attempting extraction
