@@ -49,8 +49,13 @@ defmodule PhoenixKitEmails.MixProject do
     [
       # Core
       {:hackney, "~> 4.0"},
-      # ~> 1.7.190 is the floor for email_settings_sections/0 (Stage-1 A5).
-      {:phoenix_kit, "~> 1.7.190"},
+      # ~> 1.7.217 is the floor for the optional `maybe_enqueue/2` provider
+      # callback the send queue hangs off (Emails.Queue / Emails.SendJob). Below
+      # it the callback does not exist in the behaviour, so `@impl` on the
+      # implementation warns and this package's own `--warnings-as-errors`
+      # precommit fails. (1.7.190 was the previous floor, for
+      # email_settings_sections/0.)
+      {:phoenix_kit, "~> 1.7.217"},
       {:gettext, "~> 1.0"},
       {:phoenix_live_view, "~> 1.1"},
       {:oban, "~> 2.20"},

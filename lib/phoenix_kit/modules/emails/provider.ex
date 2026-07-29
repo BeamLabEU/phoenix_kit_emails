@@ -15,6 +15,7 @@ defmodule PhoenixKit.Modules.Emails.Provider do
 
   alias PhoenixKit.Modules.Emails
   alias PhoenixKit.Modules.Emails.Interceptor
+  alias PhoenixKit.Modules.Emails.Queue
   alias PhoenixKit.Modules.Emails.Template
   alias PhoenixKit.Modules.Emails.Templates
   alias PhoenixKit.Modules.Emails.Utils
@@ -23,6 +24,16 @@ defmodule PhoenixKit.Modules.Emails.Provider do
 
   @impl PhoenixKit.Email.Provider
   def intercept_before_send(email, opts), do: Interceptor.intercept_before_send(email, opts)
+
+  # `maybe_enqueue/2` is an OPTIONAL callback that exists only in core versions
+  # that ship the queue hook. There is no annotation that is warning-free against
+  # both: with `@impl` an older core warns "function does not exist in
+  # behaviour", without it a newer core warns "@impl was not set". We keep the
+  # annotation and treat the newer core as the target — the floor in mix.exs must
+  # be bumped to the first core release containing the callback when this ships,
+  # which makes the older-core case impossible rather than merely quiet.
+  @impl PhoenixKit.Email.Provider
+  def maybe_enqueue(email, opts), do: Queue.maybe_enqueue(email, opts)
 
   @impl PhoenixKit.Email.Provider
   def handle_after_send(email, result) do
@@ -122,10 +133,14 @@ defmodule PhoenixKit.Modules.Emails.Provider do
         Templates.track_usage(template)
         # template_name / user_uuid / source_module opts → recorded on the email
         # log by the interceptor (so Details shows the template, user, and module).
+        # skip_queue: a test send exists to give an immediate verdict. Queued,
+        # it would flash "sent successfully" the moment Oban accepted the job —
+        # before a relay had seen it, and while a later failure went unreported.
         PhoenixKit.Mailer.deliver_email(email,
           template_name: template.name,
           user_uuid: user_uuid,
-          source_module: "emails"
+          source_module: "emails",
+          skip_queue: true
         )
 
       _ ->
@@ -144,7 +159,8 @@ defmodule PhoenixKit.Modules.Emails.Provider do
         PhoenixKit.Mailer.deliver_email(email,
           template_name: "test_email",
           user_uuid: user_uuid,
-          source_module: "emails"
+          source_module: "emails",
+          skip_queue: true
         )
     end
   rescue

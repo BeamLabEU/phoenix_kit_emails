@@ -12,12 +12,19 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTracking do
   use Gettext, backend: PhoenixKit.Modules.Emails.Gettext
 
   alias PhoenixKit.Modules.Emails
+  alias PhoenixKit.Modules.Emails.Status
 
   @dialyzer {:nowarn_function, handle_event: 3}
 
   @impl true
   def update(assigns, socket) do
     socket = assign(socket, assigns)
+
+    # LiveComponent `update/2` runs on mount and on send_update — NOT on this
+    # component's own handle_event/3. So the card is refreshed here and again in
+    # every event that changes something it displays (see refresh_status/1);
+    # a card that keeps showing the pre-toggle value is worse than none.
+    socket = refresh_status(socket)
 
     socket =
       if Map.has_key?(socket.assigns, :email_save_body) do
@@ -42,6 +49,8 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTracking do
     {:ok, socket}
   end
 
+  defp refresh_status(socket), do: assign(socket, :status, Status.summary())
+
   @impl true
   def handle_event("toggle_email_save_body", _params, socket) do
     new_save_body = !socket.assigns.email_save_body
@@ -51,6 +60,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTracking do
         socket =
           socket
           |> assign(:email_save_body, new_save_body)
+          |> refresh_status()
           |> put_flash(
             :info,
             if(new_save_body,
@@ -75,6 +85,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTracking do
         socket =
           socket
           |> assign(:email_save_headers, new_save_headers)
+          |> refresh_status()
           |> put_flash(
             :info,
             if(new_save_headers,
@@ -103,6 +114,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTracking do
             socket =
               socket
               |> assign(:email_sampling_rate, sampling_rate)
+              |> refresh_status()
               |> put_flash(
                 :info,
                 gettext("Email sampling rate updated to %{rate}%", rate: sampling_rate)
