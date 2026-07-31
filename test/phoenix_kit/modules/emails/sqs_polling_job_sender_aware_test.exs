@@ -41,6 +41,10 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJobSenderAwareTest do
     {:ok, _} = Emails.enable_system()
     {:ok, _} = Emails.set_ses_events(true)
     {:ok, _} = Emails.set_sqs_polling(true)
+    # Eligibility also requires a queue to poll; set it once here so every
+    # case below isolates the sender-aware gate, which is what this file is
+    # about.
+    {:ok, _} = Emails.set_sqs_queue_url("https://sqs.example.com/queue")
     on_exit(fn -> Emails.invalidate_aws_credentials_cache() end)
     :ok
   end

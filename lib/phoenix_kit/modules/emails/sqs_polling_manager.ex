@@ -57,10 +57,61 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingManager do
   directly from host applications.
   """
 
+  @behaviour PhoenixKit.Modules.Emails.EventTracker
+
   require Logger
 
   alias PhoenixKit.Modules.Emails
   alias PhoenixKit.Modules.Emails.SQSPollingJob
+
+  ## --- EventTracker behaviour ---
+  #
+  # Thin wrappers over the existing SQSPollingJob/Manager logic — see
+  # PhoenixKit.Modules.Emails.EventTracker's moduledoc for the full
+  # eligible?/enabled? split rationale.
+
+  @impl PhoenixKit.Modules.Emails.EventTracker
+  def provider_kind, do: "aws_ses"
+
+  @impl PhoenixKit.Modules.Emails.EventTracker
+  def label, do: "Amazon SES"
+
+  @impl PhoenixKit.Modules.Emails.EventTracker
+  def eligible?, do: SQSPollingJob.pollable_ignoring_toggle?()
+
+  @impl PhoenixKit.Modules.Emails.EventTracker
+  def enabled?, do: Emails.sqs_polling_enabled?()
+
+  @impl PhoenixKit.Modules.Emails.EventTracker
+  def poll_cycle(_context), do: SQSPollingJob.perform(%Oban.Job{})
+
+  @impl PhoenixKit.Modules.Emails.EventTracker
+  def interval_ms, do: Emails.get_sqs_config().polling_interval_ms
+
+  # Matches set_polling_interval/1's own guard below — single source of
+  # truth would be nicer, but the guard needs a literal for the function
+  # clause match; kept in sync by hand (both change together, rarely).
+  @impl PhoenixKit.Modules.Emails.EventTracker
+  def min_interval_ms, do: 1_000
+
+  @impl PhoenixKit.Modules.Emails.EventTracker
+  def worker, do: SQSPollingJob
+
+  # SES has no multi-account concept in this codebase (one "SES
+  # credentials source" picker, not a list) — 1 when a working event
+  # source is configured (mirrors eligible?/0), 0 otherwise. Formal
+  # @optional_callback on EventTracker — see BrevoPollingManager's own
+  # "Optional EventTracker callbacks" section for the full rationale
+  # (SQS skips accounts/0 + toggle_account_polling/1, no opt-out concept
+  # here).
+  @impl PhoenixKit.Modules.Emails.EventTracker
+  def integration_count, do: if(SQSPollingJob.pollable_ignoring_toggle?(), do: 1, else: 0)
+
+  ## --- Admin panel duck-typed extras (informal, not EventTracker callbacks) ---
+  #
+  # enable_polling/0, disable_polling/0, poll_now/0, set_polling_interval/1,
+  # status/0 below — same informal "Manager API shared shape" convention
+  # spec §3 documents, not part of the formal EventTracker behaviour.
 
   @doc """
   Enables SQS polling by setting the configuration and starting the first job.

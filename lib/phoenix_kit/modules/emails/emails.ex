@@ -936,16 +936,16 @@ defmodule PhoenixKit.Modules.Emails do
         component: PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTracking
       },
       %{
+        id: :emails_delivery_event_tracking,
+        title: gettext("Delivery Event Tracking"),
+        permission: "emails",
+        component: PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTracking
+      },
+      %{
         id: :emails_aws_ses_sqs,
         title: gettext("Amazon SES & SQS"),
         permission: "emails",
         component: PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs
-      },
-      %{
-        id: :emails_brevo_events,
-        title: gettext("Brevo Events"),
-        permission: "emails",
-        component: PhoenixKit.Modules.Emails.Web.SettingsSections.BrevoEvents
       }
     ]
   end
@@ -1926,6 +1926,25 @@ defmodule PhoenixKit.Modules.Emails do
       {:error, :system_disabled}
     end
   end
+
+  @doc """
+  Whether an email log exists for `message_id`, matched against either the
+  internal `message_id` or the provider `aws_message_id` column.
+
+  A cheap existence check (no struct load); `false` when the system is
+  disabled or the id is not a binary. Used by the Brevo poller to skip
+  events for mail this app never sent — the account may be shared with
+  other senders.
+  """
+  def email_log_exists?(message_id) when is_binary(message_id) do
+    # The `enabled?()` half decides nothing for today's only caller —
+    # BrevoPollingJob.perform/1 returns before any event processing when the
+    # system is off — but this is a public function, so it keeps the guard
+    # instead of assuming every future caller pre-checks.
+    enabled?() and Log.exists_by_any_message_id?(message_id)
+  end
+
+  def email_log_exists?(_), do: false
 
   @doc """
   Creates an email log if system is enabled.

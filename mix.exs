@@ -17,7 +17,11 @@ defmodule PhoenixKitEmails.MixProject do
       description: "Email tracking, analytics, and AWS SES integration for PhoenixKit",
       source_url: @source_url,
       homepage_url: @source_url,
-      dialyzer: [plt_add_apps: [:phoenix_kit, :mix]],
+      dialyzer: [
+        plt_add_apps: [:phoenix_kit, :mix],
+        ignore_warnings: ".dialyzer_ignore.exs",
+        list_unused_filters: true
+      ],
       docs: docs()
     ]
   end

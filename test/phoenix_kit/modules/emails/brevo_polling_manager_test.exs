@@ -150,4 +150,71 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingManagerTest do
     assert status.total_brevo_accounts == 1
     assert status.polling_brevo_accounts == 0
   end
+
+  describe "integration_count/0" do
+    test "0 with no active brevo_api integrations" do
+      assert BrevoPollingManager.integration_count() == 0
+    end
+
+    test "counts distinct active integrations, not send profiles" do
+      {:ok, %{uuid: integration_uuid}} = Integrations.add_connection("brevo_api", "Brevo test")
+      {:ok, _} = Integrations.save_setup(integration_uuid, %{"api_key" => "key"})
+
+      {:ok, _profile} =
+        SendProfiles.create_send_profile(%{
+          name: "Brevo test profile",
+          integration_uuid: integration_uuid,
+          provider_kind: "brevo_api",
+          from_email: "sender@example.com"
+        })
+
+      assert BrevoPollingManager.integration_count() == 1
+    end
+  end
+
+  describe "accounts/0 and toggle_account_polling/1" do
+    setup do
+      {:ok, %{uuid: integration_uuid}} = Integrations.add_connection("brevo_api", "Brevo test")
+      {:ok, _} = Integrations.save_setup(integration_uuid, %{"api_key" => "key"})
+
+      {:ok, _profile} =
+        SendProfiles.create_send_profile(%{
+          name: "Brevo test profile",
+          integration_uuid: integration_uuid,
+          provider_kind: "brevo_api",
+          from_email: "sender@example.com"
+        })
+
+      %{integration_uuid: integration_uuid}
+    end
+
+    test "accounts/0 lists every active account as polled by default", %{
+      integration_uuid: integration_uuid
+    } do
+      assert [{^integration_uuid, "Brevo test", true}] = BrevoPollingManager.accounts()
+    end
+
+    test "toggle_account_polling/1 excludes then re-includes an account", %{
+      integration_uuid: integration_uuid
+    } do
+      assert {:ok, _} = BrevoPollingManager.toggle_account_polling(integration_uuid)
+      assert [{^integration_uuid, "Brevo test", false}] = BrevoPollingManager.accounts()
+
+      assert {:ok, _} = BrevoPollingManager.toggle_account_polling(integration_uuid)
+      assert [{^integration_uuid, "Brevo test", true}] = BrevoPollingManager.accounts()
+    end
+
+    test "toggle_account_polling/1 ignores a uuid that isn't a currently-active integration" do
+      stale_uuid = Ecto.UUID.generate()
+
+      assert BrevoPollingManager.toggle_account_polling(stale_uuid) == {:ok, :ignored}
+      assert Emails.get_brevo_polling_excluded_integrations() == []
+    end
+  end
+
+  test "min_interval_ms/0 matches set_polling_interval/1's own floor" do
+    assert BrevoPollingManager.min_interval_ms() == 30_000
+    assert {:error, _} = BrevoPollingManager.set_polling_interval(29_999)
+    assert {:ok, _} = BrevoPollingManager.set_polling_interval(30_000)
+  end
 end

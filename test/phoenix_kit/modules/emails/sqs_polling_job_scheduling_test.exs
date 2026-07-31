@@ -23,6 +23,7 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJobSchedulingTest do
     {:ok, _} = Emails.enable_system()
     {:ok, _} = Emails.set_ses_events(true)
     {:ok, _} = Emails.set_sqs_polling(true)
+    {:ok, _} = Emails.set_sqs_queue_url("https://sqs.example.com/queue")
     create_ses_profile()
     :ok
   end

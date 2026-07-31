@@ -19,7 +19,6 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
   alias PhoenixKit.Config.AWS
   alias PhoenixKit.Integrations
   alias PhoenixKit.Modules.Emails
-  alias PhoenixKit.Modules.Emails.SQSPollingManager
   alias PhoenixKit.Modules.Emails.Utils
   alias PhoenixKit.Settings
   alias PhoenixKitWeb.Live.Components.SearchableSelect
@@ -44,8 +43,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
           sqs_dlq_url: Settings.get_setting("aws_sqs_dlq_url", ""),
           sqs_queue_arn: Settings.get_setting("aws_sqs_queue_arn", ""),
           sns_topic_arn: Settings.get_setting("aws_sns_topic_arn", ""),
-          ses_configuration_set: Settings.get_setting("aws_ses_configuration_set", ""),
-          sqs_polling_interval_ms: Settings.get_setting("sqs_polling_interval_ms", "5000")
+          ses_configuration_set: Settings.get_setting("aws_ses_configuration_set", "")
         }
 
         socket
@@ -53,7 +51,6 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
         |> assign(:current_provider, Emails.current_provider())
         |> assign(:aws_configured, Emails.aws_configured?())
         |> assign(:email_ses_events, email_config.ses_events)
-        |> assign(:sqs_polling_enabled, email_config.sqs_polling_enabled)
         |> assign(:sqs_max_messages_per_poll, email_config.sqs_max_messages_per_poll)
         |> assign(:sqs_visibility_timeout, email_config.sqs_visibility_timeout)
         |> assign(:aws_settings, aws_settings)
@@ -95,47 +92,6 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
       {:error, _changeset} ->
         socket = put_flash(socket, :error, gettext("Failed to update AWS SES events tracking"))
         {:noreply, socket}
-    end
-  end
-
-  def handle_event("toggle_sqs_polling", _params, socket) do
-    # Route through SQSPollingManager so the poller starts/stops at RUNTIME
-    # with no app restart: enable_polling/0 persists the flag AND inserts
-    # the first Oban polling job (which self-schedules the next);
-    # disable_polling/0 clears the flag, and the already-queued job's own
-    # should_poll?/0 check lets the chain die on its own next tick (no
-    # explicit cancellation — see SQSPollingManager.disable_polling/0).
-    new_sqs_polling = !socket.assigns.sqs_polling_enabled
-
-    result =
-      if new_sqs_polling do
-        SQSPollingManager.enable_polling()
-      else
-        SQSPollingManager.disable_polling()
-      end
-
-    success? =
-      case result do
-        :ok -> true
-        {:ok, _} -> true
-        _ -> false
-      end
-
-    if success? do
-      socket =
-        socket
-        |> assign(:sqs_polling_enabled, new_sqs_polling)
-        |> put_flash(
-          :info,
-          if(new_sqs_polling,
-            do: gettext("SQS polling enabled"),
-            else: gettext("SQS polling disabled")
-          )
-        )
-
-      {:noreply, socket}
-    else
-      {:noreply, put_flash(socket, :error, gettext("Failed to update SQS polling setting"))}
     end
   end
 
@@ -239,8 +195,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
                 sqs_dlq_url: config["aws_sqs_dlq_url"],
                 sqs_queue_arn: config["aws_sqs_queue_arn"],
                 sns_topic_arn: config["aws_sns_topic_arn"],
-                ses_configuration_set: config["aws_ses_configuration_set"],
-                sqs_polling_interval_ms: config["sqs_polling_interval_ms"]
+                ses_configuration_set: config["aws_ses_configuration_set"]
               }
 
               socket =
@@ -263,7 +218,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
 
                 ⚡ Next steps:
                 1. Verify your email/domain in AWS SES Console
-                2. Enable SQS Polling below
+                2. Turn on tracking for Amazon SES in the "Delivery Event Tracking" section above
                 3. Start sending emails!
                 """)
 
@@ -341,11 +296,6 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
         if(aws_params["ses_configuration_set"] in [nil, ""],
           do: "phoenixkit-tracking",
           else: aws_params["ses_configuration_set"]
-        ),
-      "sqs_polling_interval_ms" =>
-        if(aws_params["sqs_polling_interval_ms"] in [nil, ""],
-          do: "5000",
-          else: aws_params["sqs_polling_interval_ms"]
         )
     }
 
@@ -514,8 +464,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
       sqs_dlq_url: aws_params["sqs_dlq_url"] || "",
       sqs_queue_arn: aws_params["sqs_queue_arn"] || "",
       sns_topic_arn: aws_params["sns_topic_arn"] || "",
-      ses_configuration_set: aws_params["ses_configuration_set"] || "",
-      sqs_polling_interval_ms: aws_params["sqs_polling_interval_ms"] || "5000"
+      ses_configuration_set: aws_params["ses_configuration_set"] || ""
     }
   end
 end

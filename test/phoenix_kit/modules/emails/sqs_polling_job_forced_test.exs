@@ -7,8 +7,11 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJobForcedTest do
   silently did nothing.
 
   The cycle is observed through its *configuration* error rather than a
-  real SQS round trip: with no queue URL set, entering the cycle logs
-  "Invalid configuration", while the disabled path never gets that far.
+  real SQS round trip: entering the cycle logs "Invalid configuration",
+  while the disabled path never gets that far. The error is provoked with
+  an out-of-range polling interval — the queue URL cannot be the trigger
+  any more, because a missing queue URL now fails `eligible?/0` and the
+  cycle is not entered at all.
   """
 
   use PhoenixKitEmails.DataCase, async: false
@@ -20,6 +23,7 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJobForcedTest do
   alias PhoenixKit.Integrations
   alias PhoenixKit.Modules.Emails
   alias PhoenixKit.Modules.Emails.SQSPollingJob
+  alias PhoenixKit.Settings
   alias PhoenixKitEmails.Test.Repo
 
   setup do
@@ -28,7 +32,13 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJobForcedTest do
     {:ok, _} = Emails.set_ses_events(true)
     # The toggle under test stays OFF for every case here.
     {:ok, _} = Emails.set_sqs_polling(false)
+    # Eligible: a queue to poll plus an actively-configured SES sender.
+    {:ok, _} = Emails.set_sqs_queue_url("https://sqs.example.com/queue")
     create_ses_profile()
+    # ...but deliberately misconfigured, so a cycle that IS entered fails
+    # validate_configuration/1 and returns before any network call. Written
+    # through Settings directly: set_sqs_polling_interval/1 rejects <1000.
+    {:ok, _} = Settings.update_setting("sqs_polling_interval_ms", "500")
     :ok
   end
 

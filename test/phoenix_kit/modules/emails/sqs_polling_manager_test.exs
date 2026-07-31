@@ -10,6 +10,8 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingManagerTest do
 
   import Ecto.Query
 
+  alias PhoenixKit.Email.SendProfiles
+  alias PhoenixKit.Integrations
   alias PhoenixKit.Modules.Emails
   alias PhoenixKit.Modules.Emails.SQSPollingJob
   alias PhoenixKit.Modules.Emails.SQSPollingManager
@@ -18,6 +20,28 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingManagerTest do
   setup do
     start_supervised!({Oban, repo: Repo, testing: :manual, queues: [], plugins: false})
     {:ok, _} = Emails.enable_system()
+    :ok
+  end
+
+  defp create_ses_profile do
+    {:ok, %{uuid: integration_uuid}} =
+      Integrations.add_connection("aws_ses", "SES #{System.unique_integer([:positive])}")
+
+    {:ok, _} =
+      Integrations.save_setup(integration_uuid, %{
+        "access_key" => "AKIATEST",
+        "secret_key" => "secret"
+      })
+
+    {:ok, _profile} =
+      SendProfiles.create_send_profile(%{
+        name: "SES profile #{System.unique_integer([:positive])}",
+        integration_uuid: integration_uuid,
+        provider_kind: "aws_ses",
+        from_email: "sender@example.com",
+        enabled: true
+      })
+
     :ok
   end
 
@@ -90,5 +114,32 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingManagerTest do
     reloaded_regular = Repo.get!(Oban.Job, regular.id)
     assert reloaded_regular.state == "scheduled"
     assert DateTime.compare(reloaded_regular.scheduled_at, regular.scheduled_at) == :eq
+  end
+
+  describe "integration_count/0" do
+    test "0 with no working SES event source configured" do
+      assert SQSPollingManager.integration_count() == 0
+    end
+
+    test "1 once an aws_ses integration + enabled send profile + a queue exist" do
+      create_ses_profile()
+      # integration_count/0 mirrors eligible?/0, which counts a queue to poll
+      # as part of "a working SES event source".
+      {:ok, _} = Emails.set_sqs_queue_url("https://sqs.example.com/queue")
+
+      assert SQSPollingManager.integration_count() == 1
+    end
+
+    test "0 with an integration + profile but no queue URL to poll" do
+      create_ses_profile()
+
+      assert SQSPollingManager.integration_count() == 0
+    end
+  end
+
+  test "min_interval_ms/0 matches set_polling_interval/1's own floor" do
+    assert SQSPollingManager.min_interval_ms() == 1_000
+    assert {:error, _} = SQSPollingManager.set_polling_interval(999)
+    assert {:ok, _} = SQSPollingManager.set_polling_interval(1_000)
   end
 end

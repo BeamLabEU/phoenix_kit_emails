@@ -13,10 +13,18 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingJob do
     integration — an idle Brevo integration with no active profile has
     nothing to correlate events against, so polling it is pure waste
     (and, unlike SQS's long-poll, would burn Brevo API quota on a timer).
-    The chain still keeps re-scheduling itself while `brevo_events_enabled`
-    stays on even when there are zero active profiles right now — a
-    profile added later must not require a manual re-trigger to be picked
-    up.
+    `should_poll?/0` — the gate `schedule_next_poll/1` re-checks every
+    cycle — folds this in: with zero active profiles the chain lets
+    itself die instead of re-scheduling. That used to be a crutch ("keep
+    spinning so a profile added later doesn't need a manual re-trigger"),
+    which is no longer needed: `EventTrackerReconciler`'s periodic
+    reconcile Cron (task #56) now resurrects a dead-but-`should_run?`
+    chain within its own tick interval regardless, and `should_poll?/0`
+    matching `EventTracker.should_run?/1`'s definition exactly (this
+    tracker's `eligible?/0`, i.e. an active profile exists, `and`
+    `enabled?/0`) is what makes the reconciler's own "a chain dies on its
+    own when it shouldn't run" assumption actually true for Brevo, not
+    just SES.
   - **No message ack step**: SQS deletes each message after processing to
     avoid redelivery. Brevo's events endpoint is a plain paginated report
     with no consumption side-effect — this job tracks its own read
@@ -271,8 +279,16 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingJob do
 
   ## --- Private Functions ---
 
+  # Matches BrevoPollingManager.eligible?/0 `and` enabled?/0 exactly
+  # (EventTracker.should_run?/1's definition for this tracker) — see
+  # moduledoc "Sender-aware gate". Only used by schedule_next_poll/1 to
+  # decide whether to keep the chain alive; perform/1's own cond has its
+  # own inline checks (a forced poll_now/0 cycle bypasses only the
+  # brevo_events_enabled toggle, never this).
   defp should_poll? do
-    Emails.enabled?() and Emails.brevo_events_enabled?()
+    Emails.enabled?() and
+      Emails.brevo_events_enabled?() and
+      BrevoIntegrations.active_integration_uuids() != []
   end
 
   defp run_cycle([]) do
@@ -396,7 +412,10 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingJob do
 
     case BrevoClient.fetch_events(api_key, params, req_options()) do
       {:ok, events} ->
-        Enum.each(events, &process_event/1)
+        events
+        |> Enum.count(&(process_event(&1) == :skipped_foreign))
+        |> log_foreign_skips(length(events))
+
         {:ok, events, limit}
 
       {:error, reason} ->
@@ -547,19 +566,25 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingJob do
     end)
   end
 
+  # Per-event skips are :debug (a shared account can make them the common
+  # case, and one line each would drown the log), so summarize per page:
+  # the skip path is otherwise invisible, and it is not purely foreign mail
+  # — an event for OUR mail also lands here when the send never recorded a
+  # provider message_id. A page that is suddenly all skips is the signal
+  # that something upstream of the poller broke.
+  defp log_foreign_skips(0, _total), do: :ok
+
+  defp log_foreign_skips(skipped, total) do
+    Logger.info(
+      "Brevo Polling Job: skipped #{skipped}/#{total} event(s) with no matching sent email " <>
+        "(foreign mail on a shared account, or a send whose message_id never got logged)"
+    )
+  end
+
   defp process_event(brevo_event) do
     case BrevoEventNormalizer.normalize(brevo_event) do
       {:ok, event_data} ->
-        case SQSProcessor.process_email_event(event_data) do
-          {:ok, _result} ->
-            :ok
-
-          {:error, reason} ->
-            Logger.warning("Brevo Polling Job: failed to process event", %{
-              reason: inspect(reason),
-              message_id: get_in(event_data, ["mail", "messageId"])
-            })
-        end
+        process_known_email_event(event_data, brevo_event)
 
       :ignore ->
         :ok
@@ -569,6 +594,46 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingJob do
           reason: inspect(reason),
           raw_event_type: brevo_event["event"]
         })
+    end
+  end
+
+  # A Brevo account may be shared with other senders (personal clients,
+  # other apps), so most polled events are for mail THIS app never sent.
+  # Such an event resolves to no `email_log`, and the shared SES/SNS
+  # processor surfaces that as a loud `[SYNC ISSUE] ... unknown email`
+  # error plus a "No email log found" warning — on every cycle, because
+  # today's page is deliberately re-read all day (see moduledoc), so the
+  # same foreign event repeats until midnight.
+  #
+  # Gate on a cheap existence check first: this app's own Brevo sends are
+  # logged with their `message_id` at send time, so a missing log means
+  # foreign mail — skip it quietly at `:debug` instead of dragging it
+  # through the processor's not-found error path (which also spares the
+  # three preloading lookups that path runs per event). Genuine
+  # processing is unchanged, and the dedicated SES/SNS pipeline keeps its
+  # loud SYNC ISSUE signal, which there really does mean our own mail
+  # failed to log.
+  defp process_known_email_event(event_data, brevo_event) do
+    message_id = get_in(event_data, ["mail", "messageId"])
+
+    if is_binary(message_id) and not Emails.email_log_exists?(message_id) do
+      Logger.debug(
+        "Brevo Polling Job: '#{brevo_event["event"]}' event for #{message_id} has no " <>
+          "matching sent email (foreign mail on a shared Brevo account) — skipping"
+      )
+
+      :skipped_foreign
+    else
+      case SQSProcessor.process_email_event(event_data) do
+        {:ok, _result} ->
+          :ok
+
+        {:error, reason} ->
+          Logger.warning("Brevo Polling Job: failed to process event", %{
+            reason: inspect(reason),
+            message_id: message_id
+          })
+      end
     end
   end
 

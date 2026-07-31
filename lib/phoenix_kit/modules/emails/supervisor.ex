@@ -3,9 +3,13 @@ defmodule PhoenixKit.Modules.Emails.Supervisor do
   Supervisor for PhoenixKit email tracking system.
 
   This module manages all processes necessary for email tracking:
-  - Kicks off Oban-based SQS and Brevo polling at boot (see
-    `SQSPollingManager` / `BrevoPollingManager`) when the corresponding
-    settings say the chain should be alive
+  - Bootstraps every registered `EventTracker` (SES, Brevo, …) at boot via
+    `EventTrackerReconciler.reconcile/0` — a tracker's chain starts iff
+    its own `eligible?/0 and enabled?/0` gate is satisfied. Boot reconcile
+    is latency polish (spec §4.3): it makes an eligible tracker start
+    immediately instead of waiting for the periodic reconcile Cron
+    (`EventTrackerReconcileWorker`), which is the actual correctness
+    backbone.
   - Registers the unified email provider
   - Additional processes (metrics, archiving, etc.)
 
@@ -66,8 +70,9 @@ defmodule PhoenixKit.Modules.Emails.Supervisor do
 
   require Logger
 
-  alias PhoenixKit.Modules.Emails
   alias PhoenixKit.Modules.Emails.BrevoPollingManager
+  alias PhoenixKit.Modules.Emails.EventTracker
+  alias PhoenixKit.Modules.Emails.EventTrackerReconciler
   alias PhoenixKit.Modules.Emails.SQSPollingManager
 
   @doc """
@@ -189,95 +194,60 @@ defmodule PhoenixKit.Modules.Emails.Supervisor do
   end
 
   ## --- Boot gates (public @doc false for unit tests) ---
+  #
+  # Kept as named predicates because they read well at a call site and their
+  # own test covers them, but they are NOT a second definition of the gate:
+  # boot goes through `EventTrackerReconciler.reconcile/0`, which starts a
+  # tracker's chain iff `EventTracker.should_run?/1`. Delegating means they
+  # cannot drift from what boot actually does — the earlier hand-written
+  # copies had already drifted (SQS's omitted the sender-aware gate; Brevo's
+  # omitted the active-integration requirement).
 
   @doc false
-  # Whether boot should re-seed the SQS self-scheduling chain. Requires the
-  # system switch, SES events, the SQS polling toggle, and a queue URL —
-  # without a queue URL enable would only insert a job that immediately
-  # backs off on misconfig.
-  def should_start_sqs_polling? do
-    Emails.enabled?() and
-      Emails.ses_events_enabled?() and
-      Emails.sqs_polling_enabled?() and
-      has_sqs_configuration?()
-  end
+  # Whether boot re-seeds the SQS self-scheduling chain: the system switch,
+  # SES events, a queue URL and an actively-configured sender (all
+  # `eligible?/0`), plus the sqs_polling toggle (`enabled?/0`).
+  def should_start_sqs_polling?, do: EventTracker.should_run?(SQSPollingManager)
 
   @doc false
-  # Whether boot should re-seed the Brevo self-scheduling chain. Mirrors
-  # SQS's role: if the toggle is on across a restart, the chain must come
-  # back even when no Oban row survived (crash before schedule_next_poll,
-  # wiped jobs table, etc.). Zero active Brevo profiles is fine — the job
-  # no-ops each cycle and still records last_polled_at (see
-  # BrevoPollingJob), same as a live chain with no senders.
-  def should_start_brevo_polling? do
-    Emails.enabled?() and Emails.brevo_events_enabled?()
-  end
+  # Whether boot re-seeds the Brevo self-scheduling chain: the system switch
+  # and at least one active Brevo integration (`eligible?/0`), plus the
+  # brevo_events toggle (`enabled?/0`). A toggle with no integration behind
+  # it deliberately does NOT seed a chain — the reconcile Cron picks the
+  # tracker up within one tick of an integration appearing, so nothing needs
+  # a manual re-toggle either way.
+  def should_start_brevo_polling?, do: EventTracker.should_run?(BrevoPollingManager)
 
   ## --- Private Functions ---
 
-  # Checks for minimum SQS configuration
-  defp has_sqs_configuration? do
-    sqs_config = Emails.get_sqs_config()
-
-    not is_nil(sqs_config.queue_url) and
-      sqs_config.queue_url != ""
-  end
-
-  # One-off supervised Task that waits for Oban, then re-seeds every chain
-  # whose settings say it should be alive. Empty list when neither poller
-  # is enabled at boot (toggles still work later via the managers).
+  # Always spawns the Task — reconcile must run unconditionally, since it
+  # is the mechanism that decides which trackers to start (and the only
+  # boot-time signal for it is "is Oban ready yet", not any single
+  # tracker's own eligibility). Previously (P0, task #56) this was gated
+  # on a pair of provider-specific booleans and called each manager's
+  # enable_polling/0 directly; superseded here by
+  # EventTrackerReconciler.reconcile/0, which generalizes the same fix
+  # (spec §1.1 — Brevo bootstrapped identically to SES) to every
+  # registered tracker instead of two hand-wired ones. See spec §4.3
+  # "Boot reconcile".
   defp build_oban_starter do
-    if should_start_sqs_polling?() or should_start_brevo_polling?() do
-      [
-        {Task, fn -> start_polling_when_oban_ready() end}
-      ]
-    else
-      []
-    end
+    [
+      {Task, fn -> start_polling_when_oban_ready() end}
+    ]
   end
 
   defp start_polling_when_oban_ready do
     case wait_for_oban(10, 500) do
       :ok ->
-        maybe_start_sqs_polling()
-        maybe_start_brevo_polling()
+        Logger.info("Email Supervisor: Reconciling event trackers")
+
+        results = EventTrackerReconciler.reconcile()
+        Logger.info("Email Supervisor: Event tracker reconcile complete", %{results: results})
 
       :timeout ->
         Logger.warning(
-          "Email Supervisor: Oban not available after timeout, skipping poller bootstrap"
+          "Email Supervisor: Oban not available after timeout, skipping tracker reconcile"
         )
-    end
-  end
-
-  defp maybe_start_sqs_polling do
-    if should_start_sqs_polling?() do
-      Logger.info("Email Supervisor: Starting initial SQS polling job via Oban")
-
-      case SQSPollingManager.enable_polling() do
-        {:ok, job} ->
-          Logger.info("Email Supervisor: Initial SQS polling started", %{job: inspect(job)})
-
-        {:error, reason} ->
-          Logger.warning("Email Supervisor: Failed to start initial SQS polling job", %{
-            reason: inspect(reason)
-          })
-      end
-    end
-  end
-
-  defp maybe_start_brevo_polling do
-    if should_start_brevo_polling?() do
-      Logger.info("Email Supervisor: Starting initial Brevo polling job via Oban")
-
-      case BrevoPollingManager.enable_polling() do
-        {:ok, job} ->
-          Logger.info("Email Supervisor: Initial Brevo polling started", %{job: inspect(job)})
-
-        {:error, reason} ->
-          Logger.warning("Email Supervisor: Failed to start initial Brevo polling job", %{
-            reason: inspect(reason)
-          })
-      end
     end
   end
 

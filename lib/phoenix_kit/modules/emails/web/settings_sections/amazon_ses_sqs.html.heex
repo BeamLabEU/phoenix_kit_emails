@@ -406,109 +406,71 @@
       </div>
     </div>
 
-    <%!-- SQS Worker Settings (collapse) --%>
+    <%!-- SQS Worker Tuning (collapse) — the master polling toggle and the
+         polling interval now live in the "Delivery Event Tracking" panel
+         (task #56 P2); this collapse keeps only the SQS-specific tuning
+         knobs that panel has no generic column for. --%>
     <div class="collapse collapse-arrow bg-base-200 mt-4">
       <input type="checkbox" />
       <div class="collapse-title text-sm font-medium">
         <span class="flex items-center gap-2">
-          <.icon name="hero-cog-6-tooth" class="w-5 h-5" /> {gettext("SQS Worker Settings")}
+          <.icon name="hero-cog-6-tooth" class="w-5 h-5" /> {gettext("SQS Worker Tuning")}
         </span>
       </div>
       <div class="collapse-content text-sm space-y-4">
-        <%!-- Enable SQS Polling --%>
-        <div class="form-control">
-          <.checkbox
-            name="amazon_ses[sqs_polling_enabled]"
-            checked={@sqs_polling_enabled}
-            phx-click="toggle_sqs_polling"
-            phx-target={@myself}
-            label={gettext("Enable SQS Polling")}
-          >
-            <:description>
-              {gettext("Automatically poll SQS queue for email events in background")}
-            </:description>
-          </.checkbox>
-        </div>
-
-        <%!-- SQS Polling Interval --%>
+        <%!-- SQS Max Messages Per Poll --%>
         <div class="form-control">
           <label class="label">
-            <span class="label-text font-medium">{gettext("SQS Polling Interval")}</span>
+            <span class="label-text font-medium">{gettext("Max Messages Per Poll")}</span>
           </label>
           <div class="input-group">
             <input
-              name="aws_settings[sqs_polling_interval_ms]"
+              name="max_messages"
               type="number"
-              placeholder="5000"
-              value={@aws_settings.sqs_polling_interval_ms}
-              class="input input-bordered focus:input-primary w-full max-w-xs"
-              min="1000"
-              max="60000"
+              placeholder={gettext("Enter max messages")}
+              class="input input-bordered w-full max-w-xs"
+              value={@sqs_max_messages_per_poll}
+              min="1"
+              max="10"
+              phx-blur="update_max_messages"
+              phx-target={@myself}
             />
-            <span class="bg-base-200 px-4 py-3 text-sm">ms</span>
+            <span class="bg-base-200 px-4 py-3 text-sm">{gettext("messages")}</span>
           </div>
           <label class="label">
-            <span class="label-text-alt">
-              {gettext("How often to check for SQS messages (1-60 seconds)")}
+            <span class="label-text-alt text-base-content/70">
+              {gettext("Maximum number of messages to process in each polling cycle (1-10)")}
             </span>
           </label>
         </div>
 
-        <%= if @sqs_polling_enabled do %>
-          <%!-- SQS Max Messages Per Poll --%>
-          <div class="form-control">
-            <label class="label">
-              <span class="label-text font-medium">{gettext("Max Messages Per Poll")}</span>
-            </label>
-            <div class="input-group">
-              <input
-                name="max_messages"
-                type="number"
-                placeholder={gettext("Enter max messages")}
-                class="input input-bordered w-full max-w-xs"
-                value={@sqs_max_messages_per_poll}
-                min="1"
-                max="10"
-                phx-blur="update_max_messages"
-                phx-target={@myself}
-              />
-              <span class="bg-base-200 px-4 py-3 text-sm">{gettext("messages")}</span>
-            </div>
-            <label class="label">
-              <span class="label-text-alt text-base-content/70">
-                {gettext("Maximum number of messages to process in each polling cycle (1-10)")}
-              </span>
-            </label>
+        <%!-- SQS Visibility Timeout --%>
+        <div class="form-control">
+          <label class="label">
+            <span class="label-text font-medium">{gettext("Visibility Timeout")}</span>
+          </label>
+          <div class="input-group">
+            <input
+              name="timeout"
+              type="number"
+              placeholder={gettext("Enter timeout")}
+              class="input input-bordered w-full max-w-xs"
+              value={@sqs_visibility_timeout}
+              min="30"
+              max="43200"
+              phx-blur="update_visibility_timeout"
+              phx-target={@myself}
+            />
+            <span class="bg-base-200 px-4 py-3 text-sm">{gettext("seconds")}</span>
           </div>
-
-          <%!-- SQS Visibility Timeout --%>
-          <div class="form-control">
-            <label class="label">
-              <span class="label-text font-medium">{gettext("Visibility Timeout")}</span>
-            </label>
-            <div class="input-group">
-              <input
-                name="timeout"
-                type="number"
-                placeholder={gettext("Enter timeout")}
-                class="input input-bordered w-full max-w-xs"
-                value={@sqs_visibility_timeout}
-                min="30"
-                max="43200"
-                phx-blur="update_visibility_timeout"
-                phx-target={@myself}
-              />
-              <span class="bg-base-200 px-4 py-3 text-sm">{gettext("seconds")}</span>
-            </div>
-            <label class="label">
-              <span class="label-text-alt text-base-content/70">
-                {gettext(
-                  "How long messages remain invisible after being received (30-43200 seconds)"
-                )}
-              </span>
-            </label>
-          </div>
-        <% end %>
+          <label class="label">
+            <span class="label-text-alt text-base-content/70">
+              {gettext(
+                "How long messages remain invisible after being received (30-43200 seconds)"
+              )}
+            </span>
+          </label>
+        </div>
 
         <%!-- Performance Optimization Tips --%>
         <div class="alert alert-info">
