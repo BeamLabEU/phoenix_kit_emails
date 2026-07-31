@@ -82,6 +82,24 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
       %Swoosh.Email{headers: %{"X-PhoenixKit-Log-Id" => "456"}}
   """
   def intercept_before_send(%Email{} = email, opts \\ []) do
+    # Already tracked: this message is coming back through the mailer a second
+    # time — the queue worker re-sending what it dequeued. Logging it again
+    # would double every queued message in the log and leave the first row stuck
+    # at "queued" forever, since only the header's row gets the after-send
+    # update.
+    if already_tracked?(email) do
+      email
+    else
+      do_intercept_before_send(email, opts)
+    end
+  end
+
+  defp already_tracked?(%Email{headers: headers}) when is_map(headers),
+    do: Map.has_key?(headers, "X-PhoenixKit-Log-Id")
+
+  defp already_tracked?(_email), do: false
+
+  defp do_intercept_before_send(%Email{} = email, opts) do
     if Emails.enabled?() and should_log_email?(email, opts) do
       case create_email_log(email, opts) do
         {:ok, log} ->
@@ -257,7 +275,11 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
 
     update_attrs = %{
       status: "sent",
-      sent_at: UtilsDate.utc_now()
+      sent_at: UtilsDate.utc_now(),
+      # Clear the failure trail left by earlier attempts — see
+      # clear_failure_trail/1 for why it is there and why retry_count stays.
+      failed_at: nil,
+      error_message: nil
     }
 
     update_attrs = maybe_extract_provider_data(log, provider_response, update_attrs)
@@ -273,6 +295,8 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
 
         # Create send event
         Event.create_send_event(updated_log.uuid, updated_log.provider)
+
+        clear_failure_trail(updated_log)
 
         {:ok, updated_log}
 
@@ -290,6 +314,17 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
   @doc """
   Updates an email log after send failure.
 
+  Writes `failed_at` and records a `failed` event alongside the status, because
+  the admin list does not read `status` at all: `<.email_activity_badges>` builds
+  its badges from event rows and timestamp columns. A log with `status: "failed"`
+  and no `failed_at` therefore renders with only its `send` badge — the list says
+  the message was sent while the detail page says it failed. `Log.mark_as_failed/3`
+  always wrote both; this path did not, and it is the path every retry-exhausted
+  queue job takes.
+
+  Unlike `mark_as_failed/3` this also bumps `retry_count`, which is why it stays a
+  separate function rather than delegating.
+
   ## Examples
 
       iex> PhoenixKit.Modules.Emails.Interceptor.update_after_failure(log, error)
@@ -297,17 +332,57 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
   """
   def update_after_failure(%Log{} = log, error) do
     error_message = extract_error_message(error)
+    failed_at = UtilsDate.utc_now()
 
     update_attrs = %{
       status: "failed",
       error_message: error_message,
+      failed_at: failed_at,
       retry_count: log.retry_count + 1
     }
 
-    Log.update_log(log, update_attrs)
+    case Log.update_log(log, update_attrs) do
+      {:ok, updated_log} ->
+        # Best effort: the status update is what matters, and a missing event row
+        # must not turn a failed send into an error the caller has to handle.
+        Event.create_event(%{
+          email_log_uuid: updated_log.uuid,
+          event_type: "failed",
+          occurred_at: failed_at,
+          event_data: %{reason: error_message},
+          failure_reason: error_message
+        })
+
+        {:ok, updated_log}
+
+      other ->
+        other
+    end
   end
 
   ## --- Private Helper Functions ---
+
+  # A send that succeeded on a retry carries the trail of the attempts before it.
+  # `update_after_failure/2` runs from the after-send hook on *every* failed
+  # attempt, not just the last one — nothing in that hook knows which attempt it
+  # is — so it has already written `failed_at`, `error_message` and a `failed`
+  # event by the time a later attempt goes through.
+  #
+  # Left in place, that trail outlives the failure it described: the admin list
+  # builds its badges from event rows and timestamp columns and never reads
+  # `status`, so a delivered message renders a red `failed` badge, and the detail
+  # page shows its error alert. That is the same false verdict, inverted, that
+  # writing `failed_at` was meant to fix.
+  #
+  # `retry_count` is deliberately kept: it is the honest record that this send
+  # took more than one attempt, and nothing renders it as a failure.
+  defp clear_failure_trail(%Log{} = log) do
+    log.uuid
+    |> Event.for_email_log_by_type("failed")
+    |> Enum.each(&Event.delete_event/1)
+
+    :ok
+  end
 
   # Only AWS SES returns a MessageId we can recover; for Test/Local/SMTP/etc.
   # the response carries no useful provider data and attempting extraction

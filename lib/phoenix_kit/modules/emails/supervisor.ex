@@ -34,23 +34,26 @@ defmodule PhoenixKit.Modules.Emails.Supervisor do
 
   Supervisor automatically reads settings from PhoenixKit Settings:
 
-  - `sqs_polling_enabled` - enable/disable SQS Worker
-  - `sqs_polling_interval_ms` - polling interval
-  - other SQS settings
+  - `sqs_polling_enabled` / SES events / queue URL — SQS chain boot gate
+  - `brevo_events_enabled` — Brevo chain boot gate
+  - `email_enabled` — system switch (both chains)
+  - polling intervals and other provider settings
 
   ## Process Management
 
-  SQS polling is driven entirely by Oban (see `SQSPollingManager`) and can be
-  toggled at runtime without an application restart:
+  Both pollers are driven entirely by Oban and can be toggled at runtime
+  without an application restart:
 
-      # Stop polling
-      PhoenixKit.Modules.Emails.SQSPollingManager.disable_polling()
-
-      # Start polling
       PhoenixKit.Modules.Emails.SQSPollingManager.enable_polling()
+      PhoenixKit.Modules.Emails.SQSPollingManager.disable_polling()
+      PhoenixKit.Modules.Emails.BrevoPollingManager.enable_polling()
+      PhoenixKit.Modules.Emails.BrevoPollingManager.disable_polling()
 
-      # Check status
-      PhoenixKit.Modules.Emails.SQSPollingManager.status()
+  Boot re-inserts each enabled chain via `enable_polling/0` so a dead
+  chain (no queued job after a crash or bad deploy) self-heals when the
+  setting is still on. If a next tick is already scheduled, the managers'
+  unique/replace insert moves it to run now rather than appending a
+  second row.
 
   ## Monitoring
 
@@ -67,6 +70,8 @@ defmodule PhoenixKit.Modules.Emails.Supervisor do
 
   require Logger
 
+  alias PhoenixKit.Modules.Emails
+  alias PhoenixKit.Modules.Emails.BrevoPollingManager
   alias PhoenixKit.Modules.Emails.EventTrackerReconciler
   alias PhoenixKit.Modules.Emails.SQSPollingManager
 
@@ -92,7 +97,7 @@ defmodule PhoenixKit.Modules.Emails.Supervisor do
     alias PhoenixKit.Modules.Emails.ApplicationIntegration
     ApplicationIntegration.register()
 
-    # SQS polling runs as Oban jobs (see build_oban_starter/0 + SQSPollingManager),
+    # Polling runs as Oban jobs (see build_oban_starter/0 + the managers),
     # so the supervisor itself has no long-running polling child of its own.
     #
     # Emails.aws_ses_credentials/0's cache — relies on `PhoenixKit.Cache.Registry`
@@ -123,6 +128,7 @@ defmodule PhoenixKit.Modules.Emails.Supervisor do
       %{
         supervisor_running: true,
         polling_status: %{enabled: true, pending_jobs: 1, ...},
+        brevo_polling_status: %{enabled: true, pending_jobs: 1, ...},
         children_count: 0
       }
   """
@@ -136,9 +142,17 @@ defmodule PhoenixKit.Modules.Emails.Supervisor do
         _, _ -> %{error: "polling_status_unavailable"}
       end
 
+    brevo_polling_status =
+      try do
+        BrevoPollingManager.status()
+      catch
+        _, _ -> %{error: "polling_status_unavailable"}
+      end
+
     %{
       supervisor_running: true,
       polling_status: polling_status,
+      brevo_polling_status: brevo_polling_status,
       children_count: child_count.active
     }
   catch
@@ -179,7 +193,40 @@ defmodule PhoenixKit.Modules.Emails.Supervisor do
     }
   end
 
+  ## --- Boot gates (public @doc false for unit tests) ---
+
+  @doc false
+  # Whether boot should re-seed the SQS self-scheduling chain. Requires the
+  # system switch, SES events, the SQS polling toggle, and a queue URL —
+  # without a queue URL enable would only insert a job that immediately
+  # backs off on misconfig.
+  def should_start_sqs_polling? do
+    Emails.enabled?() and
+      Emails.ses_events_enabled?() and
+      Emails.sqs_polling_enabled?() and
+      has_sqs_configuration?()
+  end
+
+  @doc false
+  # Whether boot should re-seed the Brevo self-scheduling chain. Mirrors
+  # SQS's role: if the toggle is on across a restart, the chain must come
+  # back even when no Oban row survived (crash before schedule_next_poll,
+  # wiped jobs table, etc.). Zero active Brevo profiles is fine — the job
+  # no-ops each cycle and still records last_polled_at (see
+  # BrevoPollingJob), same as a live chain with no senders.
+  def should_start_brevo_polling? do
+    Emails.enabled?() and Emails.brevo_events_enabled?()
+  end
+
   ## --- Private Functions ---
+
+  # Checks for minimum SQS configuration
+  defp has_sqs_configuration? do
+    sqs_config = Emails.get_sqs_config()
+
+    not is_nil(sqs_config.queue_url) and
+      sqs_config.queue_url != ""
+  end
 
   # Always spawns the Task — reconcile must run unconditionally, since it
   # is the mechanism that decides which trackers to start (and the only
@@ -193,11 +240,11 @@ defmodule PhoenixKit.Modules.Emails.Supervisor do
   # "Boot reconcile".
   defp build_oban_starter do
     [
-      {Task, fn -> start_oban_polling_when_ready() end}
+      {Task, fn -> start_polling_when_oban_ready() end}
     ]
   end
 
-  defp start_oban_polling_when_ready do
+  defp start_polling_when_oban_ready do
     case wait_for_oban(10, 500) do
       :ok ->
         Logger.info("Email Supervisor: Reconciling event trackers")

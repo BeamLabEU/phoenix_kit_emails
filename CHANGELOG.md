@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.1.19 - 2026-07-29
+
+### Added
+- **Outgoing send queue.** `Queue` implements core's optional `PhoenixKit.Email.Provider.maybe_enqueue/2` callback (floor raised to `phoenix_kit ~> 1.7.217`), so every outgoing message — including mail the host app sends through its own statically configured mailer — is offered to the `:emails` Oban queue and delivered by `SendJob` (`max_attempts: 5`) instead of on the request. Every decline is "send it inline now", never an error: a disabled system, `email_queue_enabled` off, no `:emails` queue in the **host's** Oban config (a package cannot add one, and `Oban.insert/1` would happily store a job nobody drains), a per-message `queue: false`, authentication mail, attachments, an `Oban.insert/1` error, and even a raise or a DBConnection exit all fall through to an inline send. Delivery is at-least-once, which is why authentication mail is excluded by default. (#22)
+- **System-status card** in Settings → Email Sending → Email Tracking. Reports what the module is *doing*, not what it is configured to do: whether anything is being logged and why not (a `from` address that fails the `Log` schema's own format rule makes every insert fail, and the interceptor swallows that by design), which mailer or integration messages actually leave through, the queue's state and depth, and today's logged/sent/failed/queued counts. (#22)
+- **Two switches for the queue** — "Queue Outgoing Emails" (`email_queue_enabled`) and "Queue Authentication Emails Too" (`email_queue_auth_mail`) — in the same settings section as the card. Post-merge review: the queue shipped default-on and reported read-only, with no way to turn it off short of editing the settings table.
+
+### Changed
+- **Behavioural default for existing installs:** `email_queue_enabled` defaults to **true**, so a host that has (or later adds) an `emails: N` Oban queue starts routing eligible outgoing mail through Oban after this upgrade. Authentication mail and messages with attachments are still sent inline. Hosts with no `:emails` queue are unaffected — nothing is queued and mail is sent as before.
+- `Interceptor.intercept_before_send/2` leaves a message that already carries `X-PhoenixKit-Log-Id` alone, so the queue worker's re-send updates the existing log row rather than writing a second one and stranding the first at "queued".
+- `Log.email_format_regex/0` exposes the sender-format rule the changeset validates with, so the status card's warning cannot drift from the validation that causes the failure.
+- Queued mail carries its recipients, subject and bodies in the Oban job's args until the row is pruned — independent of `email_save_body` and `email_retention_days`, which only govern this module's own tables. Configure `Oban.Plugins.Pruner` accordingly; documented on `Queue.serialize/1`.
+- Callers that route a send through an explicitly chosen integration (`Mailer.deliver_via_integration/3` with a non-default uuid) must pass `queue: false`: core hands the queue only the integration's `:provider`, never its uuid, so a queued re-send resolves the *default* transport. Documented in `Queue`'s moduledoc and `AGENTS.md` until core carries the uuid.
+
+### Fixed
+- Test sends are never queued (`skip_queue: true` on the template-editor preview and both `Provider` test-email paths). A queued test would flash "sent successfully" the moment Oban accepted the job — before any relay had seen it, and while a later failure went unreported. (#22)
+- A raise inside a queued send (an adapter that throws instead of returning `{:error, _}`, a pool timeout) never reaches core's after-send hook, so the log row stayed at "queued"; after the fifth attempt Oban discarded the job and nothing ever closed the row out. `SendJob` now marks the row failed on the last attempt and reraises, leaving Oban's own recording, backoff and discard untouched.
+- The card's "no `:emails` Oban queue" warning no longer contradicts the Queue row it sits above when the whole email system is disabled (it is gated on `Queue.status/0 == :no_oban_queue`, the one state that means "on, and cannot run").
+- A default send integration saved without a name rendered a blank "Sending through" value instead of the card's own fallback label.
+- Three dialyzer errors that made `mix precommit` fail on the merged branch: an unreachable `log_uuid/1` fallback clause in `Queue`, a `map() === nil` guard in `SendJob`, and an `is_binary/1` branch in `Status` that core's `get_from_email/0` typing proves dead (rewritten to stay nil-safe at runtime).
+
+## 0.1.18 - 2026-07-27
+
+### Fixed
+- Brevo event polling no longer stays dead across app restarts when `brevo_events_enabled` is still on but no Oban job row survived (crash before `schedule_next_poll/1`, wiped jobs table, etc.). The supervisor now re-seeds the Brevo chain at boot the same way it already re-seeds SQS — via `BrevoPollingManager.enable_polling/0` after Oban is ready. Zero active Brevo profiles is fine; the job no-ops each cycle and still records `last_polled_at`.
+
+### Changed
+- `Supervisor.system_status/0` also reports `brevo_polling_status` (alongside the existing SQS `polling_status`).
+- Clarified `BrevoPollingManager` docs: `poll_now/0` bypasses only the `brevo_events_enabled` toggle, not the sender-aware profile gate or `Emails.enabled?/0`.
+
 ## 0.1.17 - 2026-07-26
 
 ### Changed

@@ -293,10 +293,21 @@ defmodule PhoenixKit.Modules.Emails.Log do
     |> validate_body_size()
   end
 
+  @email_format ~r/^[^\s]+@[^\s]+\.[^\s]+$/
+
+  @doc """
+  The address format this schema accepts.
+
+  Exposed because a `from` that fails it makes every insert fail — which the
+  interceptor logs and swallows — so the settings UI needs to warn about the
+  address *before* mail starts going out unrecorded. One definition, so the
+  warning cannot drift from the rule it warns about.
+  """
+  @spec email_format_regex() :: Regex.t()
+  def email_format_regex, do: @email_format
+
   defp validate_email_format(changeset, field) do
-    validate_format(changeset, field, ~r/^[^\s]+@[^\s]+\.[^\s]+$/,
-      message: "must be a valid email address"
-    )
+    validate_format(changeset, field, @email_format, message: "must be a valid email address")
   end
 
   ## --- Business Logic Functions ---

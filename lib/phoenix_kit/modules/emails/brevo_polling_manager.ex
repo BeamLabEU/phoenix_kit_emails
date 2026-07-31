@@ -5,10 +5,12 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingManager do
   Mirrors `SQSPollingManager` — see that module's `@moduledoc` for the
   general architecture (Oban jobs instead of a GenServer, so settings
   changes take effect without a restart). `enable_polling/0` and
-  `disable_polling/0` back the admin UI toggle; `poll_now/0` forces an
-  immediate cycle regardless of the sender-aware gate (useful to verify a
-  freshly-configured Brevo profile before waiting for the next scheduled
-  tick — the job itself still no-ops safely if the gate isn't satisfied).
+  `disable_polling/0` back the admin UI toggle; `poll_now/0` forces one
+  cycle even when `brevo_events_enabled` is off (useful to verify a
+  freshly-configured Brevo profile without turning the background chain
+  on). Forced runs still respect `Emails.enabled?/0` and the sender-aware
+  profile gate — zero active Brevo profiles yields a no-op cycle, same as
+  a scheduled tick would.
   """
 
   @behaviour PhoenixKit.Modules.Emails.EventTracker

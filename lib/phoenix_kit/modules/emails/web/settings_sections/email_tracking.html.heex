@@ -1,4 +1,165 @@
 <div class="space-y-6">
+  <%!-- System status — every failure mode in this package is silent by design
+       (the interceptor swallows its own errors so logging can never break a
+       send), so the one thing the page must not do is let "enabled" stand in
+       for "working". --%>
+  <div class="card bg-base-200/40">
+    <div class="card-body p-4 space-y-3">
+      <h3 class="font-semibold text-base flex items-center gap-2">
+        <.icon name="hero-signal" class="w-4 h-4" />
+        {gettext("System status")}
+      </h3>
+
+      <div :if={@status.logging == :sender_invalid} class="alert alert-warning py-2">
+        <.icon name="hero-exclamation-triangle" class="w-5 h-5 shrink-0" />
+        <span class="text-sm">
+          {gettext(
+            "Nothing is being logged: the sender %{email} is not a full address, so every log write is rejected. Fix it in Settings → Email Sending.",
+            email: @status.sender.email
+          )}
+        </span>
+      </div>
+
+      <%!-- `:no_oban_queue`, not `enabled? and not configured?`: with the whole
+           system off the queue is off for that reason (the row below says so),
+           and warning about a missing Oban queue then contradicts it. --%>
+      <div :if={@status.queue.status == :no_oban_queue} class="alert alert-warning py-2">
+        <.icon name="hero-exclamation-triangle" class="w-5 h-5 shrink-0" />
+        <span class="text-sm">
+          {gettext(
+            "The queue is on, but this application has no :emails Oban queue configured, so nothing can drain it — messages are being sent immediately instead. Add `emails: 10` to the host's Oban queues to use the queue."
+          )}
+        </span>
+      </div>
+
+      <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
+        <div class="flex justify-between gap-2">
+          <dt class="text-base-content/60">{gettext("Logging")}</dt>
+          <dd class="font-medium">
+            <span :if={@status.logging == :active} class="badge badge-success badge-sm">
+              {gettext("Recording")}
+            </span>
+            <span :if={@status.logging == :system_disabled} class="badge badge-ghost badge-sm">
+              {gettext("System off — nothing is written")}
+            </span>
+            <span :if={@status.logging == :sender_invalid} class="badge badge-warning badge-sm">
+              {gettext("Blocked by sender address")}
+            </span>
+          </dd>
+        </div>
+
+        <div class="flex justify-between gap-2">
+          <dt class="text-base-content/60">{gettext("What is logged")}</dt>
+          <dd class="font-medium">
+            {if @status.sampling_rate >= 100,
+              do: gettext("Every message"),
+              else:
+                gettext("System mail, plus %{rate}% of the rest",
+                  rate: @status.sampling_rate
+                )}
+          </dd>
+        </div>
+
+        <div class="flex justify-between gap-2">
+          <dt class="text-base-content/60">{gettext("Sending through")}</dt>
+          <dd class="font-medium text-right">
+            {if @status.transport.kind == :integration,
+              do: @status.transport.name || gettext("Default integration"),
+              else: gettext("App config: %{adapter}", adapter: @status.transport.adapter)}
+          </dd>
+        </div>
+
+        <div class="flex justify-between gap-2">
+          <dt class="text-base-content/60">{gettext("Sender")}</dt>
+          <dd class="font-medium">{@status.sender.email}</dd>
+        </div>
+
+        <div class="flex justify-between gap-2">
+          <dt class="text-base-content/60">{gettext("Queue")}</dt>
+          <dd class="font-medium">
+            {case @status.queue.status do
+              :system_disabled ->
+                gettext("Off (system disabled)")
+
+              :queue_disabled ->
+                gettext("Off — sending inline")
+
+              :no_oban_queue ->
+                gettext("Off — no :emails Oban queue, sending inline")
+
+              :ok ->
+                gettext("On — %{pending} waiting, %{executing} sending, %{retryable} retrying",
+                  pending: @status.queue.pending,
+                  executing: @status.queue.executing,
+                  retryable: @status.queue.retryable
+                )
+            end}
+          </dd>
+        </div>
+
+        <div class="flex justify-between gap-2">
+          <dt class="text-base-content/60">{gettext("Authentication mail")}</dt>
+          <dd class="font-medium">
+            {if @status.queue.auth_mail?,
+              do: gettext("Queued like everything else"),
+              else: gettext("Sent immediately, never queued")}
+          </dd>
+        </div>
+
+        <div class="flex justify-between gap-2 sm:col-span-2">
+          <dt class="text-base-content/60">{gettext("Today")}</dt>
+          <dd class="font-medium">
+            {gettext(
+              "%{logged} logged · %{sent} sent · %{failed} failed · %{queued} queued",
+              logged: @status.today.logged,
+              sent: @status.today.sent,
+              failed: @status.today.failed,
+              queued: @status.today.queued
+            )}
+          </dd>
+        </div>
+      </dl>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <%!-- Send queue — the card above only reports these two; without a switch the
+       operator's only way to turn a default-on queue off is the settings table. --%>
+  <div class="form-control">
+    <.checkbox
+      name="email_tracking[queue_enabled]"
+      checked={@status.queue.enabled?}
+      phx-click="toggle_email_queue"
+      phx-target={@myself}
+      label={gettext("Queue Outgoing Emails")}
+    >
+      <:description>
+        {gettext(
+          "Hand outgoing mail to the :emails Oban queue instead of sending it on the request. Requires `emails: N` in the host application's Oban queues; without it mail is sent immediately."
+        )}
+      </:description>
+    </.checkbox>
+  </div>
+
+  <div :if={@status.queue.enabled?} class="form-control mt-2">
+    <.checkbox
+      name="email_tracking[queue_auth_mail]"
+      checked={@status.queue.auth_mail?}
+      phx-click="toggle_email_queue_auth_mail"
+      phx-target={@myself}
+      label={gettext("Queue Authentication Emails Too")}
+    >
+      <:description>
+        {gettext(
+          "Off by default: password resets and confirmations are sent immediately, so a stuck queue cannot turn into \"I never got the email\"."
+        )}
+      </:description>
+    </.checkbox>
+  </div>
+
+  <div class="divider"></div>
+
   <%!-- Save Email Bodies --%>
   <div class="form-control">
     <.checkbox

@@ -4,7 +4,9 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTracking do
   (`/admin/settings/email-sending`).
 
   Covers what to store for each outgoing email (body, headers, sampling
-  rate) and how long to keep it (retention, compression, S3 archival).
+  rate), how long to keep it (retention, compression, S3 archival), and the
+  send queue's two switches — plus the system-status card, which reports what
+  the module is actually doing rather than what it is configured to do.
   Contributed via `PhoenixKit.Modules.Emails.email_settings_sections/0`.
   """
 
@@ -12,12 +14,20 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTracking do
   use Gettext, backend: PhoenixKit.Modules.Emails.Gettext
 
   alias PhoenixKit.Modules.Emails
+  alias PhoenixKit.Modules.Emails.Queue
+  alias PhoenixKit.Modules.Emails.Status
 
   @dialyzer {:nowarn_function, handle_event: 3}
 
   @impl true
   def update(assigns, socket) do
     socket = assign(socket, assigns)
+
+    # LiveComponent `update/2` runs on mount and on send_update — NOT on this
+    # component's own handle_event/3. So the card is refreshed here and again in
+    # every event that changes something it displays (see refresh_status/1);
+    # a card that keeps showing the pre-toggle value is worse than none.
+    socket = refresh_status(socket)
 
     socket =
       if Map.has_key?(socket.assigns, :email_save_body) do
@@ -42,6 +52,8 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTracking do
     {:ok, socket}
   end
 
+  defp refresh_status(socket), do: assign(socket, :status, Status.summary())
+
   @impl true
   def handle_event("toggle_email_save_body", _params, socket) do
     new_save_body = !socket.assigns.email_save_body
@@ -51,6 +63,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTracking do
         socket =
           socket
           |> assign(:email_save_body, new_save_body)
+          |> refresh_status()
           |> put_flash(
             :info,
             if(new_save_body,
@@ -67,6 +80,55 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTracking do
     end
   end
 
+  # The queue's two switches read their current value off @status (refreshed on
+  # every event), so there is no separate assign to keep in step.
+  def handle_event("toggle_email_queue", _params, socket) do
+    new_enabled = !socket.assigns.status.queue.enabled?
+
+    case Queue.set_enabled(new_enabled) do
+      {:ok, _setting} ->
+        socket =
+          socket
+          |> refresh_status()
+          |> put_flash(
+            :info,
+            if(new_enabled,
+              do: gettext("Outgoing emails are now queued"),
+              else: gettext("Outgoing emails are now sent immediately")
+            )
+          )
+
+        {:noreply, socket}
+
+      {:error, _changeset} ->
+        {:noreply, put_flash(socket, :error, gettext("Failed to update the send queue setting"))}
+    end
+  end
+
+  def handle_event("toggle_email_queue_auth_mail", _params, socket) do
+    new_enabled = !socket.assigns.status.queue.auth_mail?
+
+    case Queue.set_auth_mail_enabled(new_enabled) do
+      {:ok, _setting} ->
+        socket =
+          socket
+          |> refresh_status()
+          |> put_flash(
+            :info,
+            if(new_enabled,
+              do: gettext("Authentication emails are now queued"),
+              else: gettext("Authentication emails are now sent immediately")
+            )
+          )
+
+        {:noreply, socket}
+
+      {:error, _changeset} ->
+        {:noreply,
+         put_flash(socket, :error, gettext("Failed to update the authentication mail setting"))}
+    end
+  end
+
   def handle_event("toggle_email_save_headers", _params, socket) do
     new_save_headers = !socket.assigns.email_save_headers
 
@@ -75,6 +137,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTracking do
         socket =
           socket
           |> assign(:email_save_headers, new_save_headers)
+          |> refresh_status()
           |> put_flash(
             :info,
             if(new_save_headers,
@@ -103,6 +166,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTracking do
             socket =
               socket
               |> assign(:email_sampling_rate, sampling_rate)
+              |> refresh_status()
               |> put_flash(
                 :info,
                 gettext("Email sampling rate updated to %{rate}%", rate: sampling_rate)
