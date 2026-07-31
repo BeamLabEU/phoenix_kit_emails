@@ -613,6 +613,15 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingJob do
   # processing is unchanged, and the dedicated SES/SNS pipeline keeps its
   # loud SYNC ISSUE signal, which there really does mean our own mail
   # failed to log.
+  #
+  # One deliberate consequence, since it isn't obvious from here: this
+  # gate short-circuits ahead of SQSProcessor's placeholder-log path, so
+  # `email_create_placeholder_logs` (off by default) no longer applies to
+  # polled Brevo events. That is the intended reading of the setting on a
+  # shared account — "create a log for every orphaned event" would mean
+  # materializing a log row per foreign send, i.e. other senders' traffic
+  # in this app's email log. SES, where every event is by definition our
+  # own, keeps the setting's original behaviour.
   defp process_known_email_event(event_data, brevo_event) do
     message_id = get_in(event_data, ["mail", "messageId"])
 

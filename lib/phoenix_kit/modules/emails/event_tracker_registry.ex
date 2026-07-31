@@ -25,15 +25,15 @@ defmodule PhoenixKit.Modules.Emails.EventTrackerRegistry do
     respects `Emails.enabled?/0`).
   - `set_polling_interval/1` — the per-tracker interval editor.
 
-  `integration_count/0`, `accounts/0`, and `toggle_account_polling/1`
-  ARE part of the formal `EventTracker` behaviour, but declared
-  `@optional_callbacks` — the panel never calls a tracker module
-  directly for these; it always goes through `EventTracker.
-  integration_count/1` / `accounts/1` / `toggle_account_polling/2`,
-  which fall back to a safe default (or a no-op) when a tracker skips
-  them, so a Mailgun implementation that forgets the Accounts-column
-  extras can never crash the panel. See `EventTracker`'s own moduledoc
-  for the exact defaults.
+  `integration_count/0`, `accounts/0`, `toggle_account_polling/1` and
+  `last_polled_at/0` ARE part of the formal `EventTracker` behaviour,
+  but declared `@optional_callbacks` — the panel never calls a tracker
+  module directly for these; it always goes through `EventTracker.
+  integration_count/1` / `accounts/1` / `toggle_account_polling/2` /
+  `last_polled_at/1`, which fall back to a safe default (or a no-op)
+  when a tracker skips them, so a Mailgun implementation that forgets
+  the Accounts-column extras can never crash the panel. See
+  `EventTracker`'s own moduledoc for the exact defaults.
   """
 
   alias PhoenixKit.Modules.Emails.BrevoPollingManager

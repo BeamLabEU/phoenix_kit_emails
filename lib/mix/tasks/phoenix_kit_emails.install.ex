@@ -133,11 +133,19 @@ defmodule Mix.Tasks.PhoenixKitEmails.Install do
              event_tracker_reconcile: 1
            ],
            plugins: [
+             Oban.Plugins.Pruner,
+             Oban.Plugins.Lifeline,
              {Oban.Plugins.Cron,
               crontab: [
                 {"*/2 * * * *", PhoenixKit.Modules.Emails.EventTrackerReconcileWorker}
               ]}
            ]
+
+       MERGE that `plugins:` list into whatever you already have rather
+       than replacing it. Lifeline is not optional here: a poller job left
+       orphaned in :executing by a node that died mid-cycle blocks the
+       reconciler from ever inserting a successor, and the admin panel
+       keeps calling that tracker "Active" while it polls nothing.
 
     3. Configure AWS SES and/or Brevo credentials in Settings UI or
        config/prod.exs

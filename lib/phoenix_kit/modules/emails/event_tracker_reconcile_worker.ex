@@ -42,11 +42,28 @@ defmodule PhoenixKit.Modules.Emails.EventTrackerReconcileWorker do
           # ... your other queues
         ],
         plugins: [
+          Oban.Plugins.Pruner,
+          Oban.Plugins.Lifeline,
           {Oban.Plugins.Cron,
            crontab: [
              {"*/2 * * * *", PhoenixKit.Modules.Emails.EventTrackerReconcileWorker}
            ]}
         ]
+
+  ## Why `Oban.Plugins.Lifeline` belongs in that list
+
+  Reconcile can only resurrect a chain it can see is dead.
+  `EventTrackerReconciler.ensure_chain/1`'s `unique` covers `:executing`
+  (deliberately — see its own comment), so a job orphaned in `:executing`
+  by a node that died mid-cycle is a permanent conflict: reconcile never
+  inserts a successor, and `EventTracker.state/1` — which counts
+  `:executing` too — keeps reporting `:active` / "Running normally" for a
+  tracker that has in fact stopped polling. Nothing in this package can
+  detect that from the outside; `Oban.Plugins.Lifeline` is what moves
+  orphaned rows back to `:available`, at which point the next tick here
+  behaves normally again. `Oban.Plugins.Pruner` is listed for the same
+  "don't paste a `plugins:` list that silently drops your existing ones"
+  reason, plus `EventTracker.last_polled_at/1`'s own Pruner caveat.
   """
 
   use Oban.Worker, queue: :event_tracker_reconcile, max_attempts: 3

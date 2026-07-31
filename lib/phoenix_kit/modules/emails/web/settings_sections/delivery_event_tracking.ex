@@ -51,6 +51,18 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTracking d
 
       case success?(result) do
         true ->
+          # The managers only write the setting — and enable_polling/0
+          # additionally inserts a chain UNCONDITIONALLY, without consulting
+          # eligible?/0. Toggling SES on while no queue URL is configured
+          # therefore queues a chain the lifecycle invariant says must not
+          # exist (the panel shows "Idle — no integration" next to a
+          # non-zero Queued count), and toggling off leaves the queued job
+          # behind; both only get cleaned up on the next reconcile Cron
+          # tick, or never on a host that skipped wiring the Cron.
+          # Reconciling here is spec §4.3's "settings toggle" trigger, the
+          # caller EventTrackerReconciler's own moduledoc already names.
+          EventTrackerReconciler.reconcile_tracker(tracker)
+
           socket
           |> assign(:rows, build_rows())
           |> put_flash(:info, gettext("%{label} tracking updated", label: tracker.label()))
@@ -65,20 +77,30 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTracking d
     end)
   end
 
+  # poll_now/0 forces a cycle past the operator's toggle, but never past
+  # eligibility — a forced job for an ineligible tracker runs, fails its
+  # own `pollable_ignoring_toggle?`/profile gate, and does nothing, while
+  # the flash claimed a poll was triggered. Refuse up front and say why
+  # (reusing the State column's own hint for this state rather than
+  # inventing a second wording for the same condition).
   def handle_event("poll_now", %{"provider" => provider_kind}, socket) do
     with_tracker(socket, provider_kind, fn tracker ->
-      case tracker.poll_now() do
-        {:ok, _job} ->
-          socket
-          |> assign(:rows, build_rows())
-          |> put_flash(:info, gettext("%{label} poll triggered", label: tracker.label()))
+      if tracker.eligible?() do
+        case tracker.poll_now() do
+          {:ok, _job} ->
+            socket
+            |> assign(:rows, build_rows())
+            |> put_flash(:info, gettext("%{label} poll triggered", label: tracker.label()))
 
-        {:error, _reason} ->
-          put_flash(
-            socket,
-            :error,
-            gettext("Failed to trigger %{label} poll", label: tracker.label())
-          )
+          {:error, _reason} ->
+            put_flash(
+              socket,
+              :error,
+              gettext("Failed to trigger %{label} poll", label: tracker.label())
+            )
+        end
+      else
+        put_flash(socket, :error, state_hint(:idle_no_integration))
       end
     end)
   end

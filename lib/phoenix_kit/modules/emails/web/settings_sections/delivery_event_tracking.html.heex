@@ -48,13 +48,16 @@
 
             <td>
               <div class="join">
+                <%!-- No `step`: with step == min the browser only accepts multiples
+                of the floor (Brevo: 30s, 60s, 90s, …) while phx-blur posts — and
+                the manager accepts — any value at or above it, so the input marked
+                perfectly valid intervals invalid. `min` is the real constraint. --%>
                 <input
                   type="number"
                   name="interval"
                   value={row.interval_ms}
                   class="input input-bordered input-xs join-item w-20"
                   min={row.min_interval_ms}
-                  step={row.min_interval_ms}
                   phx-blur="update_interval"
                   phx-value-provider={row.provider_kind}
                   phx-target={@myself}

@@ -107,7 +107,22 @@ defmodule PhoenixKit.Modules.Emails.EventTracker do
   """
   @callback toggle_account_polling(uuid :: String.t()) :: {:ok, term()} | {:error, term()}
 
-  @optional_callbacks integration_count: 0, accounts: 0, toggle_account_polling: 1
+  @doc """
+  This tracker's own durable "last completed cycle" timestamp, when it
+  keeps one. **Optional** — a tracker that skips it falls back to the
+  generic Oban-history derivation (see `last_polled_at/1`), which is
+  correct but only as long as the completed job still exists. Define
+  this whenever the tracker's polling interval can outlive
+  `Oban.Plugins.Pruner`'s `max_age` (Brevo's floor alone is 30s against
+  a 60s default), or the panel's Last-poll column reads "Never polled
+  yet" for a perfectly healthy chain.
+  """
+  @callback last_polled_at() :: DateTime.t() | nil
+
+  @optional_callbacks integration_count: 0,
+                      accounts: 0,
+                      toggle_account_polling: 1,
+                      last_polled_at: 0
 
   @doc """
   `eligible?() and enabled?()` — the single condition the reconciler
@@ -176,16 +191,37 @@ defmodule PhoenixKit.Modules.Emails.EventTracker do
   end
 
   @doc """
-  Timestamp this tracker's chain last finished a cycle — derived
-  generically from Oban's own job history (the last `completed` job for
-  `worker/0`), not a per-tracker persisted setting, so it works
-  uniformly for every registered tracker with zero extra plumbing. A
-  no-op cycle (nothing to fetch) still completes normally, so this
-  reads as "the chain is alive and ticking", matching what the existing
+  Timestamp this tracker's chain last finished a cycle: the tracker's own
+  `last_polled_at/0` when it defines that optional callback, otherwise
+  derived generically from Oban's own job history (the last `completed`
+  job for `worker/0`), which needs zero extra plumbing per tracker. A
+  no-op cycle (nothing to fetch) still completes normally either way, so
+  this reads as "the chain is alive and ticking", matching what the
   per-provider `*_last_polled_at` settings already intended.
+
+  > #### The Oban-history fallback is bounded by the Pruner {: .warning}
+  >
+  > `Oban.Plugins.Pruner` deletes `completed` rows older than its
+  > `max_age` (60s by default), so the fallback can only ever see a
+  > cycle that finished inside that window — a tracker polling less
+  > often than the Pruner keeps history reads as `nil` ("Never polled
+  > yet") even while perfectly healthy. That is exactly why
+  > `last_polled_at/0` exists as a callback: SES's default 5s cadence
+  > is comfortably inside any sane prune window, Brevo's 30s floor
+  > (and realistically much longer) is not, so `BrevoPollingManager`
+  > defines it against the durable `brevo_last_polled_at` setting its
+  > job already writes every cycle.
   """
   @spec last_polled_at(t()) :: DateTime.t() | nil
   def last_polled_at(tracker) when is_atom(tracker) do
+    if function_exported?(tracker, :last_polled_at, 0) do
+      tracker.last_polled_at()
+    else
+      last_completed_job_at(tracker)
+    end
+  end
+
+  defp last_completed_job_at(tracker) do
     import Ecto.Query
 
     worker_name = inspect(tracker.worker())

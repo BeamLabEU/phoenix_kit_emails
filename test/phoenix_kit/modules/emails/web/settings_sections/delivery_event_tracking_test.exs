@@ -153,10 +153,66 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTrackingTe
 
       assert Emails.brevo_events_enabled?()
     end
+
+    # The managers' enable_polling/0 inserts a chain without consulting
+    # eligible?/0, so the toggle used to leave a queued job for a tracker
+    # with nothing to poll — the panel reading "Idle — no integration"
+    # beside a non-zero Queued count, until (or unless) the reconcile Cron
+    # ticked. The toggle now reconciles, which is what owns that decision.
+    test "turning tracking on for an INELIGIBLE tracker leaves no chain behind" do
+      refute SQSPollingManager.eligible?()
+
+      assert {:noreply, socket} =
+               Panel.handle_event("toggle_tracking", %{"provider" => "aws_ses"}, bare_socket())
+
+      assert Emails.sqs_polling_enabled?()
+
+      worker = SQSPollingJob.worker_name()
+
+      refute Repo.exists?(
+               from(j in Oban.Job,
+                 where: j.worker == ^worker and j.state in ["available", "scheduled"]
+               )
+             )
+
+      row = row_for(socket.assigns.rows, "aws_ses")
+      assert row.state == :idle_no_integration
+      assert row.pending_jobs == 0
+    end
+
+    # The mirror case: an eligible tracker still gets its chain started.
+    test "turning tracking on for an eligible tracker starts a chain" do
+      create_ses_profile()
+
+      assert {:noreply, socket} =
+               Panel.handle_event("toggle_tracking", %{"provider" => "aws_ses"}, bare_socket())
+
+      row = row_for(socket.assigns.rows, "aws_ses")
+      assert row.state == :active
+      assert row.pending_jobs >= 1
+    end
+
+    # Turning tracking off used to leave the queued job in place until the
+    # next Cron tick; the toggle's own reconcile cancels it immediately.
+    test "turning tracking off cancels the queued chain immediately" do
+      create_ses_profile()
+      {:ok, %Oban.Job{}} = SQSPollingManager.enable_polling()
+
+      assert {:noreply, socket} =
+               Panel.handle_event("toggle_tracking", %{"provider" => "aws_ses"}, bare_socket())
+
+      refute Emails.sqs_polling_enabled?()
+
+      row = row_for(socket.assigns.rows, "aws_ses")
+      assert row.state == :off
+      assert row.pending_jobs == 0
+    end
   end
 
   describe "handle_event(\"poll_now\", ...)" do
     test "inserts an immediate job for the SES worker, and rebuilds rows AFTER the insert" do
+      create_ses_profile()
+
       assert {:noreply, socket} =
                Panel.handle_event("poll_now", %{"provider" => "aws_ses"}, bare_socket())
 
@@ -170,12 +226,30 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTrackingTe
     end
 
     test "inserts an immediate job for the Brevo worker, and rebuilds rows AFTER the insert" do
+      create_brevo_profile()
+
       assert {:noreply, socket} =
                Panel.handle_event("poll_now", %{"provider" => "brevo_api"}, bare_socket())
 
       worker = BrevoPollingJob.worker_name()
       assert Repo.exists?(from(j in Oban.Job, where: j.worker == ^worker))
       assert row_for(socket.assigns.rows, "brevo_api").pending_jobs >= 1
+    end
+
+    # poll_now/0 forces a cycle past the toggle, never past eligibility —
+    # so for an ineligible tracker the job it queued could only ever run,
+    # fail its own gate, and do nothing, while the flash said "poll
+    # triggered". Refuse instead of reporting a success that never happens.
+    test "refuses, with an explanation, for a tracker that has no event source" do
+      refute SQSPollingManager.eligible?()
+
+      assert {:noreply, socket} =
+               Panel.handle_event("poll_now", %{"provider" => "aws_ses"}, bare_socket())
+
+      assert socket.assigns.flash["error"]
+
+      worker = SQSPollingJob.worker_name()
+      refute Repo.exists?(from(j in Oban.Job, where: j.worker == ^worker))
     end
   end
 

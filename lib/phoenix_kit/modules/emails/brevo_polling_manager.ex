@@ -59,15 +59,17 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingManager do
   @impl PhoenixKit.Modules.Emails.EventTracker
   def worker, do: BrevoPollingJob
 
-  ## --- Optional EventTracker callbacks (Accounts column) ---
+  ## --- Optional EventTracker callbacks ---
   #
-  # integration_count/0, accounts/0, toggle_account_polling/1 are formal
-  # @optional_callbacks on EventTracker (task #56 P2 review) — the panel
-  # never calls these three directly on a tracker module, always through
-  # EventTracker.integration_count/1, accounts/1, toggle_account_polling/2,
-  # which supply a safe default/no-op for a tracker that skips them. This
-  # module defines all three because Brevo has a genuine multi-account
-  # opt-out concept.
+  # integration_count/0, accounts/0, toggle_account_polling/1 and
+  # last_polled_at/0 are formal @optional_callbacks on EventTracker (task
+  # #56 P2 review) — the panel never calls these directly on a tracker
+  # module, always through EventTracker.integration_count/1, accounts/1,
+  # toggle_account_polling/2, last_polled_at/1, which supply a safe
+  # default/no-op/fallback for a tracker that skips them. This module
+  # defines all four: Brevo has a genuine multi-account opt-out concept,
+  # and a polling cadence too slow for the generic Oban-history
+  # last-poll derivation to survive the Pruner.
 
   # Number of distinct active brevo_api integrations — the admin panel's
   # "N active accounts" Integration-column count.
@@ -82,6 +84,31 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingManager do
 
     BrevoIntegrations.active_integrations_with_names()
     |> Enum.map(fn {uuid, name} -> {uuid, name, not MapSet.member?(excluded, uuid)} end)
+  end
+
+  # Brevo's own durable last-cycle timestamp, rather than
+  # EventTracker.last_polled_at/1's generic Oban-history derivation: the
+  # polling interval here starts at 30s and is realistically minutes, so
+  # the last `completed` job is routinely gone by the time anyone opens
+  # the panel (Oban.Plugins.Pruner's max_age defaults to 60s) and the
+  # Last-poll column would read "Never polled yet" for a healthy chain.
+  # `run_cycle/1` writes this setting every cycle — including a no-op one
+  # — so it means the same thing the derivation does.
+  @impl PhoenixKit.Modules.Emails.EventTracker
+  def last_polled_at do
+    case Emails.get_brevo_last_polled_at() do
+      nil ->
+        nil
+
+      iso8601 when is_binary(iso8601) ->
+        case DateTime.from_iso8601(iso8601) do
+          {:ok, datetime, _offset} -> datetime
+          {:error, _reason} -> nil
+        end
+
+      _other ->
+        nil
+    end
   end
 
   # Flips one integration's polling opt-out (see accounts/0). A uuid

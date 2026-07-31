@@ -15,6 +15,7 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingManagerTest do
   alias PhoenixKit.Modules.Emails
   alias PhoenixKit.Modules.Emails.BrevoPollingJob
   alias PhoenixKit.Modules.Emails.BrevoPollingManager
+  alias PhoenixKit.Modules.Emails.EventTracker
   alias PhoenixKitEmails.Test.Repo
 
   setup do
@@ -209,6 +210,40 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingManagerTest do
 
       assert BrevoPollingManager.toggle_account_polling(stale_uuid) == {:ok, :ignored}
       assert Emails.get_brevo_polling_excluded_integrations() == []
+    end
+  end
+
+  describe "last_polled_at/0" do
+    test "nil before any cycle has recorded one" do
+      assert BrevoPollingManager.last_polled_at() == nil
+    end
+
+    # The generic EventTracker.last_polled_at/1 derivation reads the last
+    # `completed` Oban job, which Oban.Plugins.Pruner deletes after 60s by
+    # default — shorter than Brevo's 30s FLOOR, let alone its real
+    # cadence, so the panel's Last-poll column read "Never polled yet" for
+    # a healthy chain. The durable setting BrevoPollingJob already writes
+    # every cycle is what the wrapper must prefer, with no completed job
+    # in the table at all.
+    test "the wrapper prefers this tracker's durable setting over Oban job history" do
+      recorded = DateTime.utc_now() |> DateTime.truncate(:second)
+      {:ok, _} = Emails.set_brevo_last_polled_at(recorded)
+
+      worker = BrevoPollingJob.worker_name()
+      refute Repo.exists?(from(j in Oban.Job, where: j.worker == ^worker))
+
+      assert DateTime.compare(EventTracker.last_polled_at(BrevoPollingManager), recorded) == :eq
+    end
+
+    test "nil rather than a crash when the stored value isn't a parseable timestamp" do
+      {:ok, _} =
+        PhoenixKit.Settings.update_setting_with_module(
+          "brevo_last_polled_at",
+          "not-a-timestamp",
+          "email_system"
+        )
+
+      assert EventTracker.last_polled_at(BrevoPollingManager) == nil
     end
   end
 
