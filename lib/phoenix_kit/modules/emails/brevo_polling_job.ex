@@ -412,7 +412,10 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingJob do
 
     case BrevoClient.fetch_events(api_key, params, req_options()) do
       {:ok, events} ->
-        Enum.each(events, &process_event/1)
+        events
+        |> Enum.count(&(process_event(&1) == :skipped_foreign))
+        |> log_foreign_skips(length(events))
+
         {:ok, events, limit}
 
       {:error, reason} ->
@@ -563,6 +566,21 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingJob do
     end)
   end
 
+  # Per-event skips are :debug (a shared account can make them the common
+  # case, and one line each would drown the log), so summarize per page:
+  # the skip path is otherwise invisible, and it is not purely foreign mail
+  # — an event for OUR mail also lands here when the send never recorded a
+  # provider message_id. A page that is suddenly all skips is the signal
+  # that something upstream of the poller broke.
+  defp log_foreign_skips(0, _total), do: :ok
+
+  defp log_foreign_skips(skipped, total) do
+    Logger.info(
+      "Brevo Polling Job: skipped #{skipped}/#{total} event(s) with no matching sent email " <>
+        "(foreign mail on a shared account, or a send whose message_id never got logged)"
+    )
+  end
+
   defp process_event(brevo_event) do
     case BrevoEventNormalizer.normalize(brevo_event) do
       {:ok, event_data} ->
@@ -604,7 +622,7 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingJob do
           "matching sent email (foreign mail on a shared Brevo account) — skipping"
       )
 
-      :ok
+      :skipped_foreign
     else
       case SQSProcessor.process_email_event(event_data) do
         {:ok, _result} ->

@@ -215,17 +215,35 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
 
   @doc false
   # Everything the poller needs EXCEPT the sqs_polling_enabled toggle: the
-  # system switch, the SES-events switch, and the sender-aware gate below.
-  # A forced (poll_now/0) cycle bypasses the toggle but never these —
-  # mirroring BrevoPollingJob, whose `forced?` bypasses
-  # brevo_events_enabled but never Emails.enabled?/0 or its profile gate.
-  # This is exactly `EventTracker.eligible?/0`'s SES definition
-  # (SQSPollingManager.eligible?/0 delegates here) — not `defp` for that
-  # reuse, same testability rationale as `should_poll?/0` above.
+  # system switch, the SES-events switch, a queue to poll, and the
+  # sender-aware gate below. A forced (poll_now/0) cycle bypasses the
+  # toggle but never these — mirroring BrevoPollingJob, whose `forced?`
+  # bypasses brevo_events_enabled but never Emails.enabled?/0 or its
+  # profile gate. This is exactly `EventTracker.eligible?/0`'s SES
+  # definition (SQSPollingManager.eligible?/0 delegates here) — not `defp`
+  # for that reuse, same testability rationale as `should_poll?/0` above.
   def pollable_ignoring_toggle? do
     Emails.enabled?() and
       Emails.ses_events_enabled?() and
+      queue_url_configured?() and
       ses_actively_configured?()
+  end
+
+  # Carries the precondition that used to live in the supervisor's own
+  # `has_sqs_configuration?/0` boot gate. Once boot started going through
+  # `EventTrackerReconciler.reconcile/0`, eligible?/0 became the only gate
+  # left, and without this a deployment with SES credentials and the toggle
+  # on but no queue URL would start a chain at boot, have the reconcile Cron
+  # resurrect it every couple of minutes, and log `validate_configuration/1`'s
+  # "SQS queue URL not configured" on the @misconfig_backoff_ms cadence
+  # forever — while the admin panel, seeing live jobs, called it :active /
+  # "Running normally". Folded into eligible?/0 the same state reads
+  # :idle_no_integration, which is what it is. Checked before the
+  # sender-aware gate: a Settings read, no DB round trip.
+  defp queue_url_configured? do
+    url = Emails.get_sqs_config().queue_url
+
+    is_binary(url) and url != ""
   end
 
   # Sender-aware gate, mirroring the (parallel) Brevo poller design — see

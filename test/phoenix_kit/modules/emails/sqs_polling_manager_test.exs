@@ -121,9 +121,19 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingManagerTest do
       assert SQSPollingManager.integration_count() == 0
     end
 
-    test "1 once an aws_ses integration + enabled send profile exist" do
+    test "1 once an aws_ses integration + enabled send profile + a queue exist" do
       create_ses_profile()
+      # integration_count/0 mirrors eligible?/0, which counts a queue to poll
+      # as part of "a working SES event source".
+      {:ok, _} = Emails.set_sqs_queue_url("https://sqs.example.com/queue")
+
       assert SQSPollingManager.integration_count() == 1
+    end
+
+    test "0 with an integration + profile but no queue URL to poll" do
+      create_ses_profile()
+
+      assert SQSPollingManager.integration_count() == 0
     end
   end
 

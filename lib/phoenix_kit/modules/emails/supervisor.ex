@@ -70,8 +70,8 @@ defmodule PhoenixKit.Modules.Emails.Supervisor do
 
   require Logger
 
-  alias PhoenixKit.Modules.Emails
   alias PhoenixKit.Modules.Emails.BrevoPollingManager
+  alias PhoenixKit.Modules.Emails.EventTracker
   alias PhoenixKit.Modules.Emails.EventTrackerReconciler
   alias PhoenixKit.Modules.Emails.SQSPollingManager
 
@@ -194,39 +194,31 @@ defmodule PhoenixKit.Modules.Emails.Supervisor do
   end
 
   ## --- Boot gates (public @doc false for unit tests) ---
+  #
+  # Kept as named predicates because they read well at a call site and their
+  # own test covers them, but they are NOT a second definition of the gate:
+  # boot goes through `EventTrackerReconciler.reconcile/0`, which starts a
+  # tracker's chain iff `EventTracker.should_run?/1`. Delegating means they
+  # cannot drift from what boot actually does — the earlier hand-written
+  # copies had already drifted (SQS's omitted the sender-aware gate; Brevo's
+  # omitted the active-integration requirement).
 
   @doc false
-  # Whether boot should re-seed the SQS self-scheduling chain. Requires the
-  # system switch, SES events, the SQS polling toggle, and a queue URL —
-  # without a queue URL enable would only insert a job that immediately
-  # backs off on misconfig.
-  def should_start_sqs_polling? do
-    Emails.enabled?() and
-      Emails.ses_events_enabled?() and
-      Emails.sqs_polling_enabled?() and
-      has_sqs_configuration?()
-  end
+  # Whether boot re-seeds the SQS self-scheduling chain: the system switch,
+  # SES events, a queue URL and an actively-configured sender (all
+  # `eligible?/0`), plus the sqs_polling toggle (`enabled?/0`).
+  def should_start_sqs_polling?, do: EventTracker.should_run?(SQSPollingManager)
 
   @doc false
-  # Whether boot should re-seed the Brevo self-scheduling chain. Mirrors
-  # SQS's role: if the toggle is on across a restart, the chain must come
-  # back even when no Oban row survived (crash before schedule_next_poll,
-  # wiped jobs table, etc.). Zero active Brevo profiles is fine — the job
-  # no-ops each cycle and still records last_polled_at (see
-  # BrevoPollingJob), same as a live chain with no senders.
-  def should_start_brevo_polling? do
-    Emails.enabled?() and Emails.brevo_events_enabled?()
-  end
+  # Whether boot re-seeds the Brevo self-scheduling chain: the system switch
+  # and at least one active Brevo integration (`eligible?/0`), plus the
+  # brevo_events toggle (`enabled?/0`). A toggle with no integration behind
+  # it deliberately does NOT seed a chain — the reconcile Cron picks the
+  # tracker up within one tick of an integration appearing, so nothing needs
+  # a manual re-toggle either way.
+  def should_start_brevo_polling?, do: EventTracker.should_run?(BrevoPollingManager)
 
   ## --- Private Functions ---
-
-  # Checks for minimum SQS configuration
-  defp has_sqs_configuration? do
-    sqs_config = Emails.get_sqs_config()
-
-    not is_nil(sqs_config.queue_url) and
-      sqs_config.queue_url != ""
-  end
 
   # Always spawns the Task — reconcile must run unconditionally, since it
   # is the mechanism that decides which trackers to start (and the only

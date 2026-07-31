@@ -34,7 +34,12 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTrackingTe
     }
   end
 
+  # Everything SES eligibility needs: a sender pointed at an aws_ses
+  # integration AND a queue to poll (callers below use this to mean "the SES
+  # tracker is eligible now").
   defp create_ses_profile do
+    {:ok, _} = Emails.set_sqs_queue_url("https://sqs.example.com/queue")
+
     {:ok, %{uuid: integration_uuid}} =
       Integrations.add_connection("aws_ses", "SES #{System.unique_integer([:positive])}")
 

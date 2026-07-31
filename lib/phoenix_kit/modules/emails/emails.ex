@@ -1937,6 +1937,10 @@ defmodule PhoenixKit.Modules.Emails do
   other senders.
   """
   def email_log_exists?(message_id) when is_binary(message_id) do
+    # The `enabled?()` half decides nothing for today's only caller —
+    # BrevoPollingJob.perform/1 returns before any event processing when the
+    # system is off — but this is a public function, so it keeps the guard
+    # instead of assuming every future caller pre-checks.
     enabled?() and Log.exists_by_any_message_id?(message_id)
   end
 
