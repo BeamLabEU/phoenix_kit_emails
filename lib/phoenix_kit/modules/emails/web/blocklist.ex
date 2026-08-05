@@ -37,6 +37,28 @@ defmodule PhoenixKit.Modules.Emails.Web.Blocklist do
   """
 
   use PhoenixKitWeb, :live_view
+
+  # search_term, reason_filter, status_filter, sort_by, sort_dir, and page all
+  # live in the URL so the list is a real, shareable, reload-proof address.
+  use PhoenixKitWeb.Live.UrlState,
+    params: [
+      search_term: [default: "", url_key: "q"],
+      reason_filter: [
+        default: "",
+        url_key: "reason",
+        in: ~w(manual_block spam bounce_limit complaint abuse)
+      ],
+      status_filter: [default: "all", url_key: "status", in: ~w(all expired)],
+      sort_by: [
+        default: :inserted_at,
+        url_key: "sort",
+        cast: :atom,
+        in: [:email, :reason, :inserted_at, :expires_at]
+      ],
+      sort_dir: [default: :desc, url_key: "dir", cast: :atom, in: [:asc, :desc]],
+      page: [default: 1, url_key: "page", cast: :integer, min: 1]
+    ]
+
   use Gettext, backend: PhoenixKit.Modules.Emails.Gettext
   import PhoenixKitWeb.Components.Core.Icon
   import PhoenixKitWeb.Components.Core.TableDefault
@@ -68,18 +90,16 @@ defmodule PhoenixKit.Modules.Emails.Web.Blocklist do
         Process.send_after(self(), :refresh_blocklist, @refresh_interval)
       end
 
+      # :search_term, :reason_filter, :status_filter, :sort_by, :sort_dir, and
+      # :page are set from the query string by UrlState before mount/3 runs.
+      # Re-assigning them here would overwrite a shared link's state with the
+      # defaults. The list is loaded by handle_url_state/2 instead.
       socket =
         socket
         |> assign(:loading, true)
         |> assign(:blocked_emails, [])
         |> assign(:total_blocked, 0)
-        |> assign(:page, 1)
         |> assign(:per_page, @per_page)
-        |> assign(:search_term, "")
-        |> assign(:reason_filter, "")
-        |> assign(:status_filter, "all")
-        |> assign(:sort_by, :inserted_at)
-        |> assign(:sort_dir, :desc)
         |> assign(:selected_emails, [])
         |> assign(:show_add_form, false)
         |> assign(:show_import_form, false)
@@ -88,7 +108,6 @@ defmodule PhoenixKit.Modules.Emails.Web.Blocklist do
         |> assign(:statistics, %{})
         |> assign(:page_title, gettext("Email Blocklist"))
         |> assign(:page_subtitle, gettext("Manage blocked email addresses"))
-        |> load_blocklist_data()
 
       {:ok, socket}
     else
@@ -98,6 +117,19 @@ defmodule PhoenixKit.Modules.Emails.Web.Blocklist do
        |> push_navigate(to: Routes.path("/admin"))}
     end
   end
+
+  # The list is loaded here rather than in mount/3: UrlState calls this after
+  # mount and on every change to the query string, so one code path handles the
+  # first render, a shared link, and the Back button alike.
+  @impl true
+  def handle_url_state(_state, socket), do: load_blocklist_data(socket)
+
+  # Required because this module annotates other callbacks with @impl true.
+  # The UrlState __before_compile__ would inject a bare stub, but a bare def
+  # in an @impl-annotated module triggers a missing-@impl warning that
+  # --warnings-as-errors promotes to a compile error.
+  @impl true
+  def handle_params(_params, _uri, socket), do: {:noreply, socket}
 
   ## --- Event Handlers ---
 
@@ -109,38 +141,30 @@ defmodule PhoenixKit.Modules.Emails.Web.Blocklist do
      |> load_blocklist_data()}
   end
 
+  # replace: true — the input is debounced, so each pause in typing would
+  # otherwise write a history entry and Back would walk the query backwards
+  # instead of leaving the page. The clear-search button also fires this event
+  # with search="" and inherits the same replace: true behaviour.
   @impl true
   def handle_event("filter_search", %{"search" => search_term}, socket) do
-    {:noreply,
-     socket
-     |> assign(:search_term, search_term)
-     |> assign(:page, 1)
-     |> load_blocklist_data()}
+    {:noreply, push_url_state(socket, [search_term: search_term], replace: true)}
   end
 
   @impl true
   def handle_event("filter_reason", %{"reason" => reason}, socket) do
-    {:noreply,
-     socket
-     |> assign(:reason_filter, reason)
-     |> assign(:page, 1)
-     |> load_blocklist_data()}
+    {:noreply, push_url_state(socket, reason_filter: reason)}
   end
 
   @impl true
   def handle_event("filter_status", %{"status" => status}, socket) do
-    {:noreply,
-     socket
-     |> assign(:status_filter, status)
-     |> assign(:page, 1)
-     |> load_blocklist_data()}
+    {:noreply, push_url_state(socket, status_filter: status)}
   end
 
   @impl true
   def handle_event("toggle_sort", %{"by" => by}, socket) do
     # Clicking a sortable column header: validate the field, then toggle the
     # direction if it's already the active sort, otherwise switch to that field
-    # ascending. Resets to page 1 and reloads.
+    # ascending. Page resets to 1 automatically (UrlState page_param).
     field = validate_sort_by(by)
 
     sort_dir =
@@ -150,22 +174,14 @@ defmodule PhoenixKit.Modules.Emails.Web.Blocklist do
         :asc
       end
 
-    {:noreply,
-     socket
-     |> assign(:sort_by, field)
-     |> assign(:sort_dir, sort_dir)
-     |> assign(:page, 1)
-     |> load_blocklist_data()}
+    {:noreply, push_url_state(socket, sort_by: field, sort_dir: sort_dir)}
   end
 
   @impl true
   def handle_event("change_page", %{"page" => page}, socket) do
     case Integer.parse(page) do
       {page_num, _} when page_num > 0 ->
-        {:noreply,
-         socket
-         |> assign(:page, page_num)
-         |> load_blocklist_data()}
+        {:noreply, push_url_state(socket, page: page_num)}
 
       _ ->
         {:noreply, socket}
