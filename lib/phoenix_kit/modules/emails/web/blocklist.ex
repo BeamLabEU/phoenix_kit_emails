@@ -43,11 +43,15 @@ defmodule PhoenixKit.Modules.Emails.Web.Blocklist do
   use PhoenixKitWeb.Live.UrlState,
     params: [
       search_term: [default: "", url_key: "q"],
-      reason_filter: [
-        default: "",
-        url_key: "reason",
-        in: ~w(manual_block spam bounce_limit complaint abuse)
-      ],
+      # No `in:` here on purpose. Reasons are free-form strings: the schema
+      # casts :reason without validate_inclusion, the SQS processor writes
+      # "hard_bounce", the rate limiter writes "complaint_spam", and CSV import
+      # takes whatever the file says. The dropdown is built from the reasons
+      # actually present in the data, so a fixed whitelist would silently
+      # reject the very options the screen offers — and since the rejected
+      # value falls back to the default, the resulting URL is unchanged and
+      # the callback never fires, leaving the click with no visible effect.
+      reason_filter: [default: "", url_key: "reason"],
       status_filter: [default: "all", url_key: "status", in: ~w(all expired)],
       sort_by: [
         default: :inserted_at,
