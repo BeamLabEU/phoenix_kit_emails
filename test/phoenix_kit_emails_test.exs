@@ -115,4 +115,58 @@ defmodule PhoenixKitEmailsTest do
 
     assert is_binary(provider)
   end
+
+  describe "Blocklist URL state" do
+    alias PhoenixKit.Modules.Emails.Web.Blocklist
+
+    defp spec(key) do
+      Blocklist.__phoenix_kit_url_state__().params |> Enum.find(&(&1.key == key))
+    end
+
+    test "sort_by accepts exactly the columns list_blocklist/1 can order by" do
+      # Three lists have to agree: this whitelist, validate_sort_by/1's, and the
+      # `field in [...]` guard in RateLimiter.list_blocklist/1. A column present
+      # in the header but missing here is decoded back to the default, so the
+      # click appears to do nothing.
+      assert spec(:sort_by).allowed == [:email, :reason, :inserted_at, :expires_at]
+      assert spec(:sort_by).default == :inserted_at
+      assert spec(:sort_dir).allowed == [:asc, :desc]
+    end
+
+    test "reason_filter stays free-form" do
+      # Reasons are whatever the SQS processor, the rate limiter or a CSV import
+      # wrote, and the dropdown is built from the reasons actually in the data.
+      # A whitelist here rejects the very options the screen offers, and because
+      # a rejected value falls back to the default the URL never changes and the
+      # click has no visible effect. Keep it nil.
+      assert spec(:reason_filter).allowed == nil
+      assert spec(:status_filter).allowed == ~w(all expired)
+    end
+
+    test "clamp_page/2 keeps the pagination window ascending" do
+      # ?page=900 on a two-page list used to leave @page at 900, making the
+      # template's max(1, @page - 2)..min(@total_pages, @page + 2) window a
+      # descending range — 896 buttons. The URL ceiling of 1_000_000 made that
+      # ~1M DOM nodes from a single crafted link.
+      assert Blocklist.clamp_page(900, 2) == 2
+      assert Blocklist.clamp_page(1_000_000, 2) == 2
+      assert Blocklist.clamp_page(2, 5) == 2
+      assert Blocklist.clamp_page(1, 0) == 1
+
+      for {page, total} <- [{900, 2}, {1_000_000, 2}, {1, 0}, {3, 7}] do
+        clamped = Blocklist.clamp_page(page, total)
+        window = max(1, clamped - 2)..min(max(total, 1), clamped + 2)//1
+        # Range.size/1 rather than Enum.count/1: it is the count the inverted
+        # range would blow up (997..2//-1 has size 996), so a ceiling of 5 is
+        # the assertion that the window stayed a window.
+        assert Range.size(window) in 1..5
+      end
+    end
+
+    test "page is bounded on both ends" do
+      assert spec(:page).min == 1
+      assert spec(:page).max == 1_000_000
+      assert spec(:page).default == 1
+    end
+  end
 end

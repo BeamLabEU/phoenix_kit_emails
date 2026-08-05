@@ -516,7 +516,10 @@
                 </button>
               <% end %>
 
-              <%= for page_num <- max(1, @page - 2)..min(@total_pages, @page + 2) do %>
+              <%!-- //1 so the window can never invert into a descending range,
+                    which would render one button per skipped page. @page is
+                    clamped to @total_pages before this renders. --%>
+              <%= for page_num <- max(1, @page - 2)..min(@total_pages, @page + 2)//1 do %>
                 <button
                   phx-click="change_page"
                   phx-value-page={page_num}

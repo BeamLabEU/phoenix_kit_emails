@@ -38,6 +38,14 @@ defmodule PhoenixKit.Modules.Emails.Web.Blocklist do
 
   use PhoenixKitWeb, :live_view
 
+  # Whitelist of fields that may be passed to RateLimiter.list_blocklist/1
+  # :order_by. Anything outside this set falls back to the default inserted_at.
+  # Declared before the UrlState spec below so both the URL decoder and
+  # validate_sort_by/1 read the same list — a sort column added to one but not
+  # the other is accepted by the header click and then silently dropped by the
+  # URL, which is exactly how the reason filter broke.
+  @sort_fields [:email, :reason, :inserted_at, :expires_at]
+
   # search_term, reason_filter, status_filter, sort_by, sort_dir, and page all
   # live in the URL so the list is a real, shareable, reload-proof address.
   use PhoenixKitWeb.Live.UrlState,
@@ -53,12 +61,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Blocklist do
       # the callback never fires, leaving the click with no visible effect.
       reason_filter: [default: "", url_key: "reason"],
       status_filter: [default: "all", url_key: "status", in: ~w(all expired)],
-      sort_by: [
-        default: :inserted_at,
-        url_key: "sort",
-        cast: :atom,
-        in: [:email, :reason, :inserted_at, :expires_at]
-      ],
+      sort_by: [default: :inserted_at, url_key: "sort", cast: :atom, in: @sort_fields],
       sort_dir: [default: :desc, url_key: "dir", cast: :atom, in: [:asc, :desc]],
       page: [default: 1, url_key: "page", cast: :integer, min: 1]
     ]
@@ -377,15 +380,25 @@ defmodule PhoenixKit.Modules.Emails.Web.Blocklist do
   end
 
   defp load_blocklist_data(socket) do
-    filters = build_filters(socket.assigns)
+    total_blocked = count_blocked_emails(build_filters(socket.assigns))
+
+    # Calculate total pages for pagination. Floor of 1 so an empty list still
+    # has a page to sit on, which is what clamp_page/2 below measures against.
+    total_pages = max(ceil(total_blocked / socket.assigns.per_page), 1)
+
+    # Now that :page comes out of the URL it can point past the end of the list
+    # — ?page=900 on a two-page list, or the 1_000_000 ceiling UrlState allows.
+    # Clamping before the query keeps the offset meaningful and, more to the
+    # point, keeps the template's max(1, @page - 2)..min(@total_pages, @page + 2)
+    # window ascending: left unclamped it becomes a *descending* range and
+    # renders one button per skipped page. Assigning the corrected page directly
+    # is safe — UrlState reads its merge base back from the assigns, so the next
+    # patch carries this value rather than resurrecting the one from the URL.
+    socket = assign(socket, :page, clamp_page(socket.assigns.page, total_pages))
 
     # Load blocked emails using RateLimiter API
-    blocked_emails = load_blocked_emails(filters)
-    total_blocked = count_blocked_emails(filters)
+    blocked_emails = load_blocked_emails(build_filters(socket.assigns))
     statistics = load_blocklist_statistics()
-
-    # Calculate total pages for pagination
-    total_pages = ceil(total_blocked / socket.assigns.per_page)
 
     socket
     |> assign(:blocked_emails, blocked_emails)
@@ -429,9 +442,13 @@ defmodule PhoenixKit.Modules.Emails.Web.Blocklist do
     |> Map.put(:order_dir, assigns.sort_dir)
   end
 
-  # Whitelist of fields that may be passed to RateLimiter.list_blocklist/1
-  # :order_by. Anything outside this set falls back to the default inserted_at.
-  @sort_fields [:email, :reason, :inserted_at, :expires_at]
+  # The page a request can actually land on. `@doc false` rather than private so
+  # the pagination-window regression can be pinned by a test without a database.
+  @doc false
+  @spec clamp_page(integer(), integer()) :: integer()
+  def clamp_page(page, total_pages) when is_integer(page) and is_integer(total_pages) do
+    page |> max(1) |> min(max(total_pages, 1))
+  end
 
   defp validate_sort_by(value) when is_atom(value) do
     if value in @sort_fields, do: value, else: :inserted_at

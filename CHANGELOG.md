@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.1.21 - 2026-08-05
+
+### Added
+- **The blocklist screen's state lives in the URL.** Search, reason filter, status filter, sort column, sort direction and page are declared through `PhoenixKitWeb.Live.UrlState` and encoded into the query string (`?q=&reason=&status=&sort=&dir=&page=`), so a filtered list is a real address: shareable, bookmarkable, reproduced by a reload, and walked by the browser's Back button instead of being left. Values equal to their default are omitted, so an unfiltered list stays at the bare path. (#25)
+
+### Fixed
+- **An out-of-range `?page=` no longer renders one button per skipped page.** With `page` now arriving from the URL rather than only from the pagination buttons, it could point far past the end of the list — `?page=900` on a two-page list, up to the decoder's ceiling of 1,000,000. The template's `max(1, @page - 2)..min(@total_pages, @page + 2)` window then inverted into a *descending* range, emitting one `<button>` per skipped page: ~1M DOM nodes from a single crafted or stale link. The page is clamped to the available range before the query runs, and the window carries an explicit `//1` step. (#25)
+- **The blocklist's sortable-column whitelist is declared once.** The URL decoder and `validate_sort_by/1` had separate copies of the same four atoms; a column added to one but not the other is accepted by the header click and then silently dropped by the URL, leaving the click with no visible effect and no error anywhere — the same failure the reason filter hit before merge. (#25)
+- The blocklist no longer loads its list, count and statistics inside `mount/3`, where LiveView's two-phase mount ran every one of those queries twice per page load. The load moved to the URL-state callback, so one code path serves the first render, a shared link and a Back press alike. (#25)
+
+### Changed
+- Pruned eight stale `mix.lock` entries (`igniter`, `sourceror`, `rewrite`, `spitfire`, `owl`, `ex_ast`, `glob_ex`, `text_diff`) left behind by an earlier dependency upgrade. `mix precommit`'s `deps.unlock --check-unused` step was failing on them.
+
 ## 0.1.20 - 2026-07-31
 
 ### Added
