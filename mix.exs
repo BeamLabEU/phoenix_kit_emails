@@ -1,7 +1,7 @@
 defmodule PhoenixKitEmails.MixProject do
   use Mix.Project
 
-  @version "0.1.21"
+  @version "0.1.22"
   @source_url "https://github.com/BeamLabEU/phoenix_kit_emails"
 
   def project do
@@ -53,16 +53,19 @@ defmodule PhoenixKitEmails.MixProject do
     [
       # Core
       {:hackney, "~> 4.0"},
-      # ~> 1.7.217 is the floor for the optional `maybe_enqueue/2` provider
-      # callback the send queue hangs off (Emails.Queue / Emails.SendJob). Below
-      # it the callback does not exist in the behaviour, so `@impl` on the
-      # implementation warns and this package's own `--warnings-as-errors`
-      # precommit fails. (1.7.190 was the previous floor, for
-      # email_settings_sections/0.)
-      # 1.7.231 is the floor: that release ships
-      # `PhoenixKitWeb.Live.UrlState`, which 1 LiveView file in this
-      # module `use`. Anything below it resolves a core with no such
-      # module, and the failure surfaces in the consumer's build.
+      # ~> 1.7.231 is the floor: that release ships `PhoenixKitWeb.Live.UrlState`,
+      # which one LiveView here (web/blocklist.ex) `use`s. Anything below it
+      # resolves a core with no such module, and `use` of a missing module is a
+      # compile error — one that surfaces in the *consumer's* build, never here,
+      # since this repo's own lockfile is always well above the floor. That is
+      # what makes a stale floor invisible; do not lower this pin.
+      #
+      # Superseded requirements, kept so a future raise knows what it covers:
+      # 1.7.217 for the optional `maybe_enqueue/2` provider callback the send
+      # queue hangs off (Emails.Queue / Emails.SendJob) — below it the callback
+      # is not in the behaviour, so `@impl` on the implementation warns and this
+      # package's `--warnings-as-errors` precommit fails. 1.7.190 before that,
+      # for email_settings_sections/0.
       {:phoenix_kit, "~> 1.7.231"},
       {:gettext, "~> 1.0"},
       {:phoenix_live_view, "~> 1.1"},

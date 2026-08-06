@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.22 - 2026-08-06
+
+### Fixed
+- **Requires `phoenix_kit ~> 1.7.231`** — the release that ships `PhoenixKitWeb.Live.UrlState`. 0.1.21 adopted that module for the blocklist screen but left the floor at `~> 1.7.217`, which resolves any core from 1.7.217 upward. Resolving anything in 1.7.217–1.7.230 gives a core with no such module, and `use` of a missing module is a compile error — one that can only appear in a **consumer's** build, since this package's own lockfile has always been well above the floor, so nothing here ever failed. It bites an app whose `mix.lock` already pins an older core (Hex keeps the locked version, because the stale requirement accepts it) or one that pins core itself. The floor was corrected in #26, but 0.1.21 had already been published with the old requirement, so this release is what actually delivers the fix. (#26)
+
+### Internal
+- Post-merge review of #26: `dev_docs/pull_requests/2026/26-core-version-floor/CLAUDE_REVIEW.md`. Verified the chosen floor against the Hex tarball rather than the changelog alone — `url_state.ex` is byte-identical in 1.7.231 and the locked 1.7.232, and 1.7.232 adds no modules this package references, so 1.7.231 is both sufficient and not needlessly high.
+- The `:phoenix_kit` comment in `mix.exs` states one floor again. The #26 rationale had been appended below the older 1.7.217 paragraph, leaving two consecutive comments each opening "X is the floor" — the first of them wrong, in the one comment whose job is to stop someone lowering the pin. Superseded requirements are now labelled as history.
+
 ## 0.1.21 - 2026-08-05
 
 ### Added
