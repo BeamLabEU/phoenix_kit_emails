@@ -59,7 +59,11 @@ defmodule PhoenixKitEmails.MixProject do
       # implementation warns and this package's own `--warnings-as-errors`
       # precommit fails. (1.7.190 was the previous floor, for
       # email_settings_sections/0.)
-      {:phoenix_kit, "~> 1.7.217"},
+      # 1.7.231 is the floor: that release ships
+      # `PhoenixKitWeb.Live.UrlState`, which 1 LiveView file in this
+      # module `use`. Anything below it resolves a core with no such
+      # module, and the failure surfaces in the consumer's build.
+      {:phoenix_kit, "~> 1.7.231"},
       {:gettext, "~> 1.0"},
       {:phoenix_live_view, "~> 1.1"},
       {:oban, "~> 2.20"},
