@@ -24,10 +24,28 @@ defmodule PhoenixKit.Modules.Emails.SecretScrubber do
 
   The last path segment of any URL whose path contains a token-bearing segment
   (`reset-password`, `confirm`, `magic-link`, `verify`, `finish`, `invitation`),
-  and the value of any `token`/`t` query parameter. Matching on segment NAMES
-  rather than whole paths is deliberate: the host application chooses the route
-  prefix (`PhoenixKit.Utils.Routes.url/1`), and locale-prefixed twins exist for
-  every auth route, so a full-path allowlist would silently go stale.
+  and the value of a `token` / `t` / `code` / `invitation` / `invite` query
+  parameter. Matching on segment NAMES rather than whole paths is deliberate:
+  the host application chooses the route prefix
+  (`PhoenixKit.Utils.Routes.url/1`), and locale-prefixed twins exist for every
+  auth route, so a full-path allowlist would silently go stale.
+
+  Both forms are needed because core uses both: password reset, confirmation,
+  email change, magic link and magic-link registration put the token in a path
+  segment, while an organisation invitation puts it in `?invitation=` on
+  `/users/register` — a path carrying no auth segment whatsoever.
+
+  ## What is deliberately NOT scrubbed
+
+  The send queue. `PhoenixKit.Modules.Emails.Queue.serialize/1` writes the body
+  into `oban_jobs.args`, and `SendJob` deserialises those args to perform the
+  ACTUAL delivery — scrubbing there would mail the recipient a `[REDACTED]`
+  link instead of a working one. The queue is the message in transit, not a
+  copy of it. Auth mail stays out of the queue by default
+  (`auth_mail_excluded?/1`, setting `email_queue_auth_mail`, default off); an
+  operator who turns that on accepts live tokens sitting in `oban_jobs` for the
+  lifetime of the job row, which is a retention decision, not something a
+  scrubber can fix.
 
   The link is left in place with its token replaced, so the log still shows
   which mail was sent and where it pointed.
@@ -52,7 +70,17 @@ defmodule PhoenixKit.Modules.Emails.SecretScrubber do
   /x
 
   # `?token=…` / `&t=…` in any URL, including routes not covered above.
-  @token_query ~r/([?&](?:token|t|code)=)([^\s"'<>&\)\]]{8,})/i
+  #
+  # `invitation` earns its place by name: core sends organisation invitations as
+  # `/users/register?invitation=<token>` (`Users.Invitations.maybe_send_invitation_email/3`),
+  # a path with no auth segment at all, so the path pattern above cannot see it.
+  # It is a 7-day single-use bearer that registers the invited address — exactly
+  # the kind of credential this module exists to keep out of the log.
+  #
+  # `&amp;` is accepted alongside `?`/`&` because an HTML body carries the
+  # entity-encoded form, and a token in the SECOND query parameter would
+  # otherwise be preceded by `;` and slip past.
+  @token_query ~r/((?:[?&]|&amp;)(?:token|t|code|invitation|invite)=)([^\s"'<>&\)\]]{8,})/i
 
   @doc """
   Returns `body` with every authentication token replaced by `#{@placeholder}`.

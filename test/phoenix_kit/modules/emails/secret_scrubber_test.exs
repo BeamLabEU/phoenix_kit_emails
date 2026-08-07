@@ -43,6 +43,35 @@ defmodule PhoenixKit.Modules.Emails.SecretScrubberTest do
       end
     end
 
+    test "an organisation invitation, whose path carries no auth segment at all" do
+      # Core builds this as `/users/register?invitation=<token>` — the path
+      # pattern cannot see it, so the parameter name has to.
+      body = """
+      Acme Ltd has invited you to join their organization.
+
+      To accept the invitation, register an account by visiting the link below:
+
+      https://app.example.com/users/register?invitation=#{@token}
+
+      This invitation link will expire in 7 days.
+      """
+
+      scrubbed = SecretScrubber.scrub(body)
+
+      refute scrubbed =~ @token
+      assert scrubbed =~ "?invitation=[REDACTED]"
+    end
+
+    test "a token in a second query parameter of an HTML link, entity-encoded" do
+      body =
+        ~s|<a href="https://app.example.com/users/register?ref=x&amp;invitation=#{@token}">Join</a>|
+
+      scrubbed = SecretScrubber.scrub(body)
+
+      refute scrubbed =~ @token
+      assert scrubbed =~ "invitation=[REDACTED]"
+    end
+
     test "a token carried as a query parameter" do
       body = "Open https://app.example.com/invite?token=#{@token}&ref=newsletter"
 
