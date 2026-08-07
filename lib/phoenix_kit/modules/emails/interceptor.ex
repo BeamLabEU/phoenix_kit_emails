@@ -56,6 +56,7 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
   alias PhoenixKit.Modules.Emails.EmailLogData
   alias PhoenixKit.Modules.Emails.Event
   alias PhoenixKit.Modules.Emails.Log
+  alias PhoenixKit.Modules.Emails.SecretScrubber
   alias PhoenixKit.Modules.Emails.Utils
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias Swoosh.Email
@@ -599,10 +600,24 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
   defp extract_headers(_, _opts), do: %{}
 
   # Extract body preview (first 500+ characters)
-  defp extract_body_preview(%Email{} = email) do
+  #
+  # Scrubbed BEFORE slicing: a token that is cut in half by the 1000-character
+  # window is still most of a secret, and slicing first would also let a token
+  # straddle the boundary and escape the pattern entirely.
+  # Public only so a test can pin the scrub-then-strip ORDER at the real call
+  # site. A test that exercises `SecretScrubber.scrub/1` alone stays green while
+  # this pipeline leaks, which is exactly what happened when stripping ran first.
+  @doc false
+  def extract_body_preview(%Email{} = email) do
     body = email.text_body || email.html_body || ""
 
     body
+    # Scrub BEFORE stripping, not after: `strip_html_tags/1` rewrites every HTML
+    # entity to a space, so an entity-encoded `&amp;token=` becomes ` token=`
+    # and the `&amp;` alternative in the query pattern can never match. Order
+    # matters in the other direction too — `[REDACTED]` contains no markup and
+    # no entity, so stripping after scrubbing is lossless.
+    |> SecretScrubber.scrub()
     |> strip_html_tags()
     # Increased from 500 to 1000 as per plan
     |> String.slice(0, 1000)
@@ -611,16 +626,24 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
   end
 
   # Extract full body if enabled
+  #
+  # `body_full` is opt-in, but "the operator asked for full bodies" is not
+  # consent to store live password-reset and magic-link tokens — those are
+  # single-use credentials for an account, not message content. Both captures
+  # go through the same scrubber.
   defp extract_body_full(%Email{} = email, opts) do
     if Emails.save_body_enabled?() or Keyword.get(opts, :save_body, false) do
       text_body = email.text_body || ""
       html_body = email.html_body || ""
 
-      if String.length(html_body) > String.length(text_body) do
-        html_body
-      else
-        text_body
-      end
+      body =
+        if String.length(html_body) > String.length(text_body) do
+          html_body
+        else
+          text_body
+        end
+
+      SecretScrubber.scrub(body)
     else
       nil
     end
