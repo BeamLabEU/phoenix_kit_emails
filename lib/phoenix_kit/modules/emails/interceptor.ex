@@ -56,6 +56,7 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
   alias PhoenixKit.Modules.Emails.EmailLogData
   alias PhoenixKit.Modules.Emails.Event
   alias PhoenixKit.Modules.Emails.Log
+  alias PhoenixKit.Modules.Emails.SecretScrubber
   alias PhoenixKit.Modules.Emails.Utils
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias Swoosh.Email
@@ -599,11 +600,16 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
   defp extract_headers(_, _opts), do: %{}
 
   # Extract body preview (first 500+ characters)
+  #
+  # Scrubbed BEFORE slicing: a token that is cut in half by the 1000-character
+  # window is still most of a secret, and slicing first would also let a token
+  # straddle the boundary and escape the pattern entirely.
   defp extract_body_preview(%Email{} = email) do
     body = email.text_body || email.html_body || ""
 
     body
     |> strip_html_tags()
+    |> SecretScrubber.scrub()
     # Increased from 500 to 1000 as per plan
     |> String.slice(0, 1000)
     |> String.replace(~r/\s+/, " ")
@@ -611,16 +617,24 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
   end
 
   # Extract full body if enabled
+  #
+  # `body_full` is opt-in, but "the operator asked for full bodies" is not
+  # consent to store live password-reset and magic-link tokens — those are
+  # single-use credentials for an account, not message content. Both captures
+  # go through the same scrubber.
   defp extract_body_full(%Email{} = email, opts) do
     if Emails.save_body_enabled?() or Keyword.get(opts, :save_body, false) do
       text_body = email.text_body || ""
       html_body = email.html_body || ""
 
-      if String.length(html_body) > String.length(text_body) do
-        html_body
-      else
-        text_body
-      end
+      body =
+        if String.length(html_body) > String.length(text_body) do
+          html_body
+        else
+          text_body
+        end
+
+      SecretScrubber.scrub(body)
     else
       nil
     end
