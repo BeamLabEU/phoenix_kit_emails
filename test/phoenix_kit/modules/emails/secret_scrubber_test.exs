@@ -20,9 +20,12 @@ defmodule PhoenixKit.Modules.Emails.SecretScrubberTest do
                "Reset your password: https://app.example.com/users/reset-password/[REDACTED]"
     end
 
-    test "email confirmation, magic link, magic-link registration and QR login" do
+    test "email confirmation, email change, magic link, magic-link registration and QR login" do
       for url <- [
             "https://app.example.com/users/confirm/#{@token}",
+            # The email-change route core actually registers, hyphenated —
+            # `deliver_update_email_instructions/2` sends this one.
+            "https://app.example.com/dashboard/settings/confirm-email/#{@token}",
             "https://app.example.com/users/magic-link/#{@token}",
             "https://app.example.com/users/register/verify/#{@token}",
             "https://app.example.com/users/qr-login/finish/#{@token}"
@@ -94,6 +97,38 @@ defmodule PhoenixKit.Modules.Emails.SecretScrubberTest do
 
       refute scrubbed =~ @token
       assert scrubbed |> String.split("[REDACTED]") |> length() == 3
+    end
+  end
+
+  describe "hard input cannot make the scrubber quietly give up" do
+    # `String.replace/3` returns the subject UNCHANGED when PCRE exhausts its
+    # backtracking limit, so a pattern that can backtrack quadratically fails
+    # OPEN: the body sails through with its token intact and the log looks
+    # scrubbed. The scheme-anchored pattern this replaced did exactly that once
+    # a body carried ~20 KB of slash-heavy text ahead of the real link.
+    test "a slash-heavy body ahead of a real reset link is still redacted" do
+      noise = "https://app.example.com/" <> String.duplicate("confirm/", 10_000) <> "x"
+      body = "#{noise} Reset: https://app.example.com/users/reset-password/#{@token}"
+
+      refute SecretScrubber.scrub(body) =~ @token
+    end
+
+    test "and it does so in linear time" do
+      link = " Reset: https://app.example.com/users/reset-password/#{@token}"
+
+      timed = fn n ->
+        body = String.duplicate("https://app.example.com/confirm/", n) <> link
+        {us, out} = :timer.tc(fn -> SecretScrubber.scrub(body) end)
+        refute out =~ @token
+        us
+      end
+
+      # Warm the pattern so JIT/allocation noise does not land in the baseline.
+      timed.(1_000)
+
+      # Quadratic backtracking showed up here as ~16x for 4x the input; linear
+      # matching leaves plenty of headroom under this bound even on a busy CI box.
+      assert timed.(40_000) < timed.(10_000) * 8 + 10_000
     end
   end
 

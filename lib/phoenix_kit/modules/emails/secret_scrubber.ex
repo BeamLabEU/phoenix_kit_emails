@@ -22,10 +22,14 @@ defmodule PhoenixKit.Modules.Emails.SecretScrubber do
 
   ## What is scrubbed
 
-  The last path segment of any URL whose path contains a token-bearing segment
-  (`reset-password`, `confirm`, `magic-link`, `verify`, `finish`, `invitation`),
-  and the value of a `token` / `t` / `code` / `invitation` / `invite` query
-  parameter. Matching on segment NAMES rather than whole paths is deliberate:
+  The path segment immediately following a token-bearing segment
+  (`reset-password`, `confirm-email`, `confirm`, `magic-link`, `verify`,
+  `finish`, `invitation`), and the value of a `token` / `t` / `code` /
+  `invitation` / `invite` query parameter. Every auth route core emails puts the
+  token right after the segment — reset, confirmation, email change, magic link,
+  magic-link registration.
+
+  Matching on segment NAMES rather than whole paths is deliberate:
   the host application chooses the route prefix
   (`PhoenixKit.Utils.Routes.url/1`), and locale-prefixed twins exist for every
   auth route, so a full-path allowlist would silently go stale.
@@ -58,16 +62,32 @@ defmodule PhoenixKit.Modules.Emails.SecretScrubber do
 
   @placeholder "[REDACTED]"
 
-  # A token-bearing URL: any http(s) URL whose path passes through one of the
-  # auth segments, capturing the final segment as the secret. Tokens are
-  # `Base.url_encode64/2` output of 32+ random bytes, so the 16-character floor
-  # cannot match an ordinary trailing word while still catching every real one.
+  # A token-bearing URL: an auth segment, then the token as the very next path
+  # segment. Tokens are `Base.url_encode64/2` output of 32+ random bytes, so the
+  # 16-character floor cannot match an ordinary trailing word while still
+  # catching every real one.
+  #
+  # The pattern anchors on `/<auth-segment>/` rather than on `https?://…`, and
+  # has no quantifier that can span path separators, so matching is linear in
+  # the body length. That is a correctness property, not a performance one: the
+  # earlier scheme-anchored form paired a lazy `[^\s]*?/` prefix with a lazy
+  # `(?:/[^/]+)*?` middle, and both consume `/`-segments — every start position
+  # then had a quadratic number of ways to reach the auth segment. Past roughly
+  # 20 KB of slash-heavy text PCRE hit its backtracking limit, `String.replace/3`
+  # returned the body UNCHANGED, and a real token further down the same body was
+  # written to the log in plaintext. A scrubber that silently no-ops on hard
+  # input is worse than no scrubber, because the log looks scrubbed.
+  #
+  # Nothing is lost by dropping the intermediate-segment group: every auth route
+  # core emails puts the token immediately after the segment, and the locale and
+  # host-app prefixes it was written for sit BEFORE the segment, not between.
+  # Case-insensitive to match `@token_query`.
   @token_url ~r/
-    (https?:\/\/[^\s"'<>\)\]]*?\/
-     (?:reset-password|confirm|confirm-email|magic-link|verify|finish|invitations?)
-     (?:\/[^\s"'<>\/\)\]]+)*?\/)
+    (\/
+     (?:reset-password|confirm-email|confirm|magic-link|verify|finish|invitations?)
+     \/)
     ([A-Za-z0-9_\-=%.]{16,})
-  /x
+  /xi
 
   # `?token=…` / `&t=…` in any URL, including routes not covered above.
   #

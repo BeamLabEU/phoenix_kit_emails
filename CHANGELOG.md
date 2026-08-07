@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.23 - 2026-08-07
+
+### Security
+- **Single-use auth tokens no longer reach the email log.** PhoenixKit stores only a SHA-256 hash of every emailed token, so the raw token existed in exactly one place — the message sent to the user. Logging the body put it back in the database in plaintext, behind the `emails` permission that the Admin role holds by default. That turned the log into a credential store: request a password reset for any address on the public forgot-password page, then read the working link out of `/admin/emails` and use it, never touching the target's mailbox. The new `SecretScrubber` replaces the token with `[REDACTED]` on the way IN, before the row is written, so exports, S3 archival, backups and support dumps are all covered by the one control. It covers every auth URL core emails — reset, confirmation, email change, magic link, magic-link registration (path segment) and organisation invitation (`?invitation=`) — and leaves the link itself in place, so the row still shows what was sent and where it pointed. The send queue is deliberately excluded: `Queue.serialize/1` args are the message in transit, and redacting there would mail the recipient a dead link. (#27)
+
+### Fixed
+- **The scrubber could silently fail open on a slash-heavy body.** Its URL pattern reached the auth segment through two overlapping lazy quantifiers that both consume `/`-delimited path segments, giving a quadratic number of ways to split the path at every start position. Past roughly 20 KB of such text PCRE hit its internal backtracking limit — and `String.replace/3` signals nothing on that, it returns the subject **unchanged**. A real token further down the same body was then written to the log in plaintext while the row looked scrubbed, which is worse than not scrubbing at all, because nothing downstream can tell the difference. The pattern now anchors on `/<auth-segment>/` instead of on `https?://…` and has no quantifier that spans a path separator, so matching is linear: the 82 KB case went from 105 ms and leaking to 1.4 ms and redacted. Nothing is lost — every auth route core emails puts the token immediately after the segment, and the locale and host-app prefixes the old middle group was written for sit *before* the segment, not between. (#27)
+- The path pattern is case-insensitive, matching the query pattern, which already was. A host app that mounts its routes with any uppercase in the path had the query form scrubbed and the path form leaked. (#27)
+
+### Internal
+- Post-merge review of #27: `dev_docs/pull_requests/2026/27-scrub-single-use-auth-tokens/CLAUDE_REVIEW.md`. Cross-checked the segment whitelist against every `:token` route core registers and every URL its notifiers actually send — the whitelist is complete, and the three uncovered token routes (on-screen QR login, the post-verify redirect, signed asset URLs) are correctly out of scope. The route-enumeration test gained `confirm-email`, the one whitelist entry that is a prefix collision with another (`confirm`) and so only matched by backtracking; the alternation now lists it first. Rows written before this release still hold their tokens — not backfilled, and why not is recorded in the review.
+
 ## 0.1.22 - 2026-08-06
 
 ### Fixed
