@@ -604,12 +604,21 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
   # Scrubbed BEFORE slicing: a token that is cut in half by the 1000-character
   # window is still most of a secret, and slicing first would also let a token
   # straddle the boundary and escape the pattern entirely.
-  defp extract_body_preview(%Email{} = email) do
+  # Public only so a test can pin the scrub-then-strip ORDER at the real call
+  # site. A test that exercises `SecretScrubber.scrub/1` alone stays green while
+  # this pipeline leaks, which is exactly what happened when stripping ran first.
+  @doc false
+  def extract_body_preview(%Email{} = email) do
     body = email.text_body || email.html_body || ""
 
     body
-    |> strip_html_tags()
+    # Scrub BEFORE stripping, not after: `strip_html_tags/1` rewrites every HTML
+    # entity to a space, so an entity-encoded `&amp;token=` becomes ` token=`
+    # and the `&amp;` alternative in the query pattern can never match. Order
+    # matters in the other direction too — `[REDACTED]` contains no markup and
+    # no entity, so stripping after scrubbing is lossless.
     |> SecretScrubber.scrub()
+    |> strip_html_tags()
     # Increased from 500 to 1000 as per plan
     |> String.slice(0, 1000)
     |> String.replace(~r/\s+/, " ")
