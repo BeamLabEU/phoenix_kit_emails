@@ -1,7 +1,7 @@
 defmodule PhoenixKitEmails.MixProject do
   use Mix.Project
 
-  @version "0.1.23"
+  @version "0.2.0"
   @source_url "https://github.com/BeamLabEU/phoenix_kit_emails"
 
   def project do
@@ -67,10 +67,17 @@ defmodule PhoenixKitEmails.MixProject do
       # package's `--warnings-as-errors` precommit fails. 1.7.190 before that,
       # for email_settings_sections/0.
       #
-      # The < 3.0.0 ceiling deliberately admits core 1.8.x and 2.x: `~> 1.7.231`
-      # would block dependency resolution the moment core ships 1.8.0, stranding
-      # every host app on old core until this module cuts a coordinated release.
-      {:phoenix_kit, ">= 1.7.231 and < 3.0.0"},
+      # All of the above floors are now historical: this module requires core
+      # 2.x, which is well above every one of them. They are kept because they
+      # record *which* core API each dependency rests on, which is what a future
+      # raise needs to know.
+      #
+      # Keep this a TWO-segment `~> 2.0`. A three-segment `~> 2.0.x` expands to
+      # `< 2.1.0` and would block resolution the moment core ships 2.1 —
+      # stranding every host on old core until this module cuts a coordinated
+      # release. That is the same failure the old `~> 1.7.231` pin had against
+      # core 2.0.0, which is what PR #29 was opened to fix.
+      {:phoenix_kit, "~> 2.0"},
       {:gettext, "~> 1.0"},
       {:phoenix_live_view, "~> 1.1"},
       {:oban, "~> 2.20"},
