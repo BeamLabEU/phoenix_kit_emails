@@ -53,7 +53,7 @@ defmodule PhoenixKitEmails.MixProject do
     [
       # Core
       {:hackney, "~> 4.0"},
-      # ~> 1.7.231 is the floor: that release ships `PhoenixKitWeb.Live.UrlState`,
+      # 1.7.231 is the floor: that release ships `PhoenixKitWeb.Live.UrlState`,
       # which one LiveView here (web/blocklist.ex) `use`s. Anything below it
       # resolves a core with no such module, and `use` of a missing module is a
       # compile error — one that surfaces in the *consumer's* build, never here,
@@ -66,7 +66,11 @@ defmodule PhoenixKitEmails.MixProject do
       # is not in the behaviour, so `@impl` on the implementation warns and this
       # package's `--warnings-as-errors` precommit fails. 1.7.190 before that,
       # for email_settings_sections/0.
-      {:phoenix_kit, "~> 1.7.231"},
+      #
+      # The < 3.0.0 ceiling deliberately admits core 1.8.x and 2.x: `~> 1.7.231`
+      # would block dependency resolution the moment core ships 1.8.0, stranding
+      # every host app on old core until this module cuts a coordinated release.
+      {:phoenix_kit, ">= 1.7.231 and < 3.0.0"},
       {:gettext, "~> 1.0"},
       {:phoenix_live_view, "~> 1.1"},
       {:oban, "~> 2.20"},
