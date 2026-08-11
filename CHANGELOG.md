@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.2.1 - 2026-08-11
+
+### Fixed
+
+- **Twenty-four Estonian and Russian entries carried the translation of "Poll
+  now"** (#31) — among them "AWS Region", "Date", "Module" and "Legacy", so
+  unrelated parts of the UI all read "Alusta pollimist" / the Russian
+  equivalent. The files passed every usual check (no empty `msgstr`, no `fuzzy`
+  flags), which is why this survived: it is only visible when msgids are grouped
+  by identical `msgstr`.
+
+  The PO **header** was hit too. `msgid ""` had been given
+  `msgstr "Alusta pollimist"`, which concatenates onto the metadata block — so
+  the `Language:` header parsed as garbage rather than as `et`.
+
+  Each entry is now translated for its own meaning, with the long strings
+  checked against the `.heex` that renders them: the `Settings → Integrations`
+  hint keeps its arrow and `Email #%{uuid}` keeps its interpolation. Product
+  names (AWS, SES, Amazon SES) stay untranslated.
+
+### Changed
+
+- Dependency updates (`phoenix_kit` 2.2.0, `phoenix` 1.8.10, `hackney` 4.7.3).
+
 ## 0.2.0 - 2026-08-10
 
 ### Changed
