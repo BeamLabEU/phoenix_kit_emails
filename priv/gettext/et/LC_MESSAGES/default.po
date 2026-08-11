@@ -7,7 +7,7 @@
 ## Use `mix gettext.extract --merge` or `mix gettext.merge`
 ## to merge POT files into PO files.
 msgid ""
-msgstr "Alusta pollimist"
+msgstr ""
 "Language: et\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
@@ -2653,7 +2653,7 @@ msgstr "%{polled}/%{total}"
 #: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:289
 #, elixir-autogen, elixir-format
 msgid "AWS Region"
-msgstr "Alusta pollimist"
+msgstr "AWS piirkond"
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.html.heex:19
 #, elixir-autogen, elixir-format
@@ -2663,53 +2663,53 @@ msgstr "Kontod"
 #: lib/phoenix_kit/modules/emails/web/emails.html.heex:743
 #, elixir-autogen, elixir-format
 msgid "Add columns from the options below"
-msgstr "Alusta pollimist"
+msgstr "Lisage veerud allolevast loendist"
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:34
 #, elixir-autogen, elixir-format
 msgid "Add this to your config/config.exs to start sending via Amazon SES:"
-msgstr ""
+msgstr "Lisage see faili config/config.exs, et alustada saatmist Amazon SES kaudu:"
 
 #: lib/phoenix_kit/modules/emails/web/emails.html.heex:776
 #, elixir-autogen, elixir-format
 msgid "All fields are already selected"
-msgstr "Alusta pollimist"
+msgstr "Kõik väljad on juba valitud"
 
 #: lib/phoenix_kit/modules/emails/web/metrics.html.heex:16
 #: lib/phoenix_kit/modules/emails/web/metrics.html.heex:356
 #, elixir-autogen, elixir-format
 msgid "Amazon SES"
-msgstr "Alusta pollimist"
+msgstr "Amazon SES"
 
 #: lib/phoenix_kit/modules/emails/emails.ex:946
 #, elixir-autogen, elixir-format
 msgid "Amazon SES & SQS"
-msgstr ""
+msgstr "Amazon SES ja SQS"
 
 #: lib/phoenix_kit/modules/emails/web/metrics.html.heex:357
 #, elixir-autogen, elixir-format
 msgid "Amazon SES (incomplete)"
-msgstr "Alusta pollimist"
+msgstr "Amazon SES (seadistus poolik)"
 
 #: lib/phoenix_kit/modules/emails/web/metrics.html.heex:19
 #, elixir-autogen, elixir-format
 msgid "Amazon SES is not configured yet."
-msgstr ""
+msgstr "Amazon SES pole veel seadistatud."
 
 #: lib/phoenix_kit/modules/emails/web/emails.html.heex:785
 #, elixir-autogen, elixir-format
 msgid "Apply Changes"
-msgstr "Alusta pollimist"
+msgstr "Rakenda muudatused"
 
 #: lib/phoenix_kit/modules/emails/web/emails.html.heex:752
 #, elixir-autogen, elixir-format
 msgid "Available Fields"
-msgstr ""
+msgstr "Saadaolevad väljad"
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:58
 #, elixir-autogen, elixir-format
 msgid "Choose which Integrations connection provides SES credentials"
-msgstr "Alusta pollimist"
+msgstr "Valige, milline integratsiooni ühendus pakub SES mandaate"
 
 #: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:346
 #: lib/phoenix_kit/modules/emails/web/emails.html.heex:296
@@ -2721,7 +2721,7 @@ msgstr "Tühjenda otsing"
 #: lib/phoenix_kit/modules/emails/web/emails.html.heex:754
 #, elixir-autogen, elixir-format
 msgid "Click to add"
-msgstr "Alusta pollimist"
+msgstr "Klõpsake lisamiseks"
 
 #: lib/phoenix_kit/modules/emails/web/metrics.html.heex:17
 #: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:18
@@ -2732,12 +2732,12 @@ msgstr "Seadistatud"
 #: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:22
 #, elixir-autogen, elixir-format
 msgid "Configured via"
-msgstr ""
+msgstr "Seadistatud järgmise kaudu:"
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:43
 #, elixir-autogen, elixir-format
 msgid "Configured via your application's config — this admin panel manages Amazon SES only. To switch to Amazon SES, update your config to:"
-msgstr "Alusta pollimist"
+msgstr "Seadistatud rakenduse konfiguratsiooni kaudu — see admin paneel haldab ainult Amazon SES-i. Amazon SES-ile üleminekuks uuendage oma konfiguratsiooni:"
 
 #: lib/phoenix_kit/modules/emails/web/template_editor.ex:50
 #, elixir-autogen, elixir-format
@@ -2747,12 +2747,12 @@ msgstr "Loo ja muuda e-kirja malli"
 #: lib/phoenix_kit/modules/emails/web/emails.html.heex:241
 #, elixir-autogen, elixir-format
 msgid "Date"
-msgstr "Alusta pollimist"
+msgstr "Kuupäev"
 
 #: lib/phoenix_kit/modules/emails/web/emails.html.heex:788
 #, elixir-autogen, elixir-format
 msgid "Default"
-msgstr ""
+msgstr "Lähtesta"
 
 #: lib/phoenix_kit/modules/emails/emails.ex:940
 #, elixir-autogen, elixir-format
@@ -2762,22 +2762,22 @@ msgstr "Kohaletoimetamise sündmuste jälgimine"
 #: lib/phoenix_kit/modules/emails/web/details.ex:73
 #, elixir-autogen, elixir-format
 msgid "Delivery log, events and tracking for this email"
-msgstr ""
+msgstr "Selle kirja kohaletoimetamise logi, sündmused ja jälgimine"
 
 #: lib/phoenix_kit/modules/emails/web/emails.html.heex:708
 #, elixir-autogen, elixir-format
 msgid "Drag to reorder"
-msgstr "Alusta pollimist"
+msgstr "Lohistage ümberjärjestamiseks"
 
 #: lib/phoenix_kit/modules/emails/web/emails.html.heex:683
 #, elixir-autogen, elixir-format
 msgid "Drag to reorder selected columns, or add new columns from the options below. The Actions column is always included."
-msgstr ""
+msgstr "Lohistage valitud veergude ümberjärjestamiseks või lisage uusi veerge allolevast loendist. Veerg Toimingud on alati kaasatud."
 
 #: lib/phoenix_kit/modules/emails/web/details.ex:219
 #, elixir-autogen, elixir-format
 msgid "Email #%{uuid}"
-msgstr "Alusta pollimist"
+msgstr "E-kiri #%{uuid}"
 
 #: lib/phoenix_kit/modules/emails/web/template_editor.ex:49
 #, elixir-autogen, elixir-format
@@ -2797,12 +2797,12 @@ msgstr "E-kirja ei leitud"
 #: lib/phoenix_kit/modules/emails/web/emails.ex:556
 #, elixir-autogen, elixir-format
 msgid "Email status updated"
-msgstr "Alusta pollimist"
+msgstr "E-kirja olek uuendatud"
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:25
 #, elixir-autogen, elixir-format
 msgid "Enter your AWS Access Key ID / Secret Access Key in AWS Configuration below, or set them via config :phoenix_kit, aws: [access_key_id: ..., secret_access_key: ...]."
-msgstr ""
+msgstr "Sisestage oma AWS Access Key ID / Secret Access Key allpool olevates AWS seadetes või määrake need config :phoenix_kit, aws: [access_key_id: ..., secret_access_key: ...] kaudu."
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.ex:95
 #, elixir-autogen, elixir-format
@@ -2849,17 +2849,17 @@ msgstr "Tabeli veergude uuendamine ebaõnnestus"
 #: lib/phoenix_kit/modules/emails/web/emails.html.heex:553
 #, elixir-autogen, elixir-format
 msgid "Get update on this email"
-msgstr "Alusta pollimist"
+msgstr "Uuenda selle e-kirja olekut"
 
 #: lib/phoenix_kit/modules/emails/web/metrics.html.heex:26
 #, elixir-autogen, elixir-format
 msgid "Go to Settings to configure one"
-msgstr ""
+msgstr "Minge seadistuste juurde, et see seadistada"
 
 #: lib/phoenix_kit/modules/emails/web/metrics.html.heex:21
 #, elixir-autogen, elixir-format
 msgid "Go to Settings to finish setup"
-msgstr "Alusta pollimist"
+msgstr "Minge seadistuste juurde, et seadistus lõpetada"
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.ex:217
 #, elixir-autogen, elixir-format
@@ -2889,33 +2889,33 @@ msgstr "Viimati pollitud: %{time}"
 #: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:236
 #, elixir-autogen, elixir-format
 msgid "Legacy"
-msgstr "Alusta pollimist"
+msgstr "Vananenud"
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:65
 #, elixir-autogen, elixir-format
 msgid "Legacy (manual settings below)"
-msgstr ""
+msgstr "Vananenud (käsitsi sätted allpool)"
 
 #: lib/phoenix_kit/modules/emails/web/metrics.html.heex:30
 #: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:40
 #, elixir-autogen, elixir-format
 msgid "Mailer Adapter: %{adapter}"
-msgstr ""
+msgstr "Postiadapter: %{adapter}"
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:16
 #, elixir-autogen, elixir-format
 msgid "Mailer Adapter: Amazon SES"
-msgstr "Alusta pollimist"
+msgstr "Postiadapter: Amazon SES"
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:238
 #, elixir-autogen, elixir-format
 msgid "Manual credentials below — migrate to an Integrations connection above"
-msgstr ""
+msgstr "Käsitsi mandaadid allpool — minge üle ülalolevale integratsiooni ühendusele"
 
 #: lib/phoenix_kit/modules/emails/web/emails.html.heex:203
 #, elixir-autogen, elixir-format
 msgid "Module"
-msgstr "Alusta pollimist"
+msgstr "Moodul"
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.html.heex:70
 #, elixir-autogen, elixir-format
@@ -2925,7 +2925,7 @@ msgstr "Pole veel pollitud"
 #: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:32
 #, elixir-autogen, elixir-format
 msgid "No Mailer Adapter Configured Yet"
-msgstr "Alusta pollimist"
+msgstr "Postiadapter pole veel seadistatud"
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.html.heex:88
 #, elixir-autogen, elixir-format
@@ -2935,12 +2935,12 @@ msgstr "Kontosid pole veel"
 #: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:73
 #, elixir-autogen, elixir-format
 msgid "No aws_ses Integrations connections yet — add one under Settings → Integrations, or use the legacy fields below."
-msgstr "Alusta pollimist"
+msgstr "Aws_ses integratsiooni ühendusi pole veel — lisage üks Seaded → Integratsioonid alt või kasutage allolevaid vananenud välju."
 
 #: lib/phoenix_kit/modules/emails/web/emails.html.heex:742
 #, elixir-autogen, elixir-format
 msgid "No columns selected yet"
-msgstr ""
+msgstr "Veerge pole veel valitud"
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.ex:238
 #, elixir-autogen, elixir-format
@@ -2950,12 +2950,12 @@ msgstr "Ühtegi tsüklit pole hetkel järjekorras — see võib juhtuda kadunud 
 #: lib/phoenix_kit/modules/emails/web/queue.html.heex:247
 #, elixir-autogen, elixir-format
 msgid "No failed emails"
-msgstr ""
+msgstr "Ebaõnnestunud kirju pole"
 
 #: lib/phoenix_kit/modules/emails/web/queue.html.heex:250
 #, elixir-autogen, elixir-format
 msgid "No failed emails in the last 24 hours"
-msgstr "Alusta pollimist"
+msgstr "Viimase 24 tunni jooksul ebaõnnestunud e-kirju ei ole"
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.ex:209
 #, elixir-autogen, elixir-format
@@ -2965,24 +2965,24 @@ msgstr "Integratsioon puudub"
 #: lib/phoenix_kit/modules/emails/web/metrics.html.heex:24
 #, elixir-autogen, elixir-format
 msgid "No mailer adapter configured yet."
-msgstr "Alusta pollimist"
+msgstr "Postiadapter pole veel seadistatud."
 
 #: lib/phoenix_kit/modules/emails/web/emails.ex:223
 #, elixir-autogen, elixir-format
 msgid "No message ID available to sync this email"
-msgstr ""
+msgstr "Selle kirja sünkroonimiseks pole sõnumi ID-d saadaval"
 
 #: lib/phoenix_kit/modules/emails/web/details.ex:186
 #: lib/phoenix_kit/modules/emails/web/emails.ex:577
 #, elixir-autogen, elixir-format
 msgid "No new events"
-msgstr ""
+msgstr "Uusi sündmusi pole"
 
 #: lib/phoenix_kit/modules/emails/web/metrics.html.heex:353
 #: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:18
 #, elixir-autogen, elixir-format
 msgid "Not Configured"
-msgstr ""
+msgstr "Seadistamata"
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.ex:218
 #, elixir-autogen, elixir-format
@@ -2997,7 +2997,7 @@ msgstr "Üks rida iga registreeritud kohaletoimetamise sündmuste jälgija kohta
 #: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:135
 #, elixir-autogen, elixir-format
 msgid "Pick your AWS Region from the dropdown"
-msgstr "Alusta pollimist"
+msgstr "Valige AWS piirkond rippmenüüst"
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.ex:127
 #, elixir-autogen, elixir-format
@@ -3019,12 +3019,12 @@ msgstr "Pakkuja sõnumi ID"
 #: lib/phoenix_kit/modules/emails/web/emails.ex:583
 #, elixir-autogen, elixir-format
 msgid "Received %{count} new event(s)"
-msgstr ""
+msgstr "Uusi sündmusi saadud: %{count}"
 
 #: lib/phoenix_kit/modules/emails/web/queue.html.heex:380
 #, elixir-autogen, elixir-format
 msgid "Recently sent emails will appear here"
-msgstr ""
+msgstr "Hiljuti saadetud kirjad kuvatakse siin"
 
 #: lib/phoenix_kit/modules/emails/web/emails.html.heex:732
 #, elixir-autogen, elixir-format
@@ -3044,12 +3044,12 @@ msgstr "Töötab normaalselt."
 #: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:56
 #, elixir-autogen, elixir-format
 msgid "SES credentials source"
-msgstr ""
+msgstr "SES mandaatide allikas"
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:352
 #, elixir-autogen, elixir-format
 msgid "SES credentials source updated"
-msgstr ""
+msgstr "SES mandaatide allikas uuendatud"
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:290
 #, elixir-autogen, elixir-format
@@ -3065,7 +3065,7 @@ msgstr "Otsi..."
 #: lib/phoenix_kit/modules/emails/web/emails.html.heex:706
 #, elixir-autogen, elixir-format
 msgid "Selected Columns"
-msgstr ""
+msgstr "Valitud veerud"
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.ex:219
 #, elixir-autogen, elixir-format
@@ -3080,7 +3080,7 @@ msgstr "Olek"
 #: lib/phoenix_kit/modules/emails/web/emails.ex:608
 #, elixir-autogen, elixir-format
 msgid "Table columns updated successfully"
-msgstr ""
+msgstr "Tabeli veerud edukalt uuendatud"
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.html.heex:14
 #, elixir-autogen, elixir-format
@@ -3095,7 +3095,7 @@ msgstr "Jälgimine on väljas."
 #: lib/phoenix_kit/modules/emails/web/metrics.html.heex:33
 #, elixir-autogen, elixir-format
 msgid "View in Settings"
-msgstr ""
+msgstr "Vaadake seadistustes"
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:417
 #, elixir-autogen, elixir-format

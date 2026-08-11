@@ -7,7 +7,7 @@
 ## Use `mix gettext.extract --merge` or `mix gettext.merge`
 ## to merge POT files into PO files.
 msgid ""
-msgstr "Опросить сейчас"
+msgstr ""
 "Language: ru\n"
 "Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && "
 "n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
@@ -2655,7 +2655,7 @@ msgstr "%{polled}/%{total}"
 #: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:289
 #, elixir-autogen, elixir-format
 msgid "AWS Region"
-msgstr "Опросить сейчас"
+msgstr "Регион AWS"
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.html.heex:19
 #, elixir-autogen, elixir-format
@@ -2665,53 +2665,53 @@ msgstr "Аккаунты"
 #: lib/phoenix_kit/modules/emails/web/emails.html.heex:743
 #, elixir-autogen, elixir-format
 msgid "Add columns from the options below"
-msgstr "Опросить сейчас"
+msgstr "Добавьте столбцы из списка ниже"
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:34
 #, elixir-autogen, elixir-format
 msgid "Add this to your config/config.exs to start sending via Amazon SES:"
-msgstr ""
+msgstr "Добавьте это в config/config.exs, чтобы начать отправку через Amazon SES:"
 
 #: lib/phoenix_kit/modules/emails/web/emails.html.heex:776
 #, elixir-autogen, elixir-format
 msgid "All fields are already selected"
-msgstr "Опросить сейчас"
+msgstr "Все поля уже выбраны"
 
 #: lib/phoenix_kit/modules/emails/web/metrics.html.heex:16
 #: lib/phoenix_kit/modules/emails/web/metrics.html.heex:356
 #, elixir-autogen, elixir-format
 msgid "Amazon SES"
-msgstr "Опросить сейчас"
+msgstr "Amazon SES"
 
 #: lib/phoenix_kit/modules/emails/emails.ex:946
 #, elixir-autogen, elixir-format
 msgid "Amazon SES & SQS"
-msgstr ""
+msgstr "Amazon SES и SQS"
 
 #: lib/phoenix_kit/modules/emails/web/metrics.html.heex:357
 #, elixir-autogen, elixir-format
 msgid "Amazon SES (incomplete)"
-msgstr "Опросить сейчас"
+msgstr "Amazon SES (настройка не завершена)"
 
 #: lib/phoenix_kit/modules/emails/web/metrics.html.heex:19
 #, elixir-autogen, elixir-format
 msgid "Amazon SES is not configured yet."
-msgstr ""
+msgstr "Amazon SES пока не настроен."
 
 #: lib/phoenix_kit/modules/emails/web/emails.html.heex:785
 #, elixir-autogen, elixir-format
 msgid "Apply Changes"
-msgstr "Опросить сейчас"
+msgstr "Применить изменения"
 
 #: lib/phoenix_kit/modules/emails/web/emails.html.heex:752
 #, elixir-autogen, elixir-format
 msgid "Available Fields"
-msgstr ""
+msgstr "Доступные поля"
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:58
 #, elixir-autogen, elixir-format
 msgid "Choose which Integrations connection provides SES credentials"
-msgstr "Опросить сейчас"
+msgstr "Выберите, какое подключение интеграции предоставляет учётные данные SES"
 
 #: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:346
 #: lib/phoenix_kit/modules/emails/web/emails.html.heex:296
@@ -2723,7 +2723,7 @@ msgstr "Очистить поиск"
 #: lib/phoenix_kit/modules/emails/web/emails.html.heex:754
 #, elixir-autogen, elixir-format
 msgid "Click to add"
-msgstr "Опросить сейчас"
+msgstr "Нажмите, чтобы добавить"
 
 #: lib/phoenix_kit/modules/emails/web/metrics.html.heex:17
 #: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:18
@@ -2734,12 +2734,12 @@ msgstr "Настроено"
 #: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:22
 #, elixir-autogen, elixir-format
 msgid "Configured via"
-msgstr ""
+msgstr "Настроено через"
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:43
 #, elixir-autogen, elixir-format
 msgid "Configured via your application's config — this admin panel manages Amazon SES only. To switch to Amazon SES, update your config to:"
-msgstr "Опросить сейчас"
+msgstr "Настроено через конфигурацию приложения — эта панель управляет только Amazon SES. Чтобы переключиться на Amazon SES, обновите конфигурацию:"
 
 #: lib/phoenix_kit/modules/emails/web/template_editor.ex:50
 #, elixir-autogen, elixir-format
@@ -2749,12 +2749,12 @@ msgstr "Создать и редактировать шаблон письма"
 #: lib/phoenix_kit/modules/emails/web/emails.html.heex:241
 #, elixir-autogen, elixir-format
 msgid "Date"
-msgstr "Опросить сейчас"
+msgstr "Дата"
 
 #: lib/phoenix_kit/modules/emails/web/emails.html.heex:788
 #, elixir-autogen, elixir-format
 msgid "Default"
-msgstr ""
+msgstr "Сбросить"
 
 #: lib/phoenix_kit/modules/emails/emails.ex:940
 #, elixir-autogen, elixir-format
@@ -2764,22 +2764,22 @@ msgstr "Отслеживание событий доставки"
 #: lib/phoenix_kit/modules/emails/web/details.ex:73
 #, elixir-autogen, elixir-format
 msgid "Delivery log, events and tracking for this email"
-msgstr ""
+msgstr "Журнал доставки, события и отслеживание для этого письма"
 
 #: lib/phoenix_kit/modules/emails/web/emails.html.heex:708
 #, elixir-autogen, elixir-format
 msgid "Drag to reorder"
-msgstr "Опросить сейчас"
+msgstr "Перетащите для изменения порядка"
 
 #: lib/phoenix_kit/modules/emails/web/emails.html.heex:683
 #, elixir-autogen, elixir-format
 msgid "Drag to reorder selected columns, or add new columns from the options below. The Actions column is always included."
-msgstr ""
+msgstr "Перетаскивайте, чтобы изменить порядок выбранных столбцов, или добавляйте новые столбцы из списка ниже. Столбец Действия включён всегда."
 
 #: lib/phoenix_kit/modules/emails/web/details.ex:219
 #, elixir-autogen, elixir-format
 msgid "Email #%{uuid}"
-msgstr "Опросить сейчас"
+msgstr "Письмо #%{uuid}"
 
 #: lib/phoenix_kit/modules/emails/web/template_editor.ex:49
 #, elixir-autogen, elixir-format
@@ -2799,12 +2799,12 @@ msgstr "Письмо не найдено"
 #: lib/phoenix_kit/modules/emails/web/emails.ex:556
 #, elixir-autogen, elixir-format
 msgid "Email status updated"
-msgstr "Опросить сейчас"
+msgstr "Статус письма обновлён"
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:25
 #, elixir-autogen, elixir-format
 msgid "Enter your AWS Access Key ID / Secret Access Key in AWS Configuration below, or set them via config :phoenix_kit, aws: [access_key_id: ..., secret_access_key: ...]."
-msgstr ""
+msgstr "Введите AWS Access Key ID / Secret Access Key в настройках AWS ниже, либо задайте их через config :phoenix_kit, aws: [access_key_id: ..., secret_access_key: ...]."
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.ex:95
 #, elixir-autogen, elixir-format
@@ -2851,17 +2851,17 @@ msgstr "Не удалось обновить столбцы таблицы"
 #: lib/phoenix_kit/modules/emails/web/emails.html.heex:553
 #, elixir-autogen, elixir-format
 msgid "Get update on this email"
-msgstr "Опросить сейчас"
+msgstr "Обновить статус этого письма"
 
 #: lib/phoenix_kit/modules/emails/web/metrics.html.heex:26
 #, elixir-autogen, elixir-format
 msgid "Go to Settings to configure one"
-msgstr ""
+msgstr "Перейдите в настройки, чтобы его настроить"
 
 #: lib/phoenix_kit/modules/emails/web/metrics.html.heex:21
 #, elixir-autogen, elixir-format
 msgid "Go to Settings to finish setup"
-msgstr "Опросить сейчас"
+msgstr "Перейдите в настройки, чтобы завершить установку"
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.ex:217
 #, elixir-autogen, elixir-format
@@ -2891,33 +2891,33 @@ msgstr "Последний опрос: %{time}"
 #: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:236
 #, elixir-autogen, elixir-format
 msgid "Legacy"
-msgstr "Опросить сейчас"
+msgstr "Устаревшее"
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:65
 #, elixir-autogen, elixir-format
 msgid "Legacy (manual settings below)"
-msgstr ""
+msgstr "Устаревшее (ручные настройки ниже)"
 
 #: lib/phoenix_kit/modules/emails/web/metrics.html.heex:30
 #: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:40
 #, elixir-autogen, elixir-format
 msgid "Mailer Adapter: %{adapter}"
-msgstr ""
+msgstr "Почтовый адаптер: %{adapter}"
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:16
 #, elixir-autogen, elixir-format
 msgid "Mailer Adapter: Amazon SES"
-msgstr "Опросить сейчас"
+msgstr "Почтовый адаптер: Amazon SES"
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:238
 #, elixir-autogen, elixir-format
 msgid "Manual credentials below — migrate to an Integrations connection above"
-msgstr ""
+msgstr "Ручные учётные данные ниже — перейдите на подключение интеграции выше"
 
 #: lib/phoenix_kit/modules/emails/web/emails.html.heex:203
 #, elixir-autogen, elixir-format
 msgid "Module"
-msgstr "Опросить сейчас"
+msgstr "Модуль"
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.html.heex:70
 #, elixir-autogen, elixir-format
@@ -2927,7 +2927,7 @@ msgstr "Ещё не опрошено"
 #: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:32
 #, elixir-autogen, elixir-format
 msgid "No Mailer Adapter Configured Yet"
-msgstr "Опросить сейчас"
+msgstr "Почтовый адаптер ещё не настроен"
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.html.heex:88
 #, elixir-autogen, elixir-format
@@ -2937,12 +2937,12 @@ msgstr "Аккаунтов пока нет"
 #: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:73
 #, elixir-autogen, elixir-format
 msgid "No aws_ses Integrations connections yet — add one under Settings → Integrations, or use the legacy fields below."
-msgstr "Опросить сейчас"
+msgstr "Пока нет подключений интеграции aws_ses — добавьте его в Настройки → Интеграции, либо используйте устаревшие поля ниже."
 
 #: lib/phoenix_kit/modules/emails/web/emails.html.heex:742
 #, elixir-autogen, elixir-format
 msgid "No columns selected yet"
-msgstr ""
+msgstr "Пока нет выбранных столбцов"
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.ex:238
 #, elixir-autogen, elixir-format
@@ -2952,12 +2952,12 @@ msgstr "Сейчас в очереди нет ни одного цикла — �
 #: lib/phoenix_kit/modules/emails/web/queue.html.heex:247
 #, elixir-autogen, elixir-format
 msgid "No failed emails"
-msgstr ""
+msgstr "Нет неудачных писем"
 
 #: lib/phoenix_kit/modules/emails/web/queue.html.heex:250
 #, elixir-autogen, elixir-format
 msgid "No failed emails in the last 24 hours"
-msgstr "Опросить сейчас"
+msgstr "За последние 24 часа неудачных отправок не было"
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.ex:209
 #, elixir-autogen, elixir-format
@@ -2967,24 +2967,24 @@ msgstr "Интеграция не настроена"
 #: lib/phoenix_kit/modules/emails/web/metrics.html.heex:24
 #, elixir-autogen, elixir-format
 msgid "No mailer adapter configured yet."
-msgstr "Опросить сейчас"
+msgstr "Почтовый адаптер пока не настроен."
 
 #: lib/phoenix_kit/modules/emails/web/emails.ex:223
 #, elixir-autogen, elixir-format
 msgid "No message ID available to sync this email"
-msgstr ""
+msgstr "Нет ID сообщения для синхронизации этого письма"
 
 #: lib/phoenix_kit/modules/emails/web/details.ex:186
 #: lib/phoenix_kit/modules/emails/web/emails.ex:577
 #, elixir-autogen, elixir-format
 msgid "No new events"
-msgstr ""
+msgstr "Новых событий нет"
 
 #: lib/phoenix_kit/modules/emails/web/metrics.html.heex:353
 #: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:18
 #, elixir-autogen, elixir-format
 msgid "Not Configured"
-msgstr ""
+msgstr "Не настроено"
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.ex:218
 #, elixir-autogen, elixir-format
@@ -2999,7 +2999,7 @@ msgstr "По одной строке на каждый зарегистриро�
 #: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:135
 #, elixir-autogen, elixir-format
 msgid "Pick your AWS Region from the dropdown"
-msgstr "Опросить сейчас"
+msgstr "Выберите регион AWS из выпадающего списка"
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.ex:127
 #, elixir-autogen, elixir-format
@@ -3021,12 +3021,12 @@ msgstr "ID сообщения провайдера"
 #: lib/phoenix_kit/modules/emails/web/emails.ex:583
 #, elixir-autogen, elixir-format
 msgid "Received %{count} new event(s)"
-msgstr ""
+msgstr "Новых событий получено: %{count}"
 
 #: lib/phoenix_kit/modules/emails/web/queue.html.heex:380
 #, elixir-autogen, elixir-format
 msgid "Recently sent emails will appear here"
-msgstr ""
+msgstr "Здесь будут отображаться недавно отправленные письма"
 
 #: lib/phoenix_kit/modules/emails/web/emails.html.heex:732
 #, elixir-autogen, elixir-format
@@ -3046,12 +3046,12 @@ msgstr "Работает нормально."
 #: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:56
 #, elixir-autogen, elixir-format
 msgid "SES credentials source"
-msgstr ""
+msgstr "Источник учётных данных SES"
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:352
 #, elixir-autogen, elixir-format
 msgid "SES credentials source updated"
-msgstr ""
+msgstr "Источник учётных данных SES обновлён"
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:290
 #, elixir-autogen, elixir-format
@@ -3067,7 +3067,7 @@ msgstr "Поиск..."
 #: lib/phoenix_kit/modules/emails/web/emails.html.heex:706
 #, elixir-autogen, elixir-format
 msgid "Selected Columns"
-msgstr ""
+msgstr "Выбранные столбцы"
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.ex:219
 #, elixir-autogen, elixir-format
@@ -3082,7 +3082,7 @@ msgstr "Статус"
 #: lib/phoenix_kit/modules/emails/web/emails.ex:608
 #, elixir-autogen, elixir-format
 msgid "Table columns updated successfully"
-msgstr ""
+msgstr "Столбцы таблицы успешно обновлены"
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.html.heex:14
 #, elixir-autogen, elixir-format
@@ -3097,7 +3097,7 @@ msgstr "Отслеживание выключено."
 #: lib/phoenix_kit/modules/emails/web/metrics.html.heex:33
 #, elixir-autogen, elixir-format
 msgid "View in Settings"
-msgstr ""
+msgstr "Посмотреть в настройках"
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:417
 #, elixir-autogen, elixir-format
