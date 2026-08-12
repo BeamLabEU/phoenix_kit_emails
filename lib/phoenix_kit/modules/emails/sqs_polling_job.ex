@@ -371,10 +371,37 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
   def pollable_accounts do
     excluded = MapSet.new(Emails.get_sqs_polling_excluded_integrations())
 
-    Enum.reject(configured_accounts(), fn account ->
+    configured_accounts()
+    |> Enum.reject(fn account ->
       is_binary(account.integration_uuid) and MapSet.member?(excluded, account.integration_uuid)
     end)
+    |> honour_opt_out_in_legacy_fallback(excluded)
   end
+
+  # The legacy account has no uuid, so the opt-out list cannot name it — which
+  # meant that opting every account out did NOT stop polling: the accounts
+  # dropped away, `configured_accounts/0` fell back to the unattributed legacy
+  # queue, and the operator's "poll nothing" turned into "poll the one queue I
+  # was trying to stop polling".
+  #
+  # Only the FALLBACK is suppressed. A genuine legacy deployment — no active
+  # `aws_ses` SendProfile at all, so nothing to opt out of — is untouched,
+  # because there is no excluded account to have caused the fallback.
+  defp honour_opt_out_in_legacy_fallback([%{integration_uuid: nil}] = accounts, excluded) do
+    active = AwsIntegrations.active_integration_uuids()
+
+    if active != [] and Enum.all?(active, &MapSet.member?(excluded, &1)) do
+      Logger.debug(
+        "SQS Polling Job: every account is opted out, not falling back to the legacy queue"
+      )
+
+      []
+    else
+      accounts
+    end
+  end
+
+  defp honour_opt_out_in_legacy_fallback(accounts, _excluded), do: accounts
 
   defp legacy_accounts do
     url = Emails.get_sqs_queue_url()

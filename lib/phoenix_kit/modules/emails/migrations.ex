@@ -774,9 +774,9 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
   # One aborted statement, and the host's entire migration goes with it.
   #
   # So the type is checked first and a mismatch is skipped with a NOTICE.
-  # Repairing the type is core's job (V163 / `mix phoenix_kit.repair`), and
-  # this chain's job is to not be the thing that breaks the deploy on the way
-  # there.
+  # Repairing the type is core's job — specifically V163, which is written for
+  # exactly this drift. This chain's job is to not be the thing that breaks the
+  # deploy on the way there.
   defp type_precondition(definition, table) do
     definition
     |> constrained_columns(table)
@@ -854,9 +854,13 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
   #
   # So validation is attempted exactly when it is free: the table is empty, so
   # the scan is nothing and it cannot fail on existing data. A populated table
-  # skips it entirely — no scan, no lock, no risk — and `mix phoenix_kit.repair`
-  # remains the deliberate path for validating it once someone has decided what
-  # to do with the orphans `phoenix_kit.doctor` reports.
+  # skips it entirely — no scan, no lock, no risk — and the constraint stays
+  # `NOT VALID` there INDEFINITELY. Nothing will finish the job later: core has
+  # no `convalidated` anywhere, `repair` answers "already present" for a
+  # constraint that exists, and it validates only constraints it created
+  # itself. An operator who wants it validated cleans up the orphans
+  # `phoenix_kit.doctor` reports and runs it by hand — the statement is in the
+  # moduledoc.
   #
   # The EXCEPTION block is belt-and-braces: a failure inside a DO block rolls
   # back only that block's subtransaction, so even an unforeseen error here

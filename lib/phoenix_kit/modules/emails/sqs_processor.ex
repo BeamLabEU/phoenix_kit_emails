@@ -1120,6 +1120,11 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
   # inside one of them must not collide with ours. A `nil` sub-object is
   # passed through untouched — a malformed event stays exactly as malformed
   # as it was, rather than turning into a map its callers do not expect.
+  # Deliberately absent from `process_send_event/1`: that path records no event
+  # of its own (the "send" event is created locally by `Interceptor`, from the
+  # mailer's response rather than from an SES envelope), so there is no SES
+  # provenance to carry and nothing to attach it to. Every path that DOES
+  # persist an SES sub-object goes through here.
   defp with_provenance(nil, _event_data), do: nil
 
   defp with_provenance(sub_data, event_data) when is_map(sub_data) do

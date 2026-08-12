@@ -359,18 +359,10 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
   end
 
   def handle_event("unassign_tracking_account", %{"uuid" => uuid}, socket) do
-    case Emails.delete_aws_tracking(uuid) do
-      {:error, :not_found} ->
-        {:noreply, after_tracking_change(socket)}
-
-      {:error, _reason} ->
-        {:noreply, put_flash(socket, :error, gettext("Failed to remove account"))}
-
-      _ok ->
-        {:noreply,
-         socket
-         |> after_tracking_change()
-         |> put_flash(:info, gettext("Account removed from event tracking"))}
+    if known_connection?(socket, uuid) do
+      do_unassign_tracking_account(uuid, socket)
+    else
+      {:noreply, socket}
     end
   end
 
@@ -417,6 +409,22 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
 
   def handle_event("assign_aws_integration", %{"uuid" => uuid}, socket) do
     do_assign_aws_integration(uuid, socket)
+  end
+
+  defp do_unassign_tracking_account(uuid, socket) do
+    case Emails.delete_aws_tracking(uuid) do
+      {:error, :not_found} ->
+        {:noreply, after_tracking_change(socket)}
+
+      {:error, _reason} ->
+        {:noreply, put_flash(socket, :error, gettext("Failed to remove account"))}
+
+      _ok ->
+        {:noreply,
+         socket
+         |> after_tracking_change()
+         |> put_flash(:info, gettext("Account removed from event tracking"))}
+    end
   end
 
   defp do_assign_aws_integration(uuid, socket) do
@@ -525,9 +533,16 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
     |> assign(:setting_up_account, nil)
   end
 
+  # Scoped `owner: :any`, matching how the poller and the send-path attribution
+  # resolve accounts (`Integrations.get_credentials/2` and
+  # `get_integration_by_uuid/2` both default to `:any`). Validating against the
+  # narrower `:system` list would reject a USER-owned connection that the
+  # poller happily uses — a guard stricter than the thing it guards is a bug
+  # wearing a safety jacket.
   defp known_connection?(socket, uuid) do
     connections =
-      Map.get(socket.assigns, :aws_ses_connections) || Integrations.list_connections("aws_ses")
+      Map.get(socket.assigns, :aws_ses_connections) ||
+        Integrations.list_connections("aws_ses", owner: :any)
 
     Enum.any?(connections, &(&1.uuid == uuid))
   end

@@ -317,10 +317,38 @@ defmodule PhoenixKit.Modules.Emails.AwsMultiaccountTest do
       assert length(SQSPollingJob.configured_accounts()) == 2
     end
 
-    test "the legacy account has no uuid and so can never be excluded" do
+    test "a genuine legacy deployment cannot be excluded — there is nothing to name" do
       {:ok, _} = Emails.set_sqs_queue_url("https://sqs.example.com/legacy")
       {:ok, _} = Emails.set_sqs_polling_excluded_integrations(["anything"])
 
+      assert [%{integration_uuid: nil}] = SQSPollingJob.pollable_accounts()
+    end
+
+    test "opting every account out stops polling instead of falling back to the legacy queue" do
+      # The legacy account has no uuid, so the opt-out list cannot name it.
+      # Without a guard, opting everything out dropped the accounts, fell
+      # through to the unattributed global queue, and kept polling the one
+      # queue the operator was trying to stop.
+      one = create_connection()
+      two = create_connection()
+      create_profile(one)
+      create_profile(two)
+      {:ok, _} = Emails.set_sqs_queue_url("https://sqs.example.com/legacy")
+      {:ok, _} = Emails.set_sqs_polling_excluded_integrations([one, two])
+
+      assert SQSPollingJob.pollable_accounts() == []
+    end
+
+    test "opting SOME accounts out still falls back for the rest" do
+      one = create_connection()
+      two = create_connection()
+      create_profile(one)
+      create_profile(two)
+      {:ok, _} = Emails.set_sqs_queue_url("https://sqs.example.com/legacy")
+      {:ok, _} = Emails.set_sqs_polling_excluded_integrations([one])
+
+      # Neither account can claim the globals (two active, no selection), so
+      # the legacy fallback is still the right answer for what remains.
       assert [%{integration_uuid: nil}] = SQSPollingJob.pollable_accounts()
     end
   end
