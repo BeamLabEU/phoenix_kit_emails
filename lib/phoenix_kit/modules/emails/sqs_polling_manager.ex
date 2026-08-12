@@ -130,6 +130,20 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingManager do
   # {uuid, name, polled?} for every currently-active SES account. The
   # legacy single-queue deployment contributes no row — it has no uuid to
   # name it by, and nothing to toggle.
+  #
+  # `length(accounts/0)` and `integration_count/0` deliberately DISAGREE, and
+  # the panel renders them in different columns for different questions:
+  #
+  #   * `accounts/0` answers "which accounts can I toggle?" — every active
+  #     SES account, including one with no queue configured yet.
+  #   * `integration_count/0` answers "is there a working event source?" —
+  #     it mirrors eligible?/0, so it counts only accounts with somewhere to
+  #     poll, and counts the legacy single-queue deployment as 1 even though
+  #     it has no account to name.
+  #
+  # The two coincide on a fully configured multi-account install, which is
+  # why the difference is easy to mistake for a bug. It is not: making
+  # either follow the other would break the column it belongs to.
   @impl PhoenixKit.Modules.Emails.EventTracker
   def accounts do
     excluded = MapSet.new(Emails.get_sqs_polling_excluded_integrations())

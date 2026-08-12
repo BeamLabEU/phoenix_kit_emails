@@ -52,7 +52,6 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
 
   require Logger
 
-  alias PhoenixKit.Integrations
   alias PhoenixKit.Modules.Emails
   alias PhoenixKit.Modules.Emails.EmailLogData
   alias PhoenixKit.Modules.Emails.Event
@@ -103,10 +102,24 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
 
   defp do_intercept_before_send(%Email{} = email, opts) do
     if Emails.enabled?() and should_log_email?(email, opts) do
+      # Resolved ONCE, here, and then handed to BOTH the log and the headers.
+      # Doing it inside extract_email_data/2 instead meant the log recorded the
+      # per-account configuration set while add_tracking_headers/3 re-derived
+      # the GLOBAL one from the untouched opts and put that on the wire — the
+      # log and the message disagreeing about the one field that decides
+      # whether SES publishes events at all.
+      opts = enrich_send_opts(opts)
+
       case create_email_log(email, opts) do
-        {:ok, log} ->
+        {:ok, %Log{} = log} ->
           # Add tracking headers to email
           add_tracking_headers(email, log, opts)
+
+        # Emails.create_log/1 applies its OWN sampling/enabled gate and answers
+        # {:ok, :skipped} when it declines. Matching only {:ok, log} let that
+        # reach add_tracking_headers/3 and raise on the %Log{} guard.
+        {:ok, _not_a_log} ->
+          email
 
         {:error, :skipped} ->
           email
@@ -227,9 +240,15 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
   def build_ses_headers(%Log{} = log, opts \\ []) do
     headers = %{}
 
-    # Add configuration set if available
+    # The header MUST carry the same configuration set the log records: it is
+    # what tells SES which account's event pipeline to publish through, and a
+    # name that does not exist in the sending account is an outright send
+    # failure, not a silent loss. `opts` carries the value resolved for this
+    # send (see enrich_send_opts/1); `log.configuration_set` is the same value
+    # read back, and is what makes this function correct when called directly
+    # with bare opts.
     headers =
-      case get_configuration_set(opts) do
+      case Keyword.get(opts, :configuration_set) || present(log.configuration_set) do
         nil ->
           headers
 
@@ -534,18 +553,14 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
 
   # Extract comprehensive data from Swoosh.Email
   defp extract_email_data(%Email{} = email, opts) do
+    # Idempotent: do_intercept_before_send/2 has normally already done this,
+    # and create_email_log/2 is public, so a direct caller still gets a
+    # correctly attributed log.
+    opts = enrich_send_opts(opts)
+
     user_uuid = Keyword.get(opts, :user_uuid)
-
-    # Resolve WHICH account is sending before the configuration set, because
-    # the config set is now per-account (see resolve_integration_uuid/1).
-    integration_uuid = resolve_integration_uuid(opts)
-    opts = Keyword.put(opts, :integration_uuid, integration_uuid)
-
-    # Resolve the SES configuration set once and reuse it for both provider
-    # detection and the stored field — avoids a duplicate settings lookup (and
-    # duplicate validation warnings) on the send path.
-    configuration_set = get_configuration_set(opts)
-    opts = Keyword.put(opts, :configuration_set, configuration_set)
+    integration_uuid = Keyword.get(opts, :integration_uuid)
+    configuration_set = Keyword.get(opts, :configuration_set)
 
     %EmailLogData{
       message_id: generate_message_id(email, opts),
@@ -716,15 +731,23 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
       String.contains?(sender, ["noreply", "no-reply", "system", "admin", "alert"])
   end
 
-  # Which `Integrations` connection is sending this message.
+  @doc false
+  # Resolves, once per send, the two facts everything downstream needs: WHICH
+  # account is sending, and WHICH SES configuration set goes on the wire.
   #
-  # An explicit `:integration_uuid` opt always wins — that is the only
-  # authoritative answer, and it is what a caller that routes a send
-  # deliberately should pass. Core does NOT currently put it in opts
+  # Idempotent — keyed on both keys being present — because it runs from
+  # `do_intercept_before_send/2` and again from the public
+  # `create_email_log/2` path.
+  #
+  # ## Which account
+  #
+  # An explicit `:integration_uuid` opt always wins: it is the only
+  # authoritative answer, and it is what a caller routing a send deliberately
+  # should pass. Core does NOT currently put it in opts
   # (`PhoenixKit.Mailer.deliver_via_integration/3` knows the uuid and passes
-  # `:provider` from it, but not the uuid itself), so without an explicit opt
-  # this INFERS the account from the operator-chosen default send integration
-  # — the path `PhoenixKit.Mailer.deliver_email/2` actually resolves for
+  # `:provider` derived from it, but not the uuid itself), so without an
+  # explicit opt this INFERS the account from the operator-chosen default send
+  # integration — the path `PhoenixKit.Mailer.deliver_email/2` resolves for
   # essentially all traffic, including this module's own queue worker.
   #
   # The inference is guarded by `:provider`: core stamps that opt from the
@@ -732,48 +755,71 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
   # routed through a connection of a DIFFERENT kind than the default is left
   # unstamped rather than mis-attributed.
   #
-  # Known limitation (documented deliberately, not an oversight): a send
-  # routed explicitly through a non-default connection of the SAME provider
-  # kind, with no `:integration_uuid` opt, is stamped with the default
-  # account's uuid. Closing that needs core to pass the uuid it already has;
-  # until then the SES event's own `mail.sendingAccountId` (recorded in
-  # `SQSProcessor`'s stored `event_data`) is the verifiable provenance and
-  # this stamp is the convenience index.
+  # ## Why the configuration set is stricter than the stamp
+  #
+  # The inference can still be WRONG in one case: a send routed explicitly
+  # through a non-default connection of the SAME provider kind. For the log
+  # column that is a wrong index — annoying, and correctable against the SES
+  # event's own `mail.sendingAccountId` (recorded in `SQSProcessor`'s stored
+  # `event_data`). For the configuration set it would be a wrong NAME on the
+  # wire, and SES rejects a configuration set that does not exist in the
+  # sending account: the message does not just lose its events, it fails to
+  # send.
+  #
+  # So a per-account configuration set is only used when the attribution
+  # cannot be wrong:
+  #
+  #   * the caller passed `:integration_uuid` explicitly, or
+  #   * there is exactly ONE active `aws_ses` account, so there is no other
+  #     account the send could have gone through.
+  #
+  # Otherwise the global setting is used, exactly as before this feature.
+  # When core starts passing `:integration_uuid` (the first branch), the
+  # restriction lifts on its own for every send that carries it.
+  def enrich_send_opts(opts) do
+    if Keyword.has_key?(opts, :integration_uuid) and
+         Keyword.has_key?(opts, :configuration_set) do
+      opts
+    else
+      {integration_uuid, trusted?} = resolve_integration_uuid(opts)
+
+      opts = Keyword.put(opts, :integration_uuid, integration_uuid)
+
+      opts =
+        case trusted? && Emails.account_configuration_set(integration_uuid) do
+          config_set when is_binary(config_set) and config_set != "" ->
+            Keyword.put_new(opts, :configuration_set, config_set)
+
+          _ ->
+            opts
+        end
+
+      Keyword.put(opts, :configuration_set, get_configuration_set(opts))
+    end
+  end
+
+  # `{uuid_or_nil, trusted?}` — see enrich_send_opts/1 for what `trusted?`
+  # buys and why it is not simply `uuid != nil`.
   defp resolve_integration_uuid(opts) do
     case Keyword.get(opts, :integration_uuid) do
       uuid when is_binary(uuid) and uuid != "" ->
-        uuid
+        {uuid, true}
 
       _ ->
-        with uuid when is_binary(uuid) <- default_send_integration_uuid(),
-             true <- provider_matches_integration?(opts, uuid) do
-          uuid
-        else
-          _ -> nil
+        case Emails.default_send_attribution() do
+          %{uuid: uuid, provider: provider, single_ses_account?: single?} ->
+            if provider_matches?(opts, provider), do: {uuid, single?}, else: {nil, false}
+
+          _ ->
+            {nil, false}
         end
     end
   end
 
-  # Mirrors PhoenixKit.Mailer's own (private) default_send_integration_uuid/0,
-  # including its `connected?/1` gate — the same mirror
-  # `PhoenixKit.Modules.Emails.Status` already keeps for the status card.
-  defp default_send_integration_uuid do
-    with uuid when is_binary(uuid) and uuid != "" <-
-           PhoenixKit.Settings.get_setting("default_email_integration_uuid"),
-         true <- Integrations.connected?(uuid) do
-      uuid
-    else
-      _ -> nil
-    end
-  end
-
-  defp provider_matches_integration?(opts, uuid) do
+  defp provider_matches?(opts, integration_provider) do
     case Keyword.get(opts, :provider) do
       provider when is_binary(provider) and provider != "" ->
-        case Integrations.get_integration_by_uuid(uuid) do
-          {:ok, %{provider: ^provider}} -> true
-          _ -> false
-        end
+        provider == integration_provider
 
       # No provider opt: nothing contradicts the default send path.
       _ ->
@@ -781,18 +827,11 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
     end
   end
 
-  # The SES configuration set for THIS send.
-  #
-  # Per-account before global: SES publishes delivery/bounce/complaint events
-  # only through a configuration set that exists in the SENDING account, so
-  # with several SES accounts a single global name is either wrong or silently
-  # event-less for all but one of them. `aws_tracking:<uuid>` carries each
-  # account's own name (see `Emails.get_aws_tracking/1`); the global setting
-  # remains the fallback for the legacy single-account deployment.
+  # Validates the configuration set resolved by `enrich_send_opts/1` (or, for a
+  # caller that never went through it, the global setting).
   defp get_configuration_set(opts) do
     config_set =
       Keyword.get(opts, :configuration_set) ||
-        account_configuration_set(Keyword.get(opts, :integration_uuid)) ||
         Emails.get_ses_configuration_set()
 
     # Only return config set if it's properly configured and not empty
@@ -830,14 +869,14 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
     result
   end
 
-  defp account_configuration_set(uuid) when is_binary(uuid) and uuid != "" do
-    case Emails.get_aws_tracking(uuid) do
-      %{configuration_set: config_set} -> config_set
-      _ -> nil
+  defp present(value) when is_binary(value) do
+    case String.trim(value) do
+      "" -> nil
+      trimmed -> trimmed
     end
   end
 
-  defp account_configuration_set(_uuid), do: nil
+  defp present(_value), do: nil
 
   # Validate that SES configuration set exists
   defp validate_ses_configuration_set(config_set) when is_binary(config_set) do

@@ -13,6 +13,15 @@ config :phoenix_kit_emails, PhoenixKitEmails.Test.Repo,
   pool: Ecto.Adapters.SQL.Sandbox,
   pool_size: System.schedulers_online() * 2
 
+# Same database, ordinary pool — for the one test that drives a real
+# Ecto.Migrator (see PhoenixKitEmails.Test.MigrationRepo).
+config :phoenix_kit_emails, PhoenixKitEmails.Test.MigrationRepo,
+  username: System.get_env("PGUSER", "postgres"),
+  password: System.get_env("PGPASSWORD", "postgres"),
+  hostname: System.get_env("PGHOST", "localhost"),
+  database: "phoenix_kit_emails_test#{System.get_env("MIX_TEST_PARTITION")}",
+  pool_size: 2
+
 # Wire the repo for phoenix_kit library code that calls
 # PhoenixKit.Config.get_repo/0 (Settings, Integrations, etc).
 config :phoenix_kit, repo: PhoenixKitEmails.Test.Repo

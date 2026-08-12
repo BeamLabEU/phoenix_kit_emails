@@ -45,6 +45,26 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
   sense — it is skipped at full cadence, since a half-configured second
   account must not slow event delivery for a working first one.
 
+  ### Cycle duration with N accounts
+
+  Accounts are polled sequentially and each long-poll waits up to
+  `@default_long_poll_timeout` seconds, so a quiet cycle over N accounts
+  takes about N x 20s. That does NOT put the self-scheduling chain at risk:
+  this worker does not override `c:Oban.Worker.timeout/1`, and Oban's
+  default is `:infinity` — there is no deadline that could kill the job
+  mid-cycle and hand the chain to Oban's retry machinery. (Adding one would
+  be actively harmful: a killed cycle is retried by Oban WHILE
+  `schedule_next_poll/1` has already queued a successor, which is how you
+  get two chains.)
+
+  What it does cost is latency and a queue slot: `sqs_polling` is
+  concurrency 1, so the next tick starts one interval after this cycle
+  ENDS, not after it began. With a handful of accounts that is the
+  difference between a 5s and a ~25s effective cadence — acceptable, and
+  self-correcting in the sense that a busy queue returns immediately rather
+  than waiting out the long-poll. If it ever stops being acceptable, the
+  fix is parallelism or one chain per account (phase 2), not a timeout.
+
   ## Features
 
   - **Dynamic Configuration**: Automatically responds to settings changes without restart
@@ -205,7 +225,8 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
       next_interval =
         case validate_configuration(config) do
           :ok ->
-            prune_stale_aws_tracking()
+            warn_about_unconfigured_accounts()
+            prune_stale_aws_tracking(AwsIntegrations.active_integration_uuids())
 
             case run_cycle(pollable_accounts(), config) do
               :misconfigured -> @misconfig_backoff_ms
@@ -288,12 +309,56 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
   # Not `defp` so the resolution can be unit-tested without a network round
   # trip — same rationale as `should_poll?/0`.
   @spec configured_accounts() :: [
-          %{integration_uuid: String.t() | nil, queue_url: String.t(), region: String.t() | nil}
+          %{
+            integration_uuid: String.t() | nil,
+            queue_url: String.t(),
+            region: String.t() | nil,
+            inherits_legacy?: boolean()
+          }
         ]
   def configured_accounts do
     case AwsIntegrations.active_integration_uuids() do
-      [] -> legacy_accounts()
-      uuids -> Enum.flat_map(uuids, &account_for(&1, uuids))
+      [] ->
+        legacy_accounts()
+
+      uuids ->
+        case Enum.flat_map(uuids, &account_for(&1, uuids)) do
+          # Nothing attributable YET. This is the shape an upgrade lands in
+          # when two or more `aws_ses` SendProfiles are active and none of
+          # them is the account `emails_aws_integration_uuid` selects: no
+          # account can claim the global queue, so per-account resolution
+          # yields nothing. Returning [] here would make eligible?/0 false and
+          # the reconciler would CANCEL a chain that was polling perfectly
+          # well a minute ago — an upgrade silently switching event tracking
+          # off. Falling back to the global queue keeps exactly the
+          # pre-upgrade behaviour (one queue, the global credentials) until
+          # the operator configures the first account, at which point this
+          # branch stops being reached.
+          [] -> legacy_accounts()
+          accounts -> accounts
+        end
+    end
+  end
+
+  @doc false
+  # True when active SES accounts exist but none of them has a queue of its
+  # own — the state `configured_accounts/0` covers by falling back to the
+  # global queue. Surfaced so the poller can log it and the settings UI can
+  # show it: it is a working-but-unfinished configuration, and silence is how
+  # it would stay unfinished.
+  @spec accounts_awaiting_configuration() :: [String.t()]
+  def accounts_awaiting_configuration do
+    case AwsIntegrations.active_integration_uuids() do
+      [] ->
+        []
+
+      uuids ->
+        configured =
+          uuids
+          |> Enum.flat_map(&account_for(&1, uuids))
+          |> MapSet.new(& &1.integration_uuid)
+
+        Enum.reject(uuids, &MapSet.member?(configured, &1))
     end
   end
 
@@ -315,7 +380,7 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
     url = Emails.get_sqs_queue_url()
 
     if is_binary(url) and url != "" do
-      [%{integration_uuid: nil, queue_url: url, region: nil}]
+      [%{integration_uuid: nil, queue_url: url, region: nil, inherits_legacy?: true}]
     else
       []
     end
@@ -323,25 +388,34 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
 
   defp account_for(uuid, active_uuids) do
     tracking = Emails.get_aws_tracking(uuid)
-    queue_url = (tracking && tracking.queue_url) || inherited_queue_url(uuid, active_uuids)
+    inherits_legacy? = legacy_attributable?(uuid, active_uuids)
+
+    queue_url =
+      (tracking && tracking.queue_url) || (inherits_legacy? && Emails.get_sqs_queue_url()) || nil
 
     if is_binary(queue_url) and queue_url != "" do
-      [%{integration_uuid: uuid, queue_url: queue_url, region: tracking && tracking.region}]
+      [
+        %{
+          integration_uuid: uuid,
+          queue_url: queue_url,
+          region: tracking && tracking.region,
+          inherits_legacy?: inherits_legacy?
+        }
+      ]
     else
       Logger.debug("SQS Polling Job: no queue configured for integration #{uuid}, skipping")
       []
     end
   end
 
-  # The global `aws_sqs_queue_url` describes exactly ONE queue, so it can
-  # only be inherited by an account it unambiguously belongs to: the one
-  # `emails_aws_integration_uuid` selects, or the only active account there
-  # is. See the moduledoc's "Multi-account cycle" for why the ambiguous
-  # case is skipped rather than fanned out.
-  defp inherited_queue_url(uuid, active_uuids) do
-    if uuid == Emails.selected_aws_integration_uuid() or match?([_single], active_uuids) do
-      Emails.get_sqs_queue_url()
-    end
+  # The global settings — one queue URL, one set of `get_aws_*` credentials —
+  # describe exactly ONE account, so they can only be inherited by an account
+  # they unambiguously belong to: the one `emails_aws_integration_uuid`
+  # selects, or the only active account there is. See the moduledoc's
+  # "Multi-account cycle" for why the ambiguous case is skipped rather than
+  # fanned out.
+  defp legacy_attributable?(uuid, active_uuids) do
+    uuid == Emails.selected_aws_integration_uuid() or match?([_single], active_uuids)
   end
 
   # `aws_tracking:<uuid>` outlives the connection it describes, so a
@@ -354,33 +428,67 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
   # regenerable cursor, while this is operator-entered configuration —
   # disabling a SendProfile for an afternoon, or opting an account out of
   # polling, must not silently discard its queue URLs.
-  defp prune_stale_aws_tracking do
-    known =
-      "aws_ses"
-      |> Integrations.list_connections()
-      |> MapSet.new(& &1.uuid)
+  #
+  # Two things keep this off the hot path. It runs on a 5-second cadence by
+  # default, and `list_connections/2` DECRYPTS every returned connection:
+  #
+  #   * the candidate set is computed first, from a plain Settings prefix
+  #     read, and every uuid that is already an active account is dropped.
+  #     In the steady state that leaves nothing and the decrypting query
+  #     never runs at all.
+  #   * `owner: :any` matches how the active set is resolved
+  #     (`Integrations.get_credentials/2` and `get_integration_by_uuid/2` both
+  #     default to `:any`). The default `owner: :system` would classify every
+  #     USER-owned connection as non-existent and delete its tracking row on
+  #     the next cycle — a live account's queue settings vanishing on a timer.
+  defp prune_stale_aws_tracking(active_uuids) do
+    candidates = Emails.list_aws_tracking_integration_uuids() -- active_uuids
 
-    Emails.list_aws_tracking_integration_uuids()
-    |> Enum.reject(&MapSet.member?(known, &1))
-    |> Enum.each(fn stale_uuid ->
-      Emails.delete_aws_tracking(stale_uuid)
+    if candidates != [] do
+      known =
+        "aws_ses"
+        |> Integrations.list_connections(owner: :any)
+        |> MapSet.new(& &1.uuid)
 
-      Logger.info(
-        "SQS Polling Job: pruned stale tracking settings for integration #{stale_uuid} " <>
-          "(connection no longer exists)"
-      )
-    end)
+      candidates
+      |> Enum.reject(&MapSet.member?(known, &1))
+      |> Enum.each(fn stale_uuid ->
+        Emails.delete_aws_tracking(stale_uuid)
+
+        Logger.info(
+          "SQS Polling Job: pruned stale tracking settings for integration #{stale_uuid} " <>
+            "(connection no longer exists)"
+        )
+      end)
+    end
   end
 
+  defp warn_about_unconfigured_accounts do
+    case accounts_awaiting_configuration() do
+      [] ->
+        :ok
+
+      uuids ->
+        Logger.warning(
+          "SQS Polling Job: #{length(uuids)} active SES account(s) have no queue of their own " <>
+            "(#{Enum.join(uuids, ", ")}) — falling back to the single global queue. Configure " <>
+            "each account under Settings -> Email Sending -> Amazon SES & SQS."
+        )
+    end
+  end
+
+  @doc false
   # One cycle over every account. Returns :misconfigured if ANY account's
   # credentials failed to resolve, which backs the whole chain off — see
-  # the moduledoc.
-  defp run_cycle([], _config) do
+  # the moduledoc. Not `defp` so the backoff decision is unit-testable with
+  # a hand-built account list and no network — same rationale as
+  # `should_poll?/0`.
+  def run_cycle([], _config) do
     Logger.debug("SQS Polling Job: no accounts to poll this cycle")
     :ok
   end
 
-  defp run_cycle(accounts, config) do
+  def run_cycle(accounts, config) do
     results = Enum.map(accounts, &poll_account(&1, config))
 
     if Enum.any?(results, &(&1 == :misconfigured)) do
@@ -413,15 +521,22 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
     end
   end
 
+  @doc false
   # Legacy account: the process-wide `get_aws_*` resolution (selected
   # connection, then legacy Settings, then env) — unchanged behaviour for a
-  # deployment that never adopted SendProfiles.
-  defp resolve_aws_config(%{integration_uuid: nil}, config), do: {:ok, build_aws_config(config)}
+  # deployment that never adopted SendProfiles. Public (`@doc false`) so the
+  # credential fallback can be asserted without a network round trip.
+  def resolve_aws_config(account, config \\ nil)
+
+  def resolve_aws_config(%{integration_uuid: nil}, config),
+    do: {:ok, build_aws_config(config || Emails.get_sqs_config())}
 
   # Per-account: this connection's own keys, and its own region — the
   # per-account `aws_tracking` region wins over the connection's, since the
   # queue being polled is the one the tracking row names.
-  defp resolve_aws_config(%{integration_uuid: uuid, region: region}, _config) do
+  def resolve_aws_config(%{integration_uuid: uuid, region: region} = account, config) do
+    config = config || Emails.get_sqs_config()
+
     case AwsIntegrations.resolve_credentials(uuid) do
       {:ok, creds} ->
         {:ok,
@@ -430,6 +545,33 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
            secret_access_key: creds.secret_key,
            region: region || creds.region
          ]}
+
+      # The connection stores no credentials. That is NOT necessarily a
+      # misconfiguration: a deployment can keep its AWS keys in environment
+      # variables, an instance profile, or the legacy `aws_access_key_id`
+      # Settings, with the Integrations connection existing only so a
+      # SendProfile can point at it. Before this fallback such an account
+      # resolved to {:error, :missing_credentials} forever — the cycle backed
+      # off, the queue was never polled, and event tracking stopped silently
+      # on upgrade.
+      #
+      # The fallback applies under exactly the rule that governs the global
+      # QUEUE too (`legacy_attributable?/2`): the globals describe one
+      # account, so only the account they can be attributed to may use them.
+      # `build_aws_config/1` returning [] is meaningful, not empty — it tells
+      # ExAws to resolve credentials itself, which is the whole point for an
+      # env/instance-profile deployment.
+      {:error, :missing_credentials} = error ->
+        if account.inherits_legacy? do
+          Logger.debug(
+            "SQS Polling Job: integration #{uuid} stores no credentials, " <>
+              "using the legacy AWS credential resolution"
+          )
+
+          {:ok, build_aws_config(config)}
+        else
+          error
+        end
 
       {:error, reason} ->
         {:error, reason}

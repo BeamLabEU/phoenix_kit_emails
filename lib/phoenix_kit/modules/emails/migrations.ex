@@ -108,6 +108,23 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
   runs before any module chain (`mix phoenix_kit.update`), so they are
   always in place first.
 
+  ## Locking
+
+  The `CREATE INDEX` statements are plain, not `CONCURRENTLY`: this chain runs
+  inside core's generated migration, and `CONCURRENTLY` cannot run in a
+  transaction (`@disable_ddl_transaction` belongs to the migration module core
+  generates, not to this one — it is not ours to set).
+
+  On the installs this matters for, it costs nothing: every statement is
+  `IF NOT EXISTS` and every index already exists, so the DDL is a catalog
+  lookup. The one case that does take a write lock on
+  `phoenix_kit_email_logs` is the new `integration_uuid` index on a large
+  existing table — a `SHARE` lock, blocking writes (not reads) for the length
+  of one index build. Expect seconds on a table of a few million rows, and
+  schedule the update accordingly; a host that cannot take that lock should
+  create the index `CONCURRENTLY` by hand first, after which this statement
+  finds it and does nothing.
+
   ## One known, harmless cosmetic difference
 
   Two partial indexes on `phoenix_kit_email_events` were originally written
@@ -436,12 +453,26 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
     _ -> 0
   end
 
-  @doc "Applies every chain version up to `current_version/0` (idempotent)."
+  @doc """
+  Applies every chain version up to `:version` in `opts` (default:
+  `current_version/0`). Idempotent.
+
+  The `:version` opt is what core's generated migration passes through; V1 is
+  the only version today, so it can only mean "all of it" or "none of it", but
+  ignoring it would have become a silent surprise at V2 — a host pinning
+  `version: 1` would have got V2's DDL anyway.
+  """
   def up(opts \\ []) do
-    opts
-    |> validated_prefix()
-    |> up_statements()
-    |> Enum.each(&execute/1)
+    target = target_version(opts)
+
+    if target >= 1 do
+      opts
+      |> validated_prefix()
+      |> up_statements(target)
+      |> Enum.each(&execute/1)
+    end
+
+    :ok
   end
 
   @doc """
@@ -466,16 +497,17 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
   Ordering is load-bearing: tables before their columns, the primary keys
   before the foreign key that references one of them, indexes last.
   """
-  @spec up_statements(String.t()) :: [String.t()]
-  def up_statements(prefix \\ "public") do
+  @spec up_statements(String.t(), pos_integer()) :: [String.t()]
+  def up_statements(prefix \\ "public", version \\ @current_version) do
     prefix = validated_prefix(prefix: prefix)
+    version = min(version, @current_version)
 
     statements =
       table_statements() ++
         column_statements() ++
         constraint_statements() ++
         index_statements() ++
-        [marker_statement(@current_version)]
+        [marker_statement(version)]
 
     Enum.map(statements, &materialize(&1, prefix))
   end
@@ -588,6 +620,11 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
   defp marker_statement(version) do
     "COMMENT ON TABLE #{@schema_token}.#{@version_table} IS '#{@marker_prefix}#{version}'"
   end
+
+  defp target_version(opts) when is_list(opts),
+    do: Keyword.get(opts, :version, @current_version)
+
+  defp target_version(_opts), do: @current_version
 
   defp parse_version(n) do
     case Integer.parse(n) do

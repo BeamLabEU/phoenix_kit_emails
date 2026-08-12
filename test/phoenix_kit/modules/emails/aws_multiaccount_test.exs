@@ -235,14 +235,46 @@ defmodule PhoenixKit.Modules.Emails.AwsMultiaccountTest do
                SQSPollingJob.configured_accounts()
     end
 
-    test "with two unattributed accounts the global queue is inherited by neither" do
+    test "with two unattributed accounts the global queue is inherited by neither..." do
       one = create_connection()
       two = create_connection()
       create_profile(one)
       create_profile(two)
       {:ok, _} = Emails.set_sqs_queue_url("https://sqs.example.com/legacy")
 
+      # ...but the queue is still polled, as the unattributed LEGACY account.
+      # Returning [] here would make eligible?/0 false and let the reconciler
+      # cancel a chain that was working before the upgrade — event tracking
+      # switching itself off on deploy. See configured_accounts/0.
+      assert [%{integration_uuid: nil, queue_url: "https://sqs.example.com/legacy"}] =
+               SQSPollingJob.configured_accounts()
+
+      # Both accounts are named as needing configuration, which is what the
+      # poller warns about and the settings section renders.
+      assert Enum.sort(SQSPollingJob.accounts_awaiting_configuration()) == Enum.sort([one, two])
+    end
+
+    test "with two unattributed accounts and no global queue there is nothing to poll" do
+      one = create_connection()
+      two = create_connection()
+      create_profile(one)
+      create_profile(two)
+
       assert SQSPollingJob.configured_accounts() == []
+    end
+
+    test "once ONE account is configured the legacy fallback stops applying" do
+      one = create_connection()
+      two = create_connection()
+      create_profile(one)
+      create_profile(two)
+      {:ok, _} = Emails.set_sqs_queue_url("https://sqs.example.com/legacy")
+      {:ok, _} = Emails.set_aws_tracking(one, %{"queue_url" => "https://sqs.example.com/one"})
+
+      assert [%{integration_uuid: ^one, queue_url: "https://sqs.example.com/one"}] =
+               SQSPollingJob.configured_accounts()
+
+      assert SQSPollingJob.accounts_awaiting_configuration() == [two]
     end
 
     test "...unless one of them is the account emails_aws_integration_uuid selects" do

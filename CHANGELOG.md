@@ -1,5 +1,69 @@
 # Changelog
 
+## 0.3.0 - 2026-08-12
+
+### Upgrading — read this first
+
+This release adds a column to `phoenix_kit_email_logs`, and the schema in the
+code expects it. **Migrate before you restart**, not after:
+
+```
+mix phoenix_kit.update --yes   # applies the module chain (Emails V01)
+# ...then restart the application
+```
+
+Restarting first leaves the running code selecting a column the database does
+not have, and every query against `phoenix_kit_email_logs` fails until the
+update lands. Both steps are idempotent, so a host that has already run them is
+unaffected.
+
+The migration takes a brief write lock on `phoenix_kit_email_logs` while it
+builds the new index — see `PhoenixKit.Modules.Emails.Migrations`' "Locking"
+section if that table is large.
+
+### Added
+
+- **Multi-account AWS SES delivery event tracking.** SQS polling could only ever
+  reach one AWS account: the queue URL was a single setting, the credentials
+  cache had a single key, and the Oban chain is unique per worker. With two SES
+  connections configured, one account's events were never collected — and the
+  poller could be handed account A's queue with account B's keys.
+
+  One Oban chain still, with N accounts polled inside each cycle (the shape
+  `BrevoPollingJob` already used). Each account carries its own queue, DLQ,
+  topic, configuration set and region under an `aws_tracking:<integration_uuid>`
+  setting, its own credentials, and its own opt-out. The "Amazon SES & SQS"
+  settings section grows a row per account, each with its own "Setup
+  Infrastructure" button that creates the resources in *that* account.
+
+- **Per-account SES configuration sets.** SES publishes delivery, bounce and
+  complaint events only through a configuration set that exists in the SENDING
+  account, so a single global name is silence for every account but one. The
+  name now travels with the account. While the sending account can only be
+  inferred (see below), the global name is still used for safety: a
+  configuration set that does not exist in the sending account is a failed
+  send, not just a lost event.
+
+- **`phoenix_kit_email_logs.integration_uuid`** — which account sent a message,
+  not just which provider kind. Nullable, best-effort, and backed by the SES
+  event's own `mail.sendingAccountId`, which is now kept in the stored
+  `event_data` alongside `sourceArn` and `configurationSet` as verifiable
+  provenance.
+
+- **A module-owned migration chain** (`PhoenixKit.Modules.Emails.Migrations`).
+  V01 adopts the six tables nothing outside this package uses, alongside core's
+  baseline, which still creates them — a deliberate transitional duplication.
+  See `dev_docs/reports/2026-08-12-emails-table-adoption.md`.
+
+### Known limitation
+
+Core does not yet pass the sending integration's uuid to the tracking
+interceptor, so for a send routed explicitly through a non-default connection of
+the same provider kind, `integration_uuid` is inferred and can name the default
+account instead. The column is an index, not a source of truth; the SES event's
+`mail.sendingAccountId` is. Per-account configuration sets are deliberately
+withheld in exactly that ambiguous case.
+
 ## 0.2.1 - 2026-08-11
 
 ### Fixed

@@ -18,6 +18,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
   alias PhoenixKit.Modules.Emails
   alias PhoenixKit.Modules.Emails.AwsIntegrations
   alias PhoenixKit.Modules.Emails.EventTrackerReconciler
+  alias PhoenixKit.Modules.Emails.SQSPollingJob
   alias PhoenixKit.Modules.Emails.SQSPollingManager
   alias PhoenixKit.Modules.Emails.Utils
   alias PhoenixKit.Settings
@@ -301,7 +302,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
 
     case Settings.update_settings_batch(settings_to_update) do
       {:ok, _results} ->
-        new_aws_settings = build_aws_settings_map(aws_params)
+        new_aws_settings = merge_aws_settings(socket.assigns.aws_settings, aws_params)
 
         socket =
           socket
@@ -333,6 +334,10 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
   # disappearing changes `SQSPollingManager.eligible?/0`, and
   # `enable_polling/0` inserts a chain without consulting it (the same
   # reasoning `DeliveryEventTracking`'s toggle handler documents).
+
+  def handle_event("assign_tracking_account", %{"uuid" => ""}, socket) do
+    {:noreply, put_flash(socket, :error, gettext("Select an Amazon SES connection to add"))}
+  end
 
   def handle_event("assign_tracking_account", %{"uuid" => uuid}, socket) do
     if known_connection?(socket, uuid) do
@@ -421,9 +426,18 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
         # cache's TTL — see Emails.invalidate_aws_credentials_cache/0.
         Emails.invalidate_aws_credentials_cache()
 
+        # This setting decides which account may inherit the global queue
+        # (SQSPollingJob.configured_accounts/0), so changing it can make the
+        # SES tracker newly eligible or newly ineligible. Same reasoning as
+        # after_tracking_change/1 and the Delivery Event Tracking toggle:
+        # without a reconcile the chain is only corrected on the next cron
+        # tick, or never on a host that skipped wiring the cron.
+        EventTrackerReconciler.reconcile_tracker(SQSPollingManager)
+
         socket =
           socket
           |> assign(:selected_aws_integration_uuid, uuid)
+          |> assign_tracking_accounts()
           |> put_flash(:info, gettext("SES credentials source updated"))
 
         {:noreply, socket}
@@ -438,7 +452,10 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
   # the same `list_connections("aws_ses")` read the credentials-source
   # picker already does, so a connection can never appear in both.
   defp assign_tracking_accounts(socket) do
-    connections = socket.assigns.aws_ses_connections
+    # Reads the connection list itself rather than trusting an assign: this
+    # runs from every write handler, and one of them (assign_aws_integration)
+    # is reachable on a socket that never went through update/2.
+    connections = Integrations.list_connections("aws_ses")
     assigned = MapSet.new(Emails.list_aws_tracking_integration_uuids())
     active = MapSet.new(AwsIntegrations.active_integration_uuids())
 
@@ -454,7 +471,23 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
         }
       end)
 
+    # Active accounts with no queue of their own: the poller is still running,
+    # but on the single legacy queue rather than per account (see
+    # SQSPollingJob.configured_accounts/0). Named here because the alternative
+    # is an operator who upgraded, sees "Running normally", and has no idea
+    # half their accounts are not being polled.
+    awaiting =
+      SQSPollingJob.accounts_awaiting_configuration()
+      |> Enum.map(fn uuid ->
+        case Enum.find(connections, &(&1.uuid == uuid)) do
+          %{name: name} -> name
+          _ -> uuid
+        end
+      end)
+
     socket
+    |> assign(:aws_ses_connections, connections)
+    |> assign(:accounts_awaiting_configuration, awaiting)
     |> assign(:tracking_accounts, rows)
     |> assign(
       :unassigned_connections,
@@ -470,13 +503,15 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
     Emails.invalidate_aws_credentials_cache()
 
     socket
-    |> assign(:aws_ses_connections, Integrations.list_connections("aws_ses"))
     |> assign_tracking_accounts()
     |> assign(:setting_up_account, nil)
   end
 
   defp known_connection?(socket, uuid) do
-    Enum.any?(socket.assigns.aws_ses_connections, &(&1.uuid == uuid))
+    connections =
+      Map.get(socket.assigns, :aws_ses_connections) || Integrations.list_connections("aws_ses")
+
+    Enum.any?(connections, &(&1.uuid == uuid))
   end
 
   # Creates the SNS topic / SQS queue / DLQ / configuration set in THIS
@@ -558,16 +593,17 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
     """
   end
 
-  defp build_aws_settings_map(aws_params) do
-    %{
-      access_key_id: aws_params["access_key_id"] || "",
-      secret_access_key: aws_params["secret_access_key"] || "",
-      region: aws_params["region"] || "",
-      sqs_queue_url: aws_params["sqs_queue_url"] || "",
-      sqs_dlq_url: aws_params["sqs_dlq_url"] || "",
-      sqs_queue_arn: aws_params["sqs_queue_arn"] || "",
-      sns_topic_arn: aws_params["sns_topic_arn"] || "",
-      ses_configuration_set: aws_params["ses_configuration_set"] || ""
-    }
+  # MERGES the pipeline fields; it does not rebuild the map. The form no
+  # longer carries access_key_id/secret_access_key/region (credentials moved to
+  # Integrations), so rebuilding from `aws_params` blanked them in the assign —
+  # which hid the "sending on legacy credentials" warning and left "Setup AWS
+  # Infrastructure" permanently disabled until a page reload, because both are
+  # rendered off these values.
+  @pipeline_fields ~w(sqs_queue_url sqs_dlq_url sqs_queue_arn sns_topic_arn ses_configuration_set)a
+
+  defp merge_aws_settings(current, aws_params) do
+    Enum.reduce(@pipeline_fields, current, fn field, acc ->
+      Map.put(acc, field, aws_params[Atom.to_string(field)] || "")
+    end)
   end
 end

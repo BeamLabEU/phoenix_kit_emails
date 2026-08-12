@@ -110,6 +110,25 @@
       </p>
     </div>
 
+    <%!-- Active senders with no queue of their own. Polling has NOT stopped —
+         SQSPollingJob falls back to the single global queue — but only one
+         account's events are arriving, which is invisible from the tracking
+         panel's "Running normally". --%>
+    <div :if={@accounts_awaiting_configuration != []} class="alert alert-warning text-sm">
+      <.icon name="hero-exclamation-triangle" class="w-5 h-5 shrink-0" />
+      <div>
+        <h4 class="font-semibold">
+          {gettext("Some sending accounts have no event queue of their own")}
+        </h4>
+        <p class="mt-1">
+          {gettext(
+            "These accounts send mail but have no SQS queue configured here, so their delivery events are not being collected: %{names}. Add each one below and run Setup Infrastructure. Until then, only the single global queue is polled.",
+            names: Enum.join(@accounts_awaiting_configuration, ", ")
+          )}
+        </p>
+      </div>
+    </div>
+
     <div :if={@tracking_accounts == []} class="text-sm text-base-content/60">
       {gettext("No accounts configured for event tracking yet.")}
     </div>

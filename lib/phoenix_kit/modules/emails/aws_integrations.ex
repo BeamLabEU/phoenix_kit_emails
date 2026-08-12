@@ -75,10 +75,15 @@ defmodule PhoenixKit.Modules.Emails.AwsIntegrations do
     # Reads through `Emails.aws_ses_credentials/1`'s per-account TTL cache
     # rather than `Integrations.get_credentials/1` directly: the poller
     # resolves every active account once per cycle, and each uncached
-    # resolution is a DB read plus a decrypt. A connection whose
-    # credentials were just edited is invalidated at the write site (see
-    # `Emails.invalidate_aws_credentials_cache/1`), so this never serves a
-    # stale key past an operator's own change.
+    # resolution is a DB read plus a decrypt.
+    #
+    # Staleness is bounded by that TTL (60s) and nothing more. Editing a
+    # connection's credentials happens on CORE's Integrations page, which has
+    # no hook into this package, so there is no write site here to invalidate
+    # from — `Emails.invalidate_aws_credentials_cache/0` covers the changes
+    # this package itself makes, and the TTL covers the rest. A poller that
+    # keeps using an old key for up to a minute retries on the next cycle;
+    # this is why the cache has a TTL at all rather than living forever.
     creds = Emails.aws_ses_credentials(integration_uuid)
 
     access_key = present(creds["access_key"])

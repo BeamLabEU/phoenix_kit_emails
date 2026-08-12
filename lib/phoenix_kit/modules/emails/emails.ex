@@ -99,7 +99,7 @@ defmodule PhoenixKit.Modules.Emails do
   alias PhoenixKit.Config.AWS
   alias PhoenixKit.Dashboard.Tab
   alias PhoenixKit.Integrations
-  alias PhoenixKit.Modules.Emails.{Event, Log, SQSProcessor, Utils}
+  alias PhoenixKit.Modules.Emails.{AwsIntegrations, Event, Log, SQSProcessor, Utils}
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Date, as: UtilsDate
 
@@ -1053,12 +1053,21 @@ defmodule PhoenixKit.Modules.Emails do
       }
 
       # Nothing to carry over (a fresh install that only ever picked a
-      # credentials source) — writing an all-nil row would just make the
-      # legacy fallback unreachable for that account for no gain.
-      if Enum.any?(legacy, fn {_k, v} -> is_binary(v) and String.trim(v) != "" end) do
+      # credentials source) — writing a row would just leave an empty
+      # `aws_tracking:` key behind for no gain.
+      #
+      # Judged on the PIPELINE fields only. `region` is deliberately excluded:
+      # it resolves through the selected connection, so it is non-blank on any
+      # install that has one, and counting it made this guard always true —
+      # the row it then wrote described nothing.
+      if any_legacy_pipeline_value?(legacy) do
         set_aws_tracking(uuid, legacy)
       end
     end
+  end
+
+  defp any_legacy_pipeline_value?(legacy) do
+    Enum.any?(aws_tracking_pipeline_fields(), &present?(legacy[&1]))
   end
 
   defp existing_migrated_connection_uuid do
@@ -1915,6 +1924,12 @@ defmodule PhoenixKit.Modules.Emails do
   # iterate the same list instead of re-typing it.
   @spec aws_tracking_fields() :: [String.t()]
   def aws_tracking_fields, do: @aws_tracking_fields
+
+  # Everything aws_tracking_fields/0 lists except `region`, which describes
+  # WHERE an account lives rather than WHAT tracking pipeline it has — see
+  # `seed_aws_tracking_from_legacy/0`. A function, not an attribute, only
+  # because its one caller is defined earlier in the file than this.
+  defp aws_tracking_pipeline_fields, do: @aws_tracking_fields -- ["region"]
 
   defp decode_aws_tracking(json) do
     Map.new(@aws_tracking_fields, fn field ->
@@ -2851,8 +2866,8 @@ defmodule PhoenixKit.Modules.Emails do
   poller now walks several accounts per cycle: a single-slot cache handed
   whichever account was resolved first to every subsequent lookup, which
   with two accounts means polling one account's queue with the other's
-  keys. Invalidate one account with `invalidate_aws_credentials_cache/1`,
-  or the whole instance with `invalidate_aws_credentials_cache/0`.
+  keys. Cleared by `invalidate_aws_credentials_cache/0`, which every write
+  site that can change a resolution already calls.
 
   ## Examples
 
@@ -2877,12 +2892,110 @@ defmodule PhoenixKit.Modules.Emails do
 
   def aws_ses_credentials(_uuid), do: %{}
 
+  # The provider check is not ceremony: `aws_ses_credentials/1` is public and
+  # takes any uuid, `Integrations.get_credentials/2` defaults to `owner: :any`,
+  # and the map it returns is DECRYPTED. Without this, passing a Brevo (or any
+  # other) connection's uuid would hand back that connection's secrets through
+  # an AWS-named function. `creds["provider"]` is already in the map core's own
+  # mailer reads, so this costs nothing.
   defp fetch_aws_ses_credentials(uuid) do
     case Integrations.get_credentials(uuid) do
-      {:ok, creds} when is_map(creds) -> creds
-      _ -> %{}
+      {:ok, %{"provider" => "aws_ses"} = creds} ->
+        creds
+
+      {:ok, creds} when is_map(creds) ->
+        # A connection saved before `provider` was stored in the blob reads as
+        # missing rather than wrong — treat it as SES (the historical
+        # behaviour) instead of breaking those installs.
+        if Map.has_key?(creds, "provider"), do: %{}, else: creds
+
+      _ ->
+        %{}
     end
   end
+
+  @doc false
+  # The send path's account attribution, resolved once and memoized for the
+  # same TTL as the credentials themselves.
+  #
+  # `Interceptor` needs three facts on EVERY outgoing email: which integration
+  # the operator's default send path resolves to, what provider that connection
+  # is (to refuse a mis-attribution), and whether it is the only active SES
+  # account (which is what makes a per-account configuration set safe to put on
+  # the wire — see `Interceptor.enrich_send_opts/1`). Uncached, that is a
+  # Settings read, a credentials decrypt and a `list_send_profiles/0` query per
+  # message, which a bulk send pays thousands of times.
+  #
+  # Returns `nil` when no default send integration is configured.
+  @spec default_send_attribution() ::
+          %{
+            uuid: String.t(),
+            provider: String.t() | nil,
+            single_ses_account?: boolean()
+          }
+          | nil
+  def default_send_attribution do
+    cache_miss = :__aws_credentials_cache_miss__
+
+    case PhoenixKit.Cache.get(@aws_credentials_cache_name, :send_attribution, cache_miss) do
+      ^cache_miss ->
+        attribution = fetch_default_send_attribution()
+        PhoenixKit.Cache.put(@aws_credentials_cache_name, :send_attribution, attribution)
+        attribution
+
+      attribution ->
+        attribution
+    end
+  end
+
+  defp fetch_default_send_attribution do
+    # Mirrors PhoenixKit.Mailer's own (private) default_send_integration_uuid/0,
+    # including its `connected?/1` gate — the same mirror
+    # `PhoenixKit.Modules.Emails.Status` already keeps for the status card.
+    with uuid when is_binary(uuid) and uuid != "" <-
+           Settings.get_setting("default_email_integration_uuid"),
+         true <- Integrations.connected?(uuid) do
+      provider =
+        case Integrations.get_integration_by_uuid(uuid) do
+          {:ok, %{provider: provider}} when is_binary(provider) and provider != "" -> provider
+          _ -> nil
+        end
+
+      %{
+        uuid: uuid,
+        provider: provider,
+        single_ses_account?: AwsIntegrations.active_integration_uuids() == [uuid]
+      }
+    else
+      _ -> nil
+    end
+  end
+
+  @doc false
+  # The SES configuration set this account carries, memoized for the send path
+  # (see `default_send_attribution/0` for why the caching exists at all).
+  @spec account_configuration_set(String.t() | nil) :: String.t() | nil
+  def account_configuration_set(uuid) when is_binary(uuid) and uuid != "" do
+    cache_miss = :__aws_credentials_cache_miss__
+    key = {:configuration_set, uuid}
+
+    case PhoenixKit.Cache.get(@aws_credentials_cache_name, key, cache_miss) do
+      ^cache_miss ->
+        config_set =
+          case get_aws_tracking(uuid) do
+            %{configuration_set: config_set} -> config_set
+            _ -> nil
+          end
+
+        PhoenixKit.Cache.put(@aws_credentials_cache_name, key, config_set)
+        config_set
+
+      config_set ->
+        config_set
+    end
+  end
+
+  def account_configuration_set(_uuid), do: nil
 
   @doc """
   Invalidates the cached AWS SES credential resolution (`aws_ses_credentials/0`).
@@ -2896,32 +3009,17 @@ defmodule PhoenixKit.Modules.Emails do
   """
   @spec invalidate_aws_credentials_cache() :: :ok
   def invalidate_aws_credentials_cache do
-    # Entries are keyed per account (`{:credentials, uuid}`), so "which
-    # credentials should resolve now" can no longer be expressed as a single
-    # key — clearing the whole instance is both correct and cheap (the
-    # instance holds nothing else, and a repopulate is one read per account).
+    # Deliberately a whole-instance clear rather than a per-key invalidation.
+    # The instance now memoizes several derived things under different keys —
+    # `:credentials`, `{:credentials, uuid}`, `:send_attribution`,
+    # `{:configuration_set, uuid}` — and every caller of this function has
+    # changed something that can invalidate MORE than one of them (selecting a
+    # different connection changes the attribution AND the credentials; writing
+    # an account's tracking row changes its configuration set AND, if it was
+    # the only active account, the attribution). A targeted API would have to
+    # be right about which, and being wrong is silent. The instance holds
+    # nothing else and a repopulate is one read.
     PhoenixKit.Cache.clear(@aws_credentials_cache_name)
-  end
-
-  @doc """
-  Invalidates the cached credentials for ONE `aws_ses` connection.
-
-  The targeted counterpart of `invalidate_aws_credentials_cache/0`, for the
-  common case where exactly one account's connection changed and there is
-  no reason to make every other account re-read.
-  """
-  @spec invalidate_aws_credentials_cache(String.t()) :: :ok
-  def invalidate_aws_credentials_cache(uuid) when is_binary(uuid) do
-    PhoenixKit.Cache.invalidate(@aws_credentials_cache_name, {:credentials, uuid})
-
-    # The legacy arity-0 resolution memoizes this same connection under its
-    # own key when it happens to be the selected one — invalidating only the
-    # per-account entry would leave the send path serving the old keys.
-    if uuid == selected_aws_integration_uuid() do
-      PhoenixKit.Cache.invalidate(@aws_credentials_cache_name, :credentials)
-    end
-
-    :ok
   end
 
   # Validate SQS queue URL format
