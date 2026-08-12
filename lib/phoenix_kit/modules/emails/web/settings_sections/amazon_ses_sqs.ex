@@ -12,16 +12,12 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
   use PhoenixKitWeb, :live_component
   use Gettext, backend: PhoenixKit.Modules.Emails.Gettext
 
-  import PhoenixKitWeb.Components.Core.AWSCredentialsVerify
-
-  alias PhoenixKit.AWS.CredentialsVerifier
   alias PhoenixKit.AWS.InfrastructureSetup
   alias PhoenixKit.Config.AWS
   alias PhoenixKit.Integrations
   alias PhoenixKit.Modules.Emails
   alias PhoenixKit.Modules.Emails.Utils
   alias PhoenixKit.Settings
-  alias PhoenixKitWeb.Live.Components.SearchableSelect
 
   @dialyzer {:nowarn_function, handle_event: 3}
 
@@ -168,14 +164,21 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
       |> String.replace(~r/[^a-z0-9-]/, "-")
       |> String.trim("-")
 
-    aws_config = socket.assigns.aws_settings
-    region = aws_config.region || AWS.region()
+    # Resolved credentials: the assigned Integrations connection first, then
+    # the legacy settings fallback — the form no longer carries credentials.
+    region = Emails.get_aws_region() || AWS.region()
 
     access_key_id =
-      if aws_config.access_key_id != "", do: aws_config.access_key_id, else: nil
+      case Emails.get_aws_access_key() do
+        key when is_binary(key) and key != "" -> key
+        _ -> nil
+      end
 
     secret_access_key =
-      if aws_config.secret_access_key != "", do: aws_config.secret_access_key, else: nil
+      case Emails.get_aws_secret_key() do
+        key when is_binary(key) and key != "" -> key
+        _ -> nil
+      end
 
     if access_key_id && secret_access_key do
       case InfrastructureSetup.run(
@@ -280,24 +283,10 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
   def handle_event("save_aws_settings", %{"aws_settings" => aws_params}, socket) do
     socket = assign(socket, :saving, true)
 
-    # A blank secret means "keep the stored one" — the form never echoes the
-    # saved secret back (see the template), so on an untouched form this field
-    # arrives empty and must not wipe the credential.
-    submitted_secret = String.trim(aws_params["secret_access_key"] || "")
-
-    secret =
-      if submitted_secret == "",
-        do: Settings.get_setting("aws_secret_access_key", ""),
-        else: submitted_secret
-
+    # Pipeline fields only — credentials and region belong to the assigned
+    # Integrations connection (legacy aws_* settings stay untouched as the
+    # fallback until an assignment happens).
     settings_to_update = %{
-      "aws_access_key_id" => String.trim(aws_params["access_key_id"] || ""),
-      "aws_secret_access_key" => secret,
-      "aws_region" =>
-        if(aws_params["region"] in [nil, ""],
-          do: AWS.region(),
-          else: aws_params["region"]
-        ),
       "aws_sqs_queue_url" => aws_params["sqs_queue_url"] || "",
       "aws_sqs_dlq_url" => aws_params["sqs_dlq_url"] || "",
       "aws_sqs_queue_arn" => aws_params["sqs_queue_arn"] || "",
@@ -331,7 +320,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
     end
   end
 
-  def handle_event("select_aws_integration", %{"uuid" => uuid}, socket) do
+  def handle_event("assign_aws_integration", %{"uuid" => uuid}, socket) do
     # An empty uuid means "back to legacy" — clear the setting instead of
     # writing an empty value (the key isn't in Setting's optional-value
     # allowlist, so an empty-string write would fail changeset validation).
@@ -368,95 +357,6 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
     end
   end
 
-  def handle_event("verify_aws_credentials", _params, socket) do
-    aws_settings = socket.assigns.aws_settings
-
-    if credentials_missing?(aws_settings) do
-      {:noreply,
-       assign_verification_error(
-         socket,
-         "Please enter Access Key ID and Secret Access Key before verification."
-       )}
-    else
-      socket = assign(socket, :verifying_credentials, true)
-
-      task = Task.async(fn -> verify_aws_credentials(aws_settings) end)
-
-      case Task.yield(task, 15_000) || Task.shutdown(task) do
-        {:ok, result} ->
-          {:noreply, handle_verification_result(socket, result)}
-
-        nil ->
-          {:noreply,
-           assign_verification_error(socket, "❌ Verification timed out. Please try again.")}
-      end
-    end
-  end
-
-  # Private helpers for AWS credentials verification
-
-  defp credentials_missing?(aws_settings) do
-    String.trim(aws_settings.access_key_id) == "" or
-      String.trim(aws_settings.secret_access_key) == ""
-  end
-
-  defp verify_aws_credentials(aws_settings) do
-    CredentialsVerifier.verify_credentials(
-      aws_settings.access_key_id,
-      aws_settings.secret_access_key,
-      aws_settings.region
-    )
-  end
-
-  defp assign_verification_error(socket, message) do
-    socket
-    |> assign(:verifying_credentials, false)
-    |> assign(:credential_verification_status, :error)
-    |> assign(:credential_verification_message, message)
-  end
-
-  defp handle_verification_result(socket, {:ok, credential_info}) do
-    socket
-    |> assign(:verifying_credentials, false)
-    |> assign(:credential_verification_status, :success)
-    |> assign(
-      :credential_verification_message,
-      "✅ Credentials verified! Account: #{credential_info.account_id}. Ready for Setup AWS Infrastructure."
-    )
-    |> assign(:aws_permissions, %{})
-  end
-
-  defp handle_verification_result(socket, {:error, :invalid_credentials, message}) do
-    assign_verification_error(socket, "❌ Invalid credentials: #{message}")
-  end
-
-  defp handle_verification_result(socket, {:error, :authentication_failed, message}) do
-    assign_verification_error(socket, "❌ Authentication failed: #{message}")
-  end
-
-  defp handle_verification_result(socket, {:error, :configuration_error, message}) do
-    assign_verification_error(socket, "❌ Configuration error: #{message}")
-  end
-
-  defp handle_verification_result(socket, {:error, :rate_limited, message}) do
-    assign_verification_error(socket, "❌ Rate limited: #{message}")
-  end
-
-  defp handle_verification_result(socket, {:error, :network_error, message}) do
-    assign_verification_error(socket, "❌ Network error: #{message}")
-  end
-
-  defp handle_verification_result(socket, {:error, :response_error, message}) do
-    assign_verification_error(socket, "❌ Response parsing error: #{message}")
-  end
-
-  defp handle_verification_result(socket, {:error, reason}) do
-    assign_verification_error(socket, "❌ Verification failed: #{reason}")
-  end
-
-  # Paste-able config.exs snippet to configure (or switch to) the Amazon SES
-  # adapter, using the actually-detected mailer module/app so it's always
-  # copy-pasteable as-is.
   defp mailer_config_snippet(%{config_app: app, config_module: mod}) do
     """
     config :#{app}, #{inspect(mod)},

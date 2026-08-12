@@ -58,19 +58,35 @@
         {gettext("Choose which Integrations connection provides SES credentials")}
       </span>
     </label>
-    <form id="aws-integration-picker-form" phx-change="select_aws_integration" phx-target={@myself}>
-      <.select
-        name="uuid"
-        value={@selected_aws_integration_uuid}
-        prompt={gettext("Legacy (manual settings below)")}
-        options={Enum.map(@aws_ses_connections, &{&1.name, &1.uuid})}
-        class="focus:select-primary"
-      />
+    <form
+      id="aws-integration-picker-form"
+      phx-submit="assign_aws_integration"
+      phx-target={@myself}
+      class="flex items-end gap-3"
+    >
+      <div class="grow">
+        <.select
+          name="uuid"
+          value={@selected_aws_integration_uuid}
+          prompt={gettext("— not assigned —")}
+          options={Enum.map(@aws_ses_connections, &{&1.name, &1.uuid})}
+          class="focus:select-primary"
+        />
+      </div>
+      <.button type="submit" variant="primary" size="sm">{gettext("Assign")}</.button>
     </form>
+    <label class="label">
+      <span class="label-text-alt text-sm text-base-content/60">
+        {gettext("Credentials, region and verification live in the connection itself —")}
+        <.pk_link navigate="/admin/settings/integrations/website" class="link link-primary">
+          {gettext("Settings → Integrations")}
+        </.pk_link>
+      </span>
+    </label>
     <%= if @aws_ses_connections == [] do %>
       <label class="label">
         <span class="label-text-alt text-sm text-base-content/60">
-          {gettext("No aws_ses Integrations connections yet — add one under Settings → Integrations, or use the legacy fields below.")}
+          {gettext("No Amazon SES connections yet — create and verify one under Settings → Integrations, then assign it here.")}
         </span>
       </label>
     <% end %>
@@ -91,222 +107,19 @@
     </.checkbox>
   </div>
 
-  <%!-- AWS Setup Guide (daisyUI collapse) --%>
-  <div class="collapse collapse-arrow bg-base-200">
-    <input type="checkbox" class="peer" />
-    <div class="collapse-title text-sm font-medium">
-      <span class="flex items-center gap-2">
-        <.icon name="hero-book-open" class="w-5 h-5" /> {gettext("AWS Setup Guide")}
-      </span>
-    </div>
-    <div class="collapse-content text-sm space-y-4">
-      <%!-- Step 1: Create IAM User --%>
-      <div class="bg-base-100 border border-base-300 rounded-lg p-4">
-        <h4 class="font-semibold mb-2 text-base-content">{gettext("1. Create IAM User")}</h4>
-        <ol class="list-decimal list-inside space-y-2 text-base-content/80">
-          <li>
-            {gettext("Visit")}
-            <a href="https://console.aws.amazon.com/iam/" target="_blank" class="link link-primary">
-              {gettext("AWS IAM Console")}
-            </a>
-          </li>
-          <li>{gettext("Create new user with programmatic access")}</li>
-          <li>
-            {gettext("Attach policies:")}
-            <strong>SES</strong>, <strong>SQS</strong>, <strong>SNS</strong>,
-            <strong>STS:GetCallerIdentity</strong>
-          </li>
-          <li>{gettext("Save Access Key ID and Secret Access Key")}</li>
-        </ol>
-      </div>
-
-      <%!-- Step 2: Configure Credentials --%>
-      <div class="bg-base-100 border border-base-300 rounded-lg p-4">
-        <h4 class="font-semibold mb-2 text-base-content">{gettext("2. Configure Credentials")}</h4>
-        <ol class="list-decimal list-inside space-y-2 text-base-content/80">
-          <li>
-            {Phoenix.HTML.raw(
-              gettext("Enter Access Key ID (20 characters, e.g., <code>%{example}</code>)",
-                example: "AKIAIOSFODNN7EXAMPLE"
-              )
-            )}
-          </li>
-          <li>{gettext("Enter Secret Access Key")}</li>
-          <li>{gettext("Pick your AWS Region from the dropdown")}</li>
-          <li>
-            {Phoenix.HTML.raw(
-              gettext("Click <strong>\"%{button}\"</strong> to test connectivity",
-                button: gettext("Verify Credentials")
-              )
-            )}
-          </li>
-        </ol>
-      </div>
-
-      <%!-- Step 3: Setup Infrastructure --%>
-      <div class="bg-base-100 border border-base-300 rounded-lg p-4">
-        <h4 class="font-semibold mb-2 text-base-content">{gettext("3. Setup Infrastructure")}</h4>
-        <ol class="list-decimal list-inside space-y-2 text-base-content/80">
-          <li>
-            {Phoenix.HTML.raw(
-              gettext("Click <strong>\"%{button}\"</strong> to create SNS/SQS resources",
-                button: gettext("Setup AWS Infrastructure")
-              )
-            )}
-          </li>
-          <li>{gettext("Wait for setup completion (typically 30-60 seconds)")}</li>
-          <li>
-            {gettext("All created resources will be automatically filled in the form below")}
-          </li>
-          <li>
-            {Phoenix.HTML.raw(
-              gettext("Click <strong>\"%{button}\"</strong> one more time to persist everything",
-                button: gettext("Save AWS Settings")
-              )
-            )}
-          </li>
-        </ol>
-      </div>
-
-      <%!-- Step 4: Verify Email --%>
-      <div class="bg-base-100 border border-base-300 rounded-lg p-4">
-        <h4 class="font-semibold mb-2 text-base-content">
-          {gettext("4. Verify Email/Domain in SES")}
-        </h4>
-        <ol class="list-decimal list-inside space-y-2 text-base-content/80">
-          <li>
-            {gettext("Go to")}
-            <a href="https://console.aws.amazon.com/ses/" target="_blank" class="link link-primary">
-              {gettext("AWS SES Console")}
-            </a>
-          </li>
-          <li>{gettext("Verify your sender email address or domain")}</li>
-          <li>{gettext("Request production access (if needed to exit sandbox mode)")}</li>
-        </ol>
-      </div>
-
-      <%!-- Required Permissions --%>
-      <div class="bg-base-200 border border-base-300 rounded-lg p-3 text-xs">
-        <div class="flex items-start gap-2">
-          <.icon name="hero-information-circle" class="h-4 w-4 text-info shrink-0 mt-0.5" />
-          <div class="text-base-content/80">
-            <strong class="text-base-content">{gettext("Required IAM Permissions:")}</strong>
-            <ul class="list-disc list-inside mt-1 space-y-1">
-              <li><code>sqs:*</code> - {gettext("Simple Queue Service")}</li>
-              <li><code>sns:*</code> - {gettext("Simple Notification Service")}</li>
-              <li><code>ses:*</code> - {gettext("Simple Email Service")}</li>
-              <li><code>sts:GetCallerIdentity</code> - {gettext("Credential verification")}</li>
-            </ul>
-          </div>
-        </div>
-      </div>
-
-      <%!-- Full Documentation Link --%>
-      <div class="bg-base-200 border border-base-300 rounded-lg p-3 text-xs">
-        <div class="flex items-start gap-2">
-          <.icon name="hero-book-open" class="h-4 w-4 text-success shrink-0 mt-0.5" />
-          <div class="text-base-content/80">
-            <strong class="text-base-content">{gettext("Need more help?")}</strong>
-            <p class="mt-1">
-              {Phoenix.HTML.raw(
-                gettext("See <code>guides/aws_email_setup.md</code> for comprehensive documentation including security best practices, cost optimization, and troubleshooting.")
-              )}
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <%!-- Credentials Verification Section --%>
-  <.aws_credentials_verify
-    access_key_id={@aws_settings.access_key_id}
-    secret_access_key={@aws_settings.secret_access_key}
-    region={@aws_settings.region}
-    verifying={@verifying_credentials}
-    verified={@credential_verification_status}
-    message={@credential_verification_message}
-    permissions={@aws_permissions}
-    phx_click="verify_aws_credentials"
-    phx_target={@myself}
-    disabled={@saving or @setting_up_aws}
-  />
-
-  <div class="flex items-center gap-2">
-    <span class="badge badge-warning badge-sm">{gettext("Legacy")}</span>
-    <span class="text-sm text-base-content/60">
-      {gettext("Manual credentials below — migrate to an Integrations connection above")}
-    </span>
+  <%!-- Legacy manual credentials: no longer editable here. They keep working
+       as a fallback until a connection is assigned, then become dead weight. --%>
+  <div
+    :if={@selected_aws_integration_uuid == "" and @aws_settings.access_key_id != ""}
+    class="alert alert-warning text-sm"
+  >
+    <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
+    {gettext(
+      "Sending currently uses legacy credentials stored in settings. Create a verified Amazon SES connection in Settings → Integrations and assign it above."
+    )}
   </div>
 
   <form id="aws-settings-form" phx-submit="save_aws_settings" phx-target={@myself}>
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-      <%!-- AWS Access Key ID --%>
-      <div class="form-control">
-        <label class="label">
-          <span class="label-text font-medium">{gettext("AWS Access Key ID")}</span>
-        </label>
-        <input
-          name="aws_settings[access_key_id]"
-          type="text"
-          placeholder="AKIAIOSFODNN7EXAMPLE"
-          value={@aws_settings.access_key_id}
-          class="input input-bordered focus:input-primary"
-        />
-        <label class="label">
-          <span class="label-text-alt text-sm text-base-content/70">
-            {gettext("Example: AKIAIOSFODNN7EXAMPLE (20 characters)")}
-          </span>
-        </label>
-      </div>
-
-      <%!-- AWS Secret Access Key --%>
-      <div class="form-control">
-        <label class="label">
-          <span class="label-text font-medium">{gettext("AWS Secret Access Key")}</span>
-        </label>
-        <%!-- The stored secret is NEVER rendered back — even a type="password"
-        input carries its value in the DOM (view-source / devtools). Blank on
-        save means "keep the stored secret". --%>
-        <input
-          name="aws_settings[secret_access_key]"
-          type="password"
-          placeholder={
-            if @aws_settings.secret_access_key != "",
-              do: "••••••••  (#{gettext("saved — leave blank to keep")})",
-              else: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
-          }
-          value=""
-          autocomplete="new-password"
-          class="input input-bordered focus:input-primary"
-        />
-        <label class="label">
-          <span class="label-text-alt text-sm text-base-content/70">
-            {if @aws_settings.secret_access_key != "",
-              do: gettext("A secret is saved. Leave blank to keep it, or paste a new one to replace."),
-              else: gettext("Example: wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY")}
-          </span>
-        </label>
-      </div>
-
-      <%!-- AWS Region --%>
-      <div class="form-control md:col-span-2">
-        <.live_component
-          module={SearchableSelect}
-          id="aws-region-select"
-          name="aws_settings[region]"
-          value={@aws_settings.region}
-          label={gettext("AWS Region")}
-          placeholder={gettext("Search regions...")}
-          grouped_options={
-            Enum.map(AwsRegions.group_by_continent(), fn {continent, regions} ->
-              {continent, Enum.map(regions, fn r -> {"#{r.name} — #{r.code}", r.code} end)}
-            end)
-          }
-        />
-      </div>
-    </div>
-
     <%!-- Advanced AWS Settings (collapse) — visible whenever AWS
          Configuration renders, not just when "AWS SES Events Options" is
          on, since "Setup AWS Infrastructure" (below) can populate these
