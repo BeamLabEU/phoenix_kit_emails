@@ -8,7 +8,14 @@
 # purpose:
 #
 #     createdb phoenix_kit_emails_test_drift
-#     MIX_ENV=test MIX_TEST_PARTITION=_drift mix run dev_docs/verify/drift_replay.exs
+#     MIX_ENV=test mix run dev_docs/verify/drift_replay.exs
+#
+# The database is chosen HERE, at runtime, not through MIX_TEST_PARTITION.
+# `config/test.exs` reads that variable while the config is COMPILED, so
+# `MIX_TEST_PARTITION=_drift mix run` against an already-compiled tree
+# silently points at the main test database and drifts it — which is exactly
+# the mistake this script now refuses to let you make. Override with
+# DRIFT_DATABASE if you want a different scratch name.
 #
 # Expected output:
 #
@@ -25,6 +32,39 @@
 
 alias PhoenixKit.Modules.Emails.Migrations
 alias PhoenixKitEmails.Test.Repo
+
+database = System.get_env("DRIFT_DATABASE", "phoenix_kit_emails_test_drift")
+
+# Refuse anything that is not obviously a throwaway. This script drops
+# constraints and indexes and inserts junk rows; pointed at a real database it
+# is destructive, and pointed at the package's own test database it breaks the
+# suite in ways that look like unrelated UTF-8 errors half an hour later.
+unless String.contains?(database, "drift") do
+  IO.puts("""
+  REFUSING TO RUN against #{inspect(database)}.
+
+  This script deliberately corrupts the schema it runs against. Its database
+  name must contain "drift" so it cannot be aimed at anything real:
+
+      createdb phoenix_kit_emails_test_drift
+      MIX_ENV=test mix run dev_docs/verify/drift_replay.exs
+  """)
+
+  System.halt(1)
+end
+
+# Set at RUNTIME so the target cannot be inherited from a stale compiled
+# config — see the header.
+Application.put_env(
+  :phoenix_kit_emails,
+  Repo,
+  Application.get_env(:phoenix_kit_emails, Repo)
+  |> Keyword.put(:database, database)
+  |> Keyword.put(:pool_size, 2)
+  |> Keyword.delete(:pool)
+)
+
+IO.puts("target database: #{database}")
 
 {:ok, _} = Repo.start_link()
 PhoenixKit.Migration.ensure_current(Repo, log: false)
