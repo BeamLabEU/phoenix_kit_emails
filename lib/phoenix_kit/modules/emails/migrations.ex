@@ -126,12 +126,13 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
       elsewhere. Unqualified resolves through `search_path`, which is what
       core's own DDL relies on.
 
-  Two dependencies stay core's: the `uuid_generate_v7()` function used in
-  the `uuid` defaults, and the `pg_trgm` extension behind the
-  `gin_trgm_ops` indexes. `gin_trgm_ops` stays schema-qualified as
-  `public.` even under a custom prefix — an operator class lives in the
-  schema its EXTENSION was installed into, not in the install's own schema,
-  and core's manifest hard-codes it for exactly that reason.
+  Two dependencies stay core's: the `uuid_generate_v7()` function used in the
+  `uuid` defaults, and the `pg_trgm` extension behind the `gin_trgm_ops`
+  indexes. The operator class is referenced UNQUALIFIED (see the departures
+  above): it lives in whatever schema `pg_trgm` was installed into, which is
+  not required to be `public` and is not the install's own prefix either, so
+  `search_path` — the way core's V137 writes it — is the only spelling that
+  works on every install.
 
   Both are core infrastructure shared by every module, and core's chain
   runs before any module chain (`mix phoenix_kit.update`), so they are
@@ -617,6 +618,16 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
   # migration), so it reverts on its own and cannot leak into the session.
   # V163 sets the session-level `SET lock_timeout` for the same reason, because
   # it deliberately runs with `@disable_ddl_transaction`.
+  #
+  # Caveat worth knowing rather than working around: `SET LOCAL` outside a
+  # transaction is a no-op with a warning, so a runner that ever executes this
+  # chain statement-by-statement in autocommit (this package's own
+  # `test_helper.exs` does exactly that) simply gets no timeout. That is a
+  # degraded guard, not a broken migration, and the guard only matters on a
+  # busy production database — which is always reached through core's
+  # generated migration, inside a transaction. Emitting a session-level `SET`
+  # instead would fix the no-op and leak the timeout into whatever connection
+  # the host reuses afterwards, which is the worse trade.
   defp lock_timeout_statement, do: "SET LOCAL lock_timeout = '#{@lock_timeout}'"
 
   defp table_statements do
@@ -694,18 +705,108 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
       DECLARE
         rel oid := to_regclass('#{@schema_token}.#{table}');
       BEGIN
-        IF rel IS NOT NULL AND NOT EXISTS (
+        IF rel IS NULL THEN
+          RETURN;
+        END IF;
+
+        IF EXISTS (
           SELECT 1
           FROM pg_constraint c
           WHERE c.conrelid = rel
             AND #{constraint_probe(name, definition)}
         ) THEN
-          ALTER TABLE #{@schema_token}.#{table} ADD CONSTRAINT #{name} #{constraint_definition(definition)};
+          RETURN;
         END IF;
+
+        IF NOT (#{type_precondition(definition, table)}) THEN
+          RAISE NOTICE 'phoenix_kit_emails: skipping % — column types are not what this version expects; run mix phoenix_kit.doctor', '#{name}';
+          RETURN;
+        END IF;
+
+        ALTER TABLE #{@schema_token}.#{table} ADD CONSTRAINT #{name} #{constraint_definition(definition)};
+      EXCEPTION
+        WHEN others THEN
+          RAISE NOTICE 'phoenix_kit_emails: could not add % (%) — left for mix phoenix_kit.repair', '#{name}', SQLERRM;
       END
       $$\
       """
     end)
+  end
+
+  # Every column a constraint touches must already be the type this version
+  # expects, on BOTH sides of a foreign key.
+  #
+  # `ADD COLUMN IF NOT EXISTS` matches on NAME alone, so on a database that
+  # drifted (core's V163 documents exactly this: `phoenix_kit_email_events.uuid`
+  # as a nullable `character varying`, no primary key at all) the column is
+  # "already there" and stays the wrong type. The constraint that follows then
+  # fails — and for a foreign key it fails at ADD time, on the type mismatch,
+  # which `NOT VALID` does nothing about because it only defers the row scan.
+  # One aborted statement, and the host's entire migration goes with it.
+  #
+  # So the type is checked first and a mismatch is skipped with a NOTICE.
+  # Repairing the type is core's job (V163 / `mix phoenix_kit.repair`), and
+  # this chain's job is to not be the thing that breaks the deploy on the way
+  # there.
+  defp type_precondition(definition, table) do
+    definition
+    |> constrained_columns(table)
+    |> Enum.map_join(" AND ", fn {column_table, column, type} ->
+      "COALESCE((SELECT a.atttypid = '#{type}'::regtype " <>
+        "FROM pg_attribute a " <>
+        "WHERE a.attrelid = to_regclass('#{@schema_token}.#{column_table}') " <>
+        "AND a.attname = '#{column}' AND a.attnum > 0 AND NOT a.attisdropped), false)"
+    end)
+  end
+
+  # `{table, column, expected_type}` for every column a constraint depends on,
+  # read out of the definition rather than hard-coded, so a future constraint
+  # cannot silently skip the check. The expected type comes from
+  # `@adopted_columns` — the same manifest data the column DDL is built from —
+  # so the two can never disagree.
+  defp constrained_columns(definition, table) do
+    local =
+      definition
+      |> local_constraint_columns()
+      |> Enum.map(&{table, &1, column_type(table, &1)})
+
+    local ++ referenced_constraint_columns(definition)
+  end
+
+  defp local_constraint_columns(definition) do
+    case Regex.run(~r/^(?:PRIMARY KEY|FOREIGN KEY) \(([^)]+)\)/, definition) do
+      [_, columns] -> columns |> String.split(",") |> Enum.map(&String.trim/1)
+      _ -> []
+    end
+  end
+
+  defp referenced_constraint_columns(definition) do
+    case Regex.run(~r/REFERENCES #{@schema_token}\.(\w+)\(([^)]+)\)/, definition) do
+      [_, table, columns] ->
+        columns
+        |> String.split(",")
+        |> Enum.map(&String.trim/1)
+        |> Enum.map(&{table, &1, column_type(table, &1)})
+
+      _ ->
+        []
+    end
+  end
+
+  # The declared type of one adopted column, as core declares it. Raises at
+  # BUILD time (not on someone's database) if a constraint ever names a column
+  # this chain does not adopt — which would mean the manifest data and the
+  # constraint list have drifted apart.
+  defp column_type(table, column) do
+    Enum.find_value(@adopted_columns, fn {column_table, _pos, definition, _not_null} ->
+      if column_table == table and String.starts_with?(definition, ~s("#{column}" )) do
+        definition
+        |> String.replace_prefix(~s("#{column}" ), "")
+        |> String.split(" ")
+        |> List.first()
+      end
+    end) ||
+      raise ArgumentError, "no adopted column #{table}.#{column} to take a type from"
   end
 
   # `NOT VALID` is the right answer for a populated table and the WRONG one for
@@ -759,7 +860,33 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
 
   defp foreign_key?(definition), do: String.starts_with?(definition, "FOREIGN KEY")
 
-  defp index_statements, do: @adopted_indexes ++ @owned_indexes
+  # Core's own `CREATE INDEX IF NOT EXISTS`, verbatim, wrapped so it cannot
+  # abort the host's migration.
+  #
+  # `IF NOT EXISTS` covers the normal case — the index is already there and the
+  # statement is a catalog lookup — but not the drifted one. A UNIQUE index
+  # that is genuinely missing fails on duplicate rows; a trigram index fails
+  # outright if `pg_trgm` is not installed. Either aborts the transaction, and
+  # with it every other statement in the chain, on a database where the actual
+  # problem is something core's repair is supposed to fix.
+  #
+  # The DDL inside is untouched, so the conformance test still matches it
+  # against the manifest character for character — the guard is a wrapper, not
+  # a rewrite.
+  defp index_statements do
+    Enum.map(@adopted_indexes ++ @owned_indexes, fn statement ->
+      """
+      DO $$
+      BEGIN
+        #{statement};
+      EXCEPTION
+        WHEN others THEN
+          RAISE NOTICE 'phoenix_kit_emails: could not create an index (%) — left for mix phoenix_kit.repair', SQLERRM;
+      END
+      $$\
+      """
+    end)
+  end
 
   defp marker_statement(version) do
     "COMMENT ON TABLE #{@schema_token}.#{@version_table} IS '#{@marker_prefix}#{version}'"

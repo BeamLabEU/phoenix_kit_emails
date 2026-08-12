@@ -248,7 +248,7 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
     # read back, and is what makes this function correct when called directly
     # with bare opts.
     headers =
-      case Keyword.get(opts, :configuration_set) || present(log.configuration_set) do
+      case present(Keyword.get(opts, :configuration_set)) || present(log.configuration_set) do
         nil ->
           headers
 
@@ -777,24 +777,48 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
   # When core starts passing `:integration_uuid` (the first branch), the
   # restriction lifts on its own for every send that carries it.
   def enrich_send_opts(opts) do
-    if Keyword.has_key?(opts, :integration_uuid) and
-         Keyword.has_key?(opts, :configuration_set) do
-      opts
-    else
-      {integration_uuid, trusted?} = resolve_integration_uuid(opts)
+    {integration_uuid, trusted?} = resolve_integration_uuid(opts)
 
-      opts = Keyword.put(opts, :integration_uuid, integration_uuid)
+    # Three candidates, each validated on its own and falling through to the
+    # next when it does not survive. Validating only the WINNER would let a
+    # blank per-account name shadow a perfectly good global one and put no
+    # configuration set on the message at all.
+    configuration_set =
+      validated_configuration_set(Keyword.get(opts, :configuration_set)) ||
+        (trusted? && validated_configuration_set(account_configuration_set(integration_uuid))) ||
+        validated_configuration_set(Emails.get_ses_configuration_set()) ||
+        nil
 
-      opts =
-        case trusted? && Emails.account_configuration_set(integration_uuid) do
-          config_set when is_binary(config_set) and config_set != "" ->
-            Keyword.put_new(opts, :configuration_set, config_set)
+    opts
+    |> Keyword.put(:integration_uuid, integration_uuid)
+    |> Keyword.put(:configuration_set, configuration_set)
+  end
 
-          _ ->
-            opts
+  # Idempotence is by VALUE, not by key presence: after one pass both keys
+  # exist, and a `Keyword.has_key?` guard would then skip resolution even when
+  # the value is `nil` — including for a caller that passed
+  # `integration_uuid: nil` itself and expected the inference to run. Re-running
+  # is cheap (both lookups are memoized, see `Emails.default_send_attribution/0`)
+  # and lands on the same answer: the uuid this pass wrote is read back as an
+  # explicit opt, and the configuration set this pass wrote wins the first
+  # candidate above.
+  defp account_configuration_set(integration_uuid),
+    do: Emails.account_configuration_set(integration_uuid)
+
+  # One candidate, validated: blank or unusable becomes nil so the caller can
+  # fall through to the next one.
+  defp validated_configuration_set(value) do
+    case present(value) do
+      nil ->
+        nil
+
+      config_set ->
+        if validate_ses_configuration_set(config_set) do
+          config_set
+        else
+          Logger.warning("Configuration set validation failed: #{config_set}")
+          nil
         end
-
-      Keyword.put(opts, :configuration_set, get_configuration_set(opts))
     end
   end
 
@@ -827,8 +851,9 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
     end
   end
 
-  # Validates the configuration set resolved by `enrich_send_opts/1` (or, for a
-  # caller that never went through it, the global setting).
+  # The configuration set for a caller that never went through
+  # `enrich_send_opts/1` — `detect_provider/2`'s "a configured configuration set
+  # means SES" heuristic is the one that still reaches here.
   defp get_configuration_set(opts) do
     config_set =
       Keyword.get(opts, :configuration_set) ||

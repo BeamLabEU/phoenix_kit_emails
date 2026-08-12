@@ -248,9 +248,50 @@ defmodule PhoenixKit.Modules.Emails.MigrationsTest do
       for statement <- Migrations.up_statements() do
         assert statement =~ "IF NOT EXISTS" or statement =~ "COMMENT ON" or
                  statement =~ "SET LOCAL" or
-                 (statement =~ "DO $$" and statement =~ "NOT EXISTS ("),
+                 (statement =~ "DO $$" and
+                    (statement =~ "EXISTS (" or statement =~ "VALIDATE CONSTRAINT")),
                "non-idempotent statement: #{statement}"
       end
+    end
+
+    test "no statement can abort the host's migration" do
+      # The point of the whole guard layer: a drifted database must degrade to
+      # a NOTICE, not take every other statement in the transaction down with
+      # it. Proven end to end against a genuinely drifted database by
+      # `dev_docs/verify/drift_replay.exs`; asserted here so the mechanism
+      # cannot be removed without a test failing.
+      for statement <- Migrations.up_statements(),
+          statement =~ "ADD CONSTRAINT" or statement =~ "CREATE INDEX" or
+            statement =~ "CREATE UNIQUE INDEX" or statement =~ "VALIDATE CONSTRAINT" do
+        assert statement =~ "EXCEPTION",
+               "this can abort the host's migration on a drifted database: #{statement}"
+      end
+    end
+
+    test "constraints check the actual column TYPES before they are added" do
+      # `ADD COLUMN IF NOT EXISTS` matches on name alone, so a column that
+      # drifted to varchar (core's V163 documents exactly that) is "already
+      # there" and stays wrong — and the constraint that follows then fails at
+      # ADD time on the type mismatch, which NOT VALID does nothing about.
+      for statement <- Migrations.up_statements(), statement =~ "ADD CONSTRAINT" do
+        assert statement =~ "pg_attribute",
+               "constraint added without checking column types: #{statement}"
+
+        assert statement =~ "atttypid = 'uuid'::regtype"
+      end
+    end
+
+    test "a foreign key checks the type on BOTH sides" do
+      statement =
+        Enum.find(
+          Migrations.up_statements(),
+          &String.contains?(&1, "ADD CONSTRAINT fk_email_events_email_log_uuid")
+        )
+
+      assert statement =~ "to_regclass('public.phoenix_kit_email_events')"
+      assert statement =~ "to_regclass('public.phoenix_kit_email_logs')"
+      assert statement =~ "a.attname = 'email_log_uuid'"
+      assert statement =~ "a.attname = 'uuid'"
     end
 
     test "the chain opens by bounding how long it will wait for a lock" do
@@ -421,9 +462,16 @@ defmodule PhoenixKit.Modules.Emails.MigrationsTest do
 
         assert Enum.frequencies_by(core_objects, & &1.class) == @manifest_object_counts
 
+        # Containment, not equality: index DDL is now WRAPPED in a soft-failure
+        # guard (see `index_statements/0`), so core's statement appears inside
+        # ours character for character rather than as the whole string. That is
+        # a stronger check than it looks — a rewritten index would not be found.
         mismatched =
           core_objects
-          |> Enum.reject(&MapSet.member?(ours, &1.create))
+          |> Enum.reject(fn object ->
+            MapSet.member?(ours, object.create) or
+              Enum.any?(ours, &String.contains?(&1, object.create))
+          end)
           |> Enum.map(& &1.id)
 
         undeclared = mismatched -- Map.keys(@declared_departures)
@@ -468,14 +516,14 @@ defmodule PhoenixKit.Modules.Emails.MigrationsTest do
           fn statement ->
             MapSet.member?(core, statement) or
               String.starts_with?(statement, "SET LOCAL") or
+              Enum.any?(core, &String.contains?(statement, &1)) or
               Enum.any?(departure_shapes, &String.contains?(statement, &1))
           end
         )
 
       assert Enum.sort(extra) == [
                "ALTER TABLE public.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"integration_uuid\" uuid",
-               "COMMENT ON TABLE public.phoenix_kit_email_logs IS 'pke_schema:1'",
-               "CREATE INDEX IF NOT EXISTS phoenix_kit_email_logs_integration_uuid_idx ON public.phoenix_kit_email_logs USING btree (integration_uuid)"
+               "COMMENT ON TABLE public.phoenix_kit_email_logs IS 'pke_schema:1'"
              ]
     end
 

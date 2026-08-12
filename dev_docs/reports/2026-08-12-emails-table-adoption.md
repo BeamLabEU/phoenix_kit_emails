@@ -308,6 +308,40 @@ So the constraint statements deliberately differ from core's manifest:
   once someone has decided what to do with the orphans.
 * **`to_regclass/1`** rather than a `::regclass` cast, so a missing table
   skips its constraint instead of raising mid-transaction.
+* **Every constraint checks the actual column TYPES first, on both sides of
+  the foreign key, and every constraint and index runs inside an
+  exception-swallowing block.** This is the one that makes the rest of the
+  list mean anything. `ADD COLUMN IF NOT EXISTS` matches on NAME alone, so on
+  the database V163 describes — `phoenix_kit_email_events.uuid` as a nullable
+  `character varying` — the column is "already there" and stays the wrong
+  type. The constraint that follows then fails at ADD time, on the type
+  mismatch, which `NOT VALID` does nothing about because it only defers the
+  ROW scan. Same for a primary key on a table with duplicate or NULL uuids,
+  and same for a UNIQUE index that is genuinely missing on a table that has
+  since accumulated duplicates.
+
+  Verified end to end rather than argued: `dev_docs/verify/drift_replay.exs`
+  builds exactly that drift on a scratch database and replays the chain.
+
+  ```
+  drift in place: uuid is varchar, no pkey, no fk, duplicate rows present
+  REPLAY: completed without raising
+  marker after replay: "pke_schema:1"
+  drifted table got a pkey: false      # skipped with a NOTICE, not forced
+  drifted table got the fk:  false
+  UNdrifted table kept its pkey: true  # everything else still applied
+  replay with a duplicate blocking a UNIQUE index: :ok
+  ```
+
+  The same script against the chain as it stood before these guards:
+
+  ```
+  REPLAY: RAISED — ERROR 23505 could not create unique index "phoenix_kit_email_events_pkey"
+  ```
+
+  That is the host's entire migration aborting, on a database whose actual
+  problem is something `mix phoenix_kit.repair` is supposed to fix. The chain
+  now leaves that repair to core and gets out of the way.
 
 **Run `mix phoenix_kit.doctor` before upgrading.** It reports exactly the two
 conditions that make these statements interesting — a drifted
