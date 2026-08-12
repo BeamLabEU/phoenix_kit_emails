@@ -9,6 +9,17 @@ repo_available =
   try do
     {:ok, _} = PhoenixKitEmails.Test.Repo.start_link()
     PhoenixKit.Migration.ensure_current(PhoenixKitEmails.Test.Repo, log: false)
+
+    # ...then this package's own chain, which extends core-created tables
+    # (see PhoenixKit.Modules.Emails.Migrations). Executed as raw statements
+    # rather than through `up/1` because `Ecto.Migration.execute/1` needs a
+    # migration runner process; `up_statements/1` is the same single source
+    # `up/1` itself iterates, and every statement is idempotent.
+    Enum.each(
+      PhoenixKit.Modules.Emails.Migrations.up_statements(),
+      &PhoenixKitEmails.Test.Repo.query!/1
+    )
+
     Ecto.Adapters.SQL.Sandbox.mode(PhoenixKitEmails.Test.Repo, :manual)
     true
   rescue

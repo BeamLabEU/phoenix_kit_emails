@@ -23,13 +23,13 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqsTest do
     }
   end
 
-  describe "handle_event(\"select_aws_integration\", ...)" do
+  describe "handle_event(\"assign_aws_integration\", ...)" do
     test "persists the chosen connection uuid to emails_aws_integration_uuid" do
       {:ok, %{uuid: uuid}} = Integrations.add_connection("aws_ses", "primary")
 
       assert {:noreply, socket} =
                SesSection.handle_event(
-                 "select_aws_integration",
+                 "assign_aws_integration",
                  %{"uuid" => uuid},
                  bare_socket()
                )
@@ -42,7 +42,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqsTest do
       Settings.update_setting("emails_aws_integration_uuid", "some-uuid")
 
       assert {:noreply, socket} =
-               SesSection.handle_event("select_aws_integration", %{"uuid" => ""}, bare_socket())
+               SesSection.handle_event("assign_aws_integration", %{"uuid" => ""}, bare_socket())
 
       assert socket.assigns.selected_aws_integration_uuid == ""
       assert Settings.get_setting("emails_aws_integration_uuid") == nil

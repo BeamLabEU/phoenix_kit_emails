@@ -118,13 +118,16 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTrackingTe
       assert row_for(socket.assigns.rows, "aws_ses").state == :stalled
     end
 
-    test "Brevo row exposes an accounts list, SES row does not" do
+    test "both rows expose an accounts list — SES is multi-account too now" do
       create_brevo_profile()
 
       {:ok, socket} = Panel.update(%{id: "panel"}, bare_socket())
 
       assert row_for(socket.assigns.rows, "brevo_api").accounts != nil
-      assert row_for(socket.assigns.rows, "aws_ses").accounts == nil
+      # Empty, not nil: this deployment has no aws_ses send profile, but the
+      # tracker implements the callback, so the column renders a real (if
+      # empty) list rather than the "—" a tracker without it gets.
+      assert row_for(socket.assigns.rows, "aws_ses").accounts == []
     end
   end
 
