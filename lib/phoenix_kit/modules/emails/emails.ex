@@ -99,7 +99,16 @@ defmodule PhoenixKit.Modules.Emails do
   alias PhoenixKit.Config.AWS
   alias PhoenixKit.Dashboard.Tab
   alias PhoenixKit.Integrations
-  alias PhoenixKit.Modules.Emails.{AwsIntegrations, Event, Log, SQSProcessor, Utils}
+
+  alias PhoenixKit.Modules.Emails.{
+    AwsIntegrations,
+    Event,
+    Log,
+    SQSPollingJob,
+    SQSProcessor,
+    Utils
+  }
+
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Date, as: UtilsDate
 
@@ -274,8 +283,19 @@ defmodule PhoenixKit.Modules.Emails do
             original_message_id: message_id
           })
 
-          sqs_events = fetch_sqs_events_for_message(aws_message_id)
-          dlq_events = fetch_dlq_events_for_message(aws_message_id)
+          # The log knows which account sent it (when the send path could tell);
+          # searching only that account's queue is both faster and honest.
+          search_opts =
+            case existing_log do
+              %{integration_uuid: uuid} when is_binary(uuid) and uuid != "" ->
+                [integration_uuid: uuid]
+
+              _ ->
+                []
+            end
+
+          sqs_events = fetch_sqs_events_for_message(aws_message_id, search_opts)
+          dlq_events = fetch_dlq_events_for_message(aws_message_id, search_opts)
 
           # Deduplicate events from both queues by message ID + event type
           all_events =
@@ -389,21 +409,66 @@ defmodule PhoenixKit.Modules.Emails do
   ## Returns
 
   List of SES events matching the message ID.
-  > #### Single-account, on purpose (for now) {: .warning}
-  >
-  > This reads the GLOBAL `aws_sqs_queue_url` and the global credentials, so
-  > on a multi-account install it only ever inspects the legacy account's
-  > queue. For a message sent through any other account it returns zero events
-  > and says so — which reads as "no events yet" rather than "looked in the
-  > wrong place". Making it account-aware means either fanning out over
-  > `SQSPollingJob.configured_accounts/0` or selecting by the message's own
-  > `integration_uuid`; both are follow-up work, deliberately not folded into
-  > this change.
+  Account-aware: see `search_targets/1`. A message whose log carries an
+  `integration_uuid` is looked for in THAT account's queue; otherwise every
+  configured account is searched.
 
   """
-  def fetch_sqs_events_for_message(message_id) do
-    queue_url = Settings.get_setting("aws_sqs_queue_url")
+  def fetch_sqs_events_for_message(message_id, opts \\ []) do
+    opts
+    |> search_targets()
+    |> Enum.flat_map(fn %{queue_url: queue_url, aws_config: aws_config} ->
+      fetch_sqs_events_from(message_id, queue_url, aws_config)
+    end)
+  end
 
+  @doc false
+  # Which queues a "sync now" should look in, as
+  # `%{queue_url: ..., aws_config: ...}`.
+  #
+  # `:integration_uuid` (taken from the message's own log, when it has one)
+  # narrows the search to that account. Without it every configured account is
+  # searched, because the alternative — the global queue only — silently
+  # returns nothing for a message sent through any other account, and "no
+  # events found" is indistinguishable from "looked in the wrong place".
+  #
+  # Reuses `SQSPollingJob`'s own account resolution rather than re-deriving it:
+  # the legacy single-queue deployment appears there as an account with no
+  # uuid, so this covers it without a special case, and a queue that the poller
+  # would not touch is not one this should be reaching into either.
+  @spec search_targets(keyword()) :: [%{queue_url: String.t(), aws_config: keyword()}]
+  def search_targets(opts \\ []) do
+    requested = Keyword.get(opts, :integration_uuid)
+
+    SQSPollingJob.configured_accounts()
+    |> filter_search_accounts(requested)
+    |> Enum.flat_map(fn account ->
+      case SQSPollingJob.resolve_aws_config(account) do
+        {:ok, aws_config} ->
+          [%{queue_url: account.queue_url, aws_config: aws_config}]
+
+        {:error, reason} ->
+          Logger.warning("Skipping account in event search: credentials unresolved", %{
+            integration_uuid: account.integration_uuid,
+            reason: inspect(reason)
+          })
+
+          []
+      end
+    end)
+  end
+
+  # An account the log names but that has no queue configured leaves nothing to
+  # search — falling back to "search everything" there would be worse than
+  # returning nothing, because it would report another account's events as this
+  # message's.
+  defp filter_search_accounts(accounts, uuid) when is_binary(uuid) and uuid != "" do
+    Enum.filter(accounts, &(&1.integration_uuid == uuid))
+  end
+
+  defp filter_search_accounts(accounts, _uuid), do: accounts
+
+  defp fetch_sqs_events_from(message_id, queue_url, aws_config) do
     cond do
       not aws_configured?() ->
         []
@@ -430,9 +495,6 @@ defmodule PhoenixKit.Modules.Emails do
             message_id: message_id,
             queue_url: queue_url
           })
-
-          # Compute AWS config once and thread it through the poll/delete recursion
-          aws_config = get_aws_config()
 
           # Poll multiple batches to find the target message
           found_events = poll_sqs_for_message(queue_url, aws_config, message_id, [], 0, 5)
@@ -467,25 +529,53 @@ defmodule PhoenixKit.Modules.Emails do
   ## Returns
 
   List of SES events matching the message ID from DLQ.
-  > #### Single-account, on purpose (for now) {: .warning}
-  >
-  > This reads the GLOBAL `aws_sqs_queue_url` and the global credentials, so
-  > on a multi-account install it only ever inspects the legacy account's
-  > queue. For a message sent through any other account it returns zero events
-  > and says so — which reads as "no events yet" rather than "looked in the
-  > wrong place". Making it account-aware means either fanning out over
-  > `SQSPollingJob.configured_accounts/0` or selecting by the message's own
-  > `integration_uuid`; both are follow-up work, deliberately not folded into
-  > this change.
+  Account-aware: see `search_targets/1`. A message whose log carries an
+  `integration_uuid` is looked for in THAT account's queue; otherwise every
+  configured account is searched.
 
   """
-  def fetch_dlq_events_for_message(message_id) do
-    dlq_url = Settings.get_setting("aws_sqs_dlq_url")
+  def fetch_dlq_events_for_message(message_id, opts \\ []) do
+    opts
+    |> dlq_search_targets()
+    |> Enum.flat_map(fn {dlq_url, aws_config} ->
+      fetch_dlq_events_from(message_id, dlq_url, aws_config)
+    end)
+  end
 
+  # The DLQ URL lives in the same per-account tracking row as the queue URL, so
+  # the account set is the poller's; only the URL differs. The legacy account
+  # (no uuid) still reads the global setting.
+  defp dlq_search_targets(opts) do
+    requested = Keyword.get(opts, :integration_uuid)
+
+    SQSPollingJob.configured_accounts()
+    |> filter_search_accounts(requested)
+    |> Enum.flat_map(fn account ->
+      dlq_url = account_dlq_url(account)
+
+      with true <- is_binary(dlq_url) and dlq_url != "",
+           {:ok, aws_config} <- SQSPollingJob.resolve_aws_config(account) do
+        [{dlq_url, aws_config}]
+      else
+        _ -> []
+      end
+    end)
+  end
+
+  defp account_dlq_url(%{integration_uuid: uuid}) when is_binary(uuid) do
+    case get_aws_tracking(uuid) do
+      %{dlq_url: dlq_url} when is_binary(dlq_url) and dlq_url != "" -> dlq_url
+      _ -> Settings.get_setting("aws_sqs_dlq_url")
+    end
+  end
+
+  defp account_dlq_url(_account), do: Settings.get_setting("aws_sqs_dlq_url")
+
+  defp fetch_dlq_events_from(message_id, dlq_url, aws_config) do
     if dlq_url && aws_configured?() do
       try do
         # Poll multiple batches to find the target message (don't delete from DLQ)
-        found_events = poll_dlq_for_message(dlq_url, message_id, [], 0, 5)
+        found_events = poll_dlq_for_message(dlq_url, message_id, [], 0, 5, aws_config)
 
         Logger.info("DLQ search completed", %{
           message_id: message_id,
@@ -658,7 +748,14 @@ defmodule PhoenixKit.Modules.Emails do
   end
 
   # Helper function to poll DLQ in batches to find specific message (don't delete from DLQ)
-  defp poll_dlq_for_message(dlq_url, target_message_id, found_events, batch_count, max_batches) do
+  defp poll_dlq_for_message(
+         dlq_url,
+         target_message_id,
+         found_events,
+         batch_count,
+         max_batches,
+         aws_config
+       ) do
     if batch_count >= max_batches do
       found_events
     else
@@ -673,7 +770,7 @@ defmodule PhoenixKit.Modules.Emails do
           visibility_timeout: visibility_timeout,
           wait_time_seconds: 2
         )
-        |> ExAws.request(get_aws_config())
+        |> ExAws.request(aws_config)
         |> case do
           {:ok, %{"Messages" => messages}} when is_list(messages) ->
             messages
@@ -713,7 +810,8 @@ defmodule PhoenixKit.Modules.Emails do
             target_message_id,
             new_found_events,
             batch_count + 1,
-            max_batches
+            max_batches,
+            aws_config
           )
         else
           # Found matches, return immediately
@@ -2757,15 +2855,6 @@ defmodule PhoenixKit.Modules.Emails do
     end
   end
 
-  # Get AWS configuration for ExAws
-  defp get_aws_config do
-    [
-      access_key_id: get_aws_access_key(),
-      secret_access_key: get_aws_secret_key(),
-      region: get_aws_region()
-    ]
-  end
-
   @doc """
   Gets AWS access key.
 
@@ -2967,12 +3056,32 @@ defmodule PhoenixKit.Modules.Emails do
           }
           | nil
   def default_send_attribution do
-    cache_miss = :__aws_credentials_cache_miss__
+    # WHICH account is read fresh on every send; only the expensive facts ABOUT
+    # that account are memoized, under a key that includes it.
+    #
+    # Caching the uuid too meant an operator who switched the default account
+    # kept sending under the previous one — with, where it applied, the
+    # previous account's configuration set — for up to the cache TTL. Nothing
+    # here could invalidate that: the setting lives on core's Integrations
+    # page, which has no hook into this package. Reading it through
+    # `get_setting_cached/2` costs an in-memory lookup and is never stale,
+    # because core invalidates its own settings cache on write. A changed
+    # default therefore lands on a different cache key and takes effect on the
+    # next message.
+    case Settings.get_setting_cached("default_email_integration_uuid") do
+      uuid when is_binary(uuid) and uuid != "" -> send_attribution_for(uuid)
+      _ -> nil
+    end
+  end
 
-    case PhoenixKit.Cache.get(@aws_credentials_cache_name, :send_attribution, cache_miss) do
+  defp send_attribution_for(uuid) do
+    cache_miss = :__aws_credentials_cache_miss__
+    key = {:send_attribution, uuid}
+
+    case PhoenixKit.Cache.get(@aws_credentials_cache_name, key, cache_miss) do
       ^cache_miss ->
-        attribution = fetch_default_send_attribution()
-        PhoenixKit.Cache.put(@aws_credentials_cache_name, :send_attribution, attribution)
+        attribution = fetch_default_send_attribution(uuid)
+        PhoenixKit.Cache.put(@aws_credentials_cache_name, key, attribution)
         attribution
 
       attribution ->
@@ -2980,13 +3089,11 @@ defmodule PhoenixKit.Modules.Emails do
     end
   end
 
-  defp fetch_default_send_attribution do
+  defp fetch_default_send_attribution(uuid) do
     # Mirrors PhoenixKit.Mailer's own (private) default_send_integration_uuid/0,
     # including its `connected?/1` gate — the same mirror
     # `PhoenixKit.Modules.Emails.Status` already keeps for the status card.
-    with uuid when is_binary(uuid) and uuid != "" <-
-           Settings.get_setting("default_email_integration_uuid"),
-         true <- Integrations.connected?(uuid) do
+    if Integrations.connected?(uuid) do
       provider =
         case Integrations.get_integration_by_uuid(uuid) do
           {:ok, %{provider: provider}} when is_binary(provider) and provider != "" -> provider
@@ -2998,8 +3105,6 @@ defmodule PhoenixKit.Modules.Emails do
         provider: provider,
         single_ses_account?: single_ses_account?(uuid)
       }
-    else
-      _ -> nil
     end
   end
 

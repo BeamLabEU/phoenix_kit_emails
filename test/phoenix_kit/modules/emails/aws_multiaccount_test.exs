@@ -325,6 +325,108 @@ defmodule PhoenixKit.Modules.Emails.AwsMultiaccountTest do
     end
   end
 
+  ## --- "Sync now" and the send-path attribution cache ---
+
+  describe "Emails.search_targets/1" do
+    test "searches every configured account when the message names none" do
+      one = create_connection()
+      two = create_connection()
+      create_profile(one)
+      create_profile(two)
+      {:ok, _} = Emails.set_aws_tracking(one, %{"queue_url" => "https://sqs.example.com/one"})
+      {:ok, _} = Emails.set_aws_tracking(two, %{"queue_url" => "https://sqs.example.com/two"})
+
+      urls = Emails.search_targets() |> Enum.map(& &1.queue_url) |> Enum.sort()
+
+      assert urls == ["https://sqs.example.com/one", "https://sqs.example.com/two"]
+    end
+
+    test "narrows to the account the log names" do
+      one = create_connection()
+      two = create_connection()
+      create_profile(one)
+      create_profile(two)
+      {:ok, _} = Emails.set_aws_tracking(one, %{"queue_url" => "https://sqs.example.com/one"})
+      {:ok, _} = Emails.set_aws_tracking(two, %{"queue_url" => "https://sqs.example.com/two"})
+
+      assert [%{queue_url: "https://sqs.example.com/two"}] =
+               Emails.search_targets(integration_uuid: two)
+    end
+
+    test "an account with no queue yields nothing rather than another account's queue" do
+      # Reporting a different account's events as this message's would be worse
+      # than reporting none.
+      one = create_connection()
+      two = create_connection()
+      create_profile(one)
+      create_profile(two)
+      {:ok, _} = Emails.set_aws_tracking(one, %{"queue_url" => "https://sqs.example.com/one"})
+
+      assert Emails.search_targets(integration_uuid: two) == []
+    end
+
+    test "the legacy single-queue deployment is still covered" do
+      {:ok, _} = Emails.set_sqs_queue_url("https://sqs.example.com/legacy")
+
+      assert [%{queue_url: "https://sqs.example.com/legacy"}] = Emails.search_targets()
+    end
+
+    test "each target carries ITS OWN credentials, and the QUEUE's region wins" do
+      # The connection says us-east-1, the queue lives in eu-north-1.
+      # `ex_aws_sqs` puts the QueueUrl in the request BODY and builds the host
+      # from the configured region, so the connection's answer would send every
+      # receive to the wrong endpoint. The URL is the only thing that always
+      # knows where the queue actually is.
+      uuid = create_connection(access_key: "AKIAONE", region: "us-east-1")
+      create_profile(uuid)
+
+      {:ok, _} =
+        Emails.set_aws_tracking(uuid, %{
+          "queue_url" => "https://sqs.eu-north-1.amazonaws.com/1/q"
+        })
+
+      assert [%{aws_config: config}] = Emails.search_targets()
+      assert config[:access_key_id] == "AKIAONE"
+      assert config[:region] == "eu-north-1"
+    end
+
+    test "a per-account tracking region overrides even the queue URL" do
+      # The operator said so explicitly; that beats inference.
+      uuid = create_connection(region: "us-east-1")
+      create_profile(uuid)
+
+      {:ok, _} =
+        Emails.set_aws_tracking(uuid, %{
+          "queue_url" => "https://sqs.eu-north-1.amazonaws.com/1/q",
+          "region" => "eu-central-1"
+        })
+
+      assert [%{aws_config: config}] = Emails.search_targets()
+      assert config[:region] == "eu-central-1"
+    end
+  end
+
+  describe "Emails.default_send_attribution/0" do
+    test "follows a change of default account immediately, not after the cache TTL" do
+      one = create_connection()
+      two = create_connection()
+
+      {:ok, _} = Settings.update_setting("default_email_integration_uuid", one)
+      assert %{uuid: ^one} = Emails.default_send_attribution()
+
+      # No invalidation call: the point is that switching the default account
+      # on core's own page — which this package cannot hook — takes effect on
+      # the very next message.
+      {:ok, _} = Settings.update_setting("default_email_integration_uuid", two)
+
+      assert %{uuid: ^two} = Emails.default_send_attribution()
+    end
+
+    test "is nil when no default is configured" do
+      assert Emails.default_send_attribution() == nil
+    end
+  end
+
   ## --- Manager surface the admin panel reads ---
 
   describe "SQSPollingManager multi-account callbacks" do
