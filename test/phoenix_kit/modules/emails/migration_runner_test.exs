@@ -104,9 +104,20 @@ defmodule PhoenixKit.Modules.Emails.MigrationRunnerTest do
     result
   end
 
+  # State-INDEPENDENT, on purpose. `Ecto.Migrator.down/4` answers `:already_down`
+  # and does nothing when the version is absent from `schema_migrations`, which
+  # on a freshly created database is always — so a Migrator-based reset left
+  # the marker `test_helper.exs` had already stamped, and every test that
+  # asserts "we start at version 0" failed on a clean database and passed
+  # forever after. Green locally, red on CI, which is the worst shape a test
+  # can have.
   defp reset do
-    run(:down, @version, UpMigration)
-    run(:down, @pinned_version, PinnedMigration)
+    Enum.each(Migrations.down_statements("public", 0), &MigrationRepo.query!/1)
+
+    MigrationRepo.query!(
+      "DELETE FROM schema_migrations WHERE version = ANY($1)",
+      [[@version, @pinned_version]]
+    )
   end
 
   defp migrated_version do

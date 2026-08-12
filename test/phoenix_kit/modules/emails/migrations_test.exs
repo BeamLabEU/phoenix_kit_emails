@@ -184,6 +184,20 @@ defmodule PhoenixKit.Modules.Emails.MigrationsTest do
       end
     end
 
+    test "indexes are emitted BEFORE constraints" do
+      # A foreign key needs a unique index (or a primary key) on the columns it
+      # references, and the primary key it would lean on is exactly what the
+      # type guard skips on a drifted database. With the unique uuid index
+      # already created, the foreign key survives a table whose primary key
+      # could not be added.
+      statements = Migrations.up_statements()
+
+      last_index = last_index_matching(statements, &String.contains?(&1, "CREATE INDEX"))
+      first_constraint = Enum.find_index(statements, &String.contains?(&1, "ADD CONSTRAINT"))
+
+      assert last_index < first_constraint
+    end
+
     test "the events -> logs foreign key is emitted after both primary keys" do
       statements = Migrations.up_statements()
 
@@ -247,7 +261,7 @@ defmodule PhoenixKit.Modules.Emails.MigrationsTest do
     test "every statement is idempotent" do
       for statement <- Migrations.up_statements() do
         assert statement =~ "IF NOT EXISTS" or statement =~ "COMMENT ON" or
-                 statement =~ "SET LOCAL" or
+                 statement =~ "SET lock_timeout" or statement =~ "RESET lock_timeout" or
                  (statement =~ "DO $$" and
                     (statement =~ "EXISTS (" or statement =~ "VALIDATE CONSTRAINT")),
                "non-idempotent statement: #{statement}"
@@ -299,7 +313,12 @@ defmodule PhoenixKit.Modules.Emails.MigrationsTest do
       # no-op migration can still queue every query on phoenix_kit_email_logs
       # behind one long-running reader. Failing in seconds beats hanging.
       assert [first | _] = Migrations.up_statements()
-      assert first =~ ~r/^SET LOCAL lock_timeout = '\d+s'$/
+      assert first =~ ~r/^SET lock_timeout = '\d+s'$/
+
+      # Session-scoped rather than SET LOCAL, because SET LOCAL is a silent
+      # no-op outside a transaction and @disable_ddl_transaction is a
+      # supported way to run this. Session scope has to be handed back.
+      assert List.last(Migrations.up_statements()) == "RESET lock_timeout"
     end
 
     test "primary keys are probed by contype, so a differently-named PK is not re-added" do
@@ -515,7 +534,8 @@ defmodule PhoenixKit.Modules.Emails.MigrationsTest do
           Migrations.up_statements(),
           fn statement ->
             MapSet.member?(core, statement) or
-              String.starts_with?(statement, "SET LOCAL") or
+              String.starts_with?(statement, "SET lock_timeout") or
+              statement == "RESET lock_timeout" or
               Enum.any?(core, &String.contains?(statement, &1)) or
               Enum.any?(departure_shapes, &String.contains?(statement, &1))
           end
@@ -543,5 +563,13 @@ defmodule PhoenixKit.Modules.Emails.MigrationsTest do
       Migrations.up_statements(),
       &String.starts_with?(&1, "CREATE TABLE IF NOT EXISTS public.#{table} (")
     )
+  end
+
+  defp last_index_matching(statements, fun) do
+    statements
+    |> Enum.with_index()
+    |> Enum.filter(fn {statement, _index} -> fun.(statement) end)
+    |> List.last()
+    |> elem(1)
   end
 end

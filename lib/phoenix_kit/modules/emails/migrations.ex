@@ -156,12 +156,25 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
   instead of hanging the deploy and queueing every query on that table behind
   it. Retry during a quiet window.
 
-  The one statement that does real work on an existing install is the new
-  `integration_uuid` index — a `SHARE` lock, blocking writes (not reads) for
-  the length of one index build. Expect seconds on a table of a few million
-  rows. A host that cannot take that lock should create the index
-  `CONCURRENTLY` by hand first, after which this statement finds it and does
-  nothing.
+  Be precise about what that costs, because the earlier version of this
+  paragraph was not: `ADD COLUMN IF NOT EXISTS` takes `ACCESS EXCLUSIVE`, not
+  `SHARE`, and it takes it even when the column already exists and the
+  statement does nothing. `ACCESS EXCLUSIVE` blocks READS as well as writes,
+  and every lock in a transaction is held until COMMIT — so for the duration
+  of V01, `phoenix_kit_email_logs` is unavailable to the application, not
+  merely unwritable. On a healthy install that is milliseconds of catalog
+  lookups; the number that matters is how long the whole chain takes, not any
+  one statement.
+
+  The one statement that does real WORK on an existing install is the new
+  `integration_uuid` index. Expect seconds on a table of a few million rows —
+  and, because it runs inside the same transaction, that is seconds with the
+  table fully locked. A host that cannot afford it should create the index
+  `CONCURRENTLY` by hand first (outside any transaction), after which this
+  statement finds it and does nothing:
+
+      CREATE INDEX CONCURRENTLY IF NOT EXISTS phoenix_kit_email_logs_integration_uuid_idx
+        ON public.phoenix_kit_email_logs USING btree (integration_uuid);
 
   Run `mix phoenix_kit.doctor` before upgrading. It reports exactly the two
   conditions that make this chain's constraint statements interesting — a
@@ -549,14 +562,20 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
     prefix = validated_prefix(prefix: prefix)
     version = min(version, @current_version)
 
+    # Indexes BEFORE constraints, deliberately. A foreign key requires a unique
+    # index (or a primary key) on the columns it references, and the primary
+    # key it would normally lean on is exactly what the type guard skips on a
+    # drifted database. With `phoenix_kit_email_logs_uuid_idx` already in
+    # place, the foreign key still gets created on a table whose primary key
+    # could not be. The reverse order made the FK's fate depend on the PK's.
     statements =
       [lock_timeout_statement()] ++
         table_statements() ++
         column_statements() ++
+        index_statements() ++
         constraint_statements() ++
         validate_foreign_key_statements() ++
-        index_statements() ++
-        [marker_statement(version)]
+        [marker_statement(version), reset_lock_timeout_statement()]
 
     Enum.map(statements, &materialize(&1, prefix))
   end
@@ -614,21 +633,21 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
   # better failure than a deploy that hangs and takes the app's busiest table
   # with it. Retry during a quiet window.
   #
-  # `SET LOCAL` scopes it to the surrounding transaction (core's generated
-  # migration), so it reverts on its own and cannot leak into the session.
-  # V163 sets the session-level `SET lock_timeout` for the same reason, because
-  # it deliberately runs with `@disable_ddl_transaction`.
+  # Session-scoped (`SET`, not `SET LOCAL`), and explicitly `RESET` at the end
+  # of the chain — the shape V163 uses, for the reason V163 uses it.
   #
-  # Caveat worth knowing rather than working around: `SET LOCAL` outside a
-  # transaction is a no-op with a warning, so a runner that ever executes this
-  # chain statement-by-statement in autocommit (this package's own
-  # `test_helper.exs` does exactly that) simply gets no timeout. That is a
-  # degraded guard, not a broken migration, and the guard only matters on a
-  # busy production database — which is always reached through core's
-  # generated migration, inside a transaction. Emitting a session-level `SET`
-  # instead would fix the no-op and leak the timeout into whatever connection
-  # the host reuses afterwards, which is the worse trade.
-  defp lock_timeout_statement, do: "SET LOCAL lock_timeout = '#{@lock_timeout}'"
+  # `SET LOCAL` reads better and reverts itself, but it is a WARNING and a
+  # silent no-op outside a transaction, and outside a transaction is a
+  # supported way to run this: `mix phoenix_kit.doctor` recommends
+  # `@disable_ddl_transaction` to PgBouncer installs, and this package's own
+  # `test_helper.exs` executes the chain statement by statement in autocommit.
+  # A guard that quietly evaporates in exactly the deployment that most needs
+  # it is worse than one that has to be handed back by hand.
+  defp lock_timeout_statement, do: "SET lock_timeout = '#{@lock_timeout}'"
+
+  # Session-scoped, so it has to be handed back. Paired with the SET above and
+  # emitted last, after everything it protects.
+  defp reset_lock_timeout_statement, do: "RESET lock_timeout"
 
   defp table_statements do
     Enum.map(@adopted_tables, fn table ->
@@ -690,10 +709,20 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
   #     dedicated check for orphaned `phoenix_kit_email_events.email_log_uuid`
   #     rows, which means they exist in the wild — and validating against them
   #     aborts the migration. `NOT VALID` enforces the constraint for every new
-  #     row while leaving the existing ones to be validated deliberately, by
-  #     `mix phoenix_kit.repair`, when someone has decided what to do with the
-  #     orphans. The constraint is present and named either way, which is what
-  #     core's catalog probe checks for.
+  #     row while leaving the existing ones alone. The constraint is present
+  #     and named either way, which is what core's catalog probe checks for.
+  #
+  #     **It will not be validated for you.** Core has no `convalidated`
+  #     anywhere: its constraint snapshot reads `conname`/`contype`/the
+  #     definition, `repair` answers "already present" for an object that
+  #     exists, and it only validates constraints it created itself. So on a
+  #     populated table this stays NOT VALID indefinitely and nothing reports
+  #     it. That is a deliberate, documented end state, not a hand-off — the
+  #     operator who wants it validated cleans up the orphans and runs
+  #     `ALTER TABLE <schema>.phoenix_kit_email_events
+  #     VALIDATE CONSTRAINT fk_email_events_email_log_uuid;` themselves. See
+  #     the report's "Running this on a database that has been alive for
+  #     years".
   #
   # `to_regclass/1` returns NULL rather than raising for a table that does not
   # exist, so a chain running against a database that somehow lacks one of
@@ -726,7 +755,7 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
         ALTER TABLE #{@schema_token}.#{table} ADD CONSTRAINT #{name} #{constraint_definition(definition)};
       EXCEPTION
         WHEN others THEN
-          RAISE NOTICE 'phoenix_kit_emails: could not add % (%) — left for mix phoenix_kit.repair', '#{name}', SQLERRM;
+          #{reraise_unless_populated(table, "could not add #{name}")}
       END
       $$\
       """
@@ -797,13 +826,21 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
   # BUILD time (not on someone's database) if a constraint ever names a column
   # this chain does not adopt — which would mean the manifest data and the
   # constraint list have drifted apart.
+  # Everything between the column name and the first modifier IS the type:
+  # `character varying(255)` is two words, and taking only the first produced
+  # `character` — which `::regtype` happily resolves to `bpchar`, so the
+  # comparison would have been false forever and the constraint skipped on
+  # every database, silently. Every constrained column is `uuid` today, so
+  # nothing was actually broken; it was a trap armed for the first non-uuid
+  # constraint.
   defp column_type(table, column) do
     Enum.find_value(@adopted_columns, fn {column_table, _pos, definition, _not_null} ->
       if column_table == table and String.starts_with?(definition, ~s("#{column}" )) do
         definition
         |> String.replace_prefix(~s("#{column}" ), "")
-        |> String.split(" ")
+        |> String.split(~r/\s+(?:DEFAULT|NOT NULL)\b/, parts: 2)
         |> List.first()
+        |> String.trim()
       end
     end) ||
       raise ArgumentError, "no adopted column #{table}.#{column} to take a type from"
@@ -847,6 +884,37 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
     end)
   end
 
+  # Swallow on a populated table; RE-RAISE on an empty one.
+  #
+  # The asymmetry is the whole point. On a long-lived database a failure here
+  # means the data has drifted, and taking the host's migration down over
+  # something `mix phoenix_kit.doctor` is meant to report is the wrong trade —
+  # degrade, name the object, move on. On an EMPTY table there is no data to
+  # have drifted, so the only thing a failure can mean is that this chain is
+  # wrong: a fresh install that swallowed it would stamp `pke_schema:1` over a
+  # schema that is genuinely broken and report success. That one must be loud.
+  #
+  # `to_regclass` keeps the probe safe when the table itself is missing —
+  # which, on the path that gets here, is already an error worth raising.
+  defp reraise_unless_populated(table, what) do
+    """
+    IF to_regclass('#{@schema_token}.#{table}') IS NULL
+       OR NOT EXISTS (SELECT 1 FROM #{@schema_token}.#{table} LIMIT 1) THEN
+              RAISE;
+            END IF;
+
+            RAISE NOTICE 'phoenix_kit_emails: #{what} (%) — left for mix phoenix_kit.doctor', SQLERRM;\
+    """
+  end
+
+  # The table an index statement is built on, for the emptiness probe above.
+  defp index_table(statement) do
+    case Regex.run(~r/ ON #{@schema_token}\.(\w+) /, statement) do
+      [_, table] -> table
+      _ -> raise ArgumentError, "cannot tell which table this index is on: #{statement}"
+    end
+  end
+
   # A primary key is identified by what it IS; everything else by its name.
   defp constraint_probe(name, definition) do
     if primary_key?(definition), do: "c.contype = 'p'", else: "c.conname = '#{name}'"
@@ -881,7 +949,7 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
         #{statement};
       EXCEPTION
         WHEN others THEN
-          RAISE NOTICE 'phoenix_kit_emails: could not create an index (%) — left for mix phoenix_kit.repair', SQLERRM;
+          #{reraise_unless_populated(index_table(statement), "could not create an index")}
       END
       $$\
       """

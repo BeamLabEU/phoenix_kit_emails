@@ -199,10 +199,12 @@ The chain depends on two core-created objects and does **not** try to own them:
 
 * `uuid_generate_v7()` — used in every `uuid` column default;
 * the `pg_trgm` extension, behind the `gin_trgm_ops` operator class in three
-  trigram indexes. Note `public.gin_trgm_ops` stays schema-qualified as `public.`
-  even under a custom prefix: an operator class lives in the schema its
-  *extension* was installed into, not in the install's own schema. Core hard-codes
-  it for the same reason.
+  trigram indexes. The operator class is referenced UNQUALIFIED, unlike core's
+  manifest, which renders it `public.gin_trgm_ops`: an operator class lives in
+  the schema its *extension* was installed into, which is not required to be
+  `public`, so the qualified spelling turns "trigram search works" into "the
+  migration fails" on any install that put `pg_trgm` elsewhere. Unqualified
+  resolves through `search_path` — the way core's own V137 writes it.
 
 Core's chain runs before any module chain (`mix phoenix_kit.update` runs core,
 then `run_module_migrations/1`), so both are always in place first.
@@ -304,8 +306,30 @@ So the constraint statements deliberately differ from core's manifest:
 * **The foreign key is added `NOT VALID`**, then validated only when the table
   is empty (a fresh install, where it is free and cannot fail) inside an
   exception-swallowing `DO` block. A populated table keeps the constraint
-  enforced for new rows and leaves validation to `mix phoenix_kit.repair`,
-  once someone has decided what to do with the orphans.
+  enforced for every new row and leaves the existing ones unvalidated.
+
+  **Nothing will validate it later, and saying otherwise was wrong.** An
+  earlier version of this report handed that job to `mix phoenix_kit.repair`;
+  core does not do it. There is no `convalidated` anywhere in core — the
+  constraint snapshot reads `conname`, `contype` and the definition, `repair`
+  answers "already present" for an object that exists, and it validates only
+  constraints it created itself. So on a populated table the foreign key stays
+  `NOT VALID` indefinitely and `doctor` will not mention it. That is the
+  documented end state. An operator who wants it validated cleans up the
+  orphans `doctor` DOES report and runs it themselves:
+
+  ```sql
+  ALTER TABLE public.phoenix_kit_email_events
+    VALIDATE CONSTRAINT fk_email_events_email_log_uuid;
+  ```
+
+* **Failures degrade on a populated table and RAISE on an empty one.** Every
+  constraint and index runs inside an exception handler, but the handler
+  re-raises when the table has no rows. On a long-lived database a failure
+  means the data drifted and the host's migration should survive it; on a
+  fresh install there is no data to have drifted, so a failure can only mean
+  this chain is wrong — and swallowing it would stamp `pke_schema:1` over a
+  broken schema and report success.
 * **`to_regclass/1`** rather than a `::regclass` cast, so a missing table
   skips its constraint instead of raising mid-transaction.
 * **Every constraint checks the actual column TYPES first, on both sides of
@@ -320,8 +344,13 @@ So the constraint statements deliberately differ from core's manifest:
   and same for a UNIQUE index that is genuinely missing on a table that has
   since accumulated duplicates.
 
-  Verified end to end rather than argued: `dev_docs/verify/drift_replay.exs`
-  builds exactly that drift on a scratch database and replays the chain.
+  Verified end to end rather than argued, and now guarded by the suite:
+  `test/phoenix_kit/modules/emails/migration_drift_test.exs` builds the drift
+  inside its own sandbox transaction (so it is destructive only to itself) and
+  asserts the replay survives, the drifted constraints are skipped rather than
+  forced, everything undrifted still applies, and a failure on an EMPTY table
+  still raises. `dev_docs/verify/drift_replay.exs` is the same scenario
+  against a throwaway database, for looking at the result by hand.
 
   ```
   drift in place: uuid is varchar, no pkey, no fk, duplicate rows present

@@ -401,7 +401,25 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
     end
   end
 
+  def handle_event("assign_aws_integration", %{"uuid" => uuid}, socket)
+      when uuid != "" do
+    # Every other handler here validates; this one did not, and it writes the
+    # setting that decides which account may inherit the global queue. A forged
+    # phx-value pointing at nothing would leave the globals attributable to no
+    # active account, and polling would stop with the panel still calling it
+    # healthy.
+    if known_connection?(socket, uuid) do
+      do_assign_aws_integration(uuid, socket)
+    else
+      {:noreply, socket}
+    end
+  end
+
   def handle_event("assign_aws_integration", %{"uuid" => uuid}, socket) do
+    do_assign_aws_integration(uuid, socket)
+  end
+
+  defp do_assign_aws_integration(uuid, socket) do
     # An empty uuid means "back to legacy" — clear the setting instead of
     # writing an empty value (the key isn't in Setting's optional-value
     # allowlist, so an empty-string write would fail changeset validation).
@@ -554,6 +572,16 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
           gettext("This connection has no AWS credentials — add them in Settings → Integrations")
         )
 
+      {:error, :missing_region} ->
+        socket
+        |> assign(:setting_up_account, nil)
+        |> put_flash(
+          :error,
+          gettext(
+            "This connection has no AWS region — set it in Settings → Integrations before creating infrastructure"
+          )
+        )
+
       {:error, step, reason} ->
         socket
         |> assign(:setting_up_account, nil)
@@ -568,6 +596,12 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
         |> put_flash(:error, gettext("AWS setup failed: %{reason}", reason: inspect(reason)))
     end
   end
+
+  # A missing region is refused, never guessed. `InfrastructureSetup.run/1`
+  # creates an SNS topic, a queue, a DLQ and a configuration set — in a guessed
+  # region that is four real AWS resources in the wrong place, invisible to the
+  # account that actually sends, and removable only by hand in a console.
+  defp setup_infrastructure(%{region: nil}), do: {:error, :missing_region}
 
   defp setup_infrastructure(creds) do
     InfrastructureSetup.run(

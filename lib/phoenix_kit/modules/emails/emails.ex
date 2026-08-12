@@ -389,6 +389,17 @@ defmodule PhoenixKit.Modules.Emails do
   ## Returns
 
   List of SES events matching the message ID.
+  > #### Single-account, on purpose (for now) {: .warning}
+  >
+  > This reads the GLOBAL `aws_sqs_queue_url` and the global credentials, so
+  > on a multi-account install it only ever inspects the legacy account's
+  > queue. For a message sent through any other account it returns zero events
+  > and says so — which reads as "no events yet" rather than "looked in the
+  > wrong place". Making it account-aware means either fanning out over
+  > `SQSPollingJob.configured_accounts/0` or selecting by the message's own
+  > `integration_uuid`; both are follow-up work, deliberately not folded into
+  > this change.
+
   """
   def fetch_sqs_events_for_message(message_id) do
     queue_url = Settings.get_setting("aws_sqs_queue_url")
@@ -456,6 +467,17 @@ defmodule PhoenixKit.Modules.Emails do
   ## Returns
 
   List of SES events matching the message ID from DLQ.
+  > #### Single-account, on purpose (for now) {: .warning}
+  >
+  > This reads the GLOBAL `aws_sqs_queue_url` and the global credentials, so
+  > on a multi-account install it only ever inspects the legacy account's
+  > queue. For a message sent through any other account it returns zero events
+  > and says so — which reads as "no events yet" rather than "looked in the
+  > wrong place". Making it account-aware means either fanning out over
+  > `SQSPollingJob.configured_accounts/0` or selecting by the message's own
+  > `integration_uuid`; both are follow-up work, deliberately not folded into
+  > this change.
+
   """
   def fetch_dlq_events_for_message(message_id) do
     dlq_url = Settings.get_setting("aws_sqs_dlq_url")
@@ -2927,6 +2949,16 @@ defmodule PhoenixKit.Modules.Emails do
   # message, which a bulk send pays thousands of times.
   #
   # Returns `nil` when no default send integration is configured.
+  #
+  # Staleness window worth knowing: every input here belongs to CORE — the
+  # `default_email_integration_uuid` setting and the connection behind it are
+  # edited on core's own Integrations page, which has no hook into this
+  # package. So after an operator switches the default account, sends keep the
+  # previous uuid (and, where it applies, the previous account's configuration
+  # set) for up to the cache TTL. Anything this package itself changes calls
+  # `invalidate_aws_credentials_cache/0` and takes effect immediately; the
+  # remaining window is the price of not paying three uncached lookups per
+  # message, and it is bounded rather than indefinite.
   @spec default_send_attribution() ::
           %{
             uuid: String.t(),
@@ -2964,11 +2996,34 @@ defmodule PhoenixKit.Modules.Emails do
       %{
         uuid: uuid,
         provider: provider,
-        single_ses_account?: AwsIntegrations.active_integration_uuids() == [uuid]
+        single_ses_account?: single_ses_account?(uuid)
       }
     else
       _ -> nil
     end
+  end
+
+  # "There is no other SES account this send could have gone through."
+  #
+  # Counted over `aws_ses` CONNECTIONS, not just over the accounts an enabled
+  # SendProfile points at. Core hands the interceptor only `:provider`, so a
+  # send routed through a second `aws_ses` connection that has no SendProfile
+  # at all is indistinguishable from one through the default — and a
+  # profile-only count called that situation "single account", stamped the
+  # default's configuration set onto a message signed with the other account's
+  # keys, and earned a hard `ConfigurationSetDoesNotExist` from SES.
+  #
+  # Active profiles are still unioned in: a profile can outlive the connection
+  # listing under a different owner scope, and either source alone is a way to
+  # under-count.
+  defp single_ses_account?(uuid) do
+    connections =
+      "aws_ses"
+      |> Integrations.list_connections(owner: :any)
+      |> Enum.map(& &1.uuid)
+
+    MapSet.new(connections ++ AwsIntegrations.active_integration_uuids()) ==
+      MapSet.new([uuid])
   end
 
   @doc false

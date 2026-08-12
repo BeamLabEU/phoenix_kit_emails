@@ -414,8 +414,19 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
   # selects, or the only active account there is. See the moduledoc's
   # "Multi-account cycle" for why the ambiguous case is skipped rather than
   # fanned out.
+  # Deliberately NOT a disjunction. With `emails_aws_integration_uuid` pointing
+  # at account A and a single active account B, `or` handed B the globals —
+  # A's queue URL, and through `build_aws_config/1` A's credentials. One
+  # account polling another's queue with another's keys is the exact failure
+  # this whole change exists to remove.
+  #
+  # An explicit selection is an answer, so it is THE answer; only when there is
+  # no selection does "the only active account" get to claim the globals.
   defp legacy_attributable?(uuid, active_uuids) do
-    uuid == Emails.selected_aws_integration_uuid() or match?([_single], active_uuids)
+    case Emails.selected_aws_integration_uuid() do
+      selected when is_binary(selected) -> uuid == selected
+      _ -> match?([_single], active_uuids)
+    end
   end
 
   # `aws_tracking:<uuid>` outlives the connection it describes, so a
@@ -539,12 +550,18 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
 
     case AwsIntegrations.resolve_credentials(uuid) do
       {:ok, creds} ->
-        {:ok,
-         [
-           access_key_id: creds.access_key,
-           secret_access_key: creds.secret_key,
-           region: region || creds.region
-         ]}
+        case region || region_from_queue_url(account.queue_url) || creds.region do
+          nil ->
+            {:error, :missing_region}
+
+          resolved_region ->
+            {:ok,
+             [
+               access_key_id: creds.access_key,
+               secret_access_key: creds.secret_key,
+               region: resolved_region
+             ]}
+        end
 
       # The connection stores no credentials. That is NOT necessarily a
       # misconfiguration: a deployment can keep its AWS keys in environment
@@ -848,6 +865,23 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
       :ok
     end
   end
+
+  # The region an SQS queue lives in, read off the queue URL.
+  #
+  # Load-bearing, not a nicety: `ex_aws_sqs` puts the QueueUrl in the request
+  # BODY and builds the host from the configured region, so a wrong region does
+  # not "still find the queue" — every receive fails. And the failure is quiet,
+  # because a failed receive is logged and the cycle still returns `:ok`, so it
+  # repeats forever at full cadence with nothing in the UI to show for it.
+  # The URL is the one place that always knows the truth.
+  defp region_from_queue_url(url) when is_binary(url) do
+    case Regex.run(~r{^https://sqs\.([a-z0-9-]+)\.amazonaws\.com/}, url) do
+      [_, region] -> region
+      _ -> nil
+    end
+  end
+
+  defp region_from_queue_url(_url), do: nil
 
   # Build AWS configuration for the LEGACY single-account path from the
   # process-wide `get_aws_*` resolution. Per-account credentials do not come

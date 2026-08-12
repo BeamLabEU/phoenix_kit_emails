@@ -55,13 +55,19 @@ defmodule PhoenixKit.Modules.Emails.AwsIntegrations do
   Resolves the decrypted AWS credentials for one `aws_ses` integration as
   `%{access_key: ..., secret_key: ..., region: ...}`.
 
-  The region falls back to the connection-less default (`"us-east-1"`, the
-  same floor `migrate_legacy/0` writes) when the connection was saved
-  without one: an SQS queue URL already carries its own region in the host
-  name, and ExAws only needs a syntactically valid region to sign with. A
-  MISSING key or secret, by contrast, is a hard `{:error, :missing_credentials}`
-  — signing with a blank key would fail per-request, once per poll cycle,
-  with an opaque AWS error instead of one clear log line here.
+  `region` is `nil` when the connection was saved without one — deliberately
+  NOT defaulted to `"us-east-1"`. That default was built on a wrong premise:
+  `ex_aws_sqs` puts the QueueUrl in the request BODY and derives the host from
+  the CONFIGURED region, so a guessed region does not merely mislabel the
+  request, it sends it to the wrong endpoint and every receive fails. Callers
+  decide what to do with `nil`: the poller reads the region off the queue URL,
+  which always knows; the one-click infrastructure setup refuses, because
+  creating a topic, a queue, a DLQ and a configuration set in a guessed region
+  is a mess someone has to clean up by hand in a console.
+
+  A MISSING key or secret is a hard `{:error, :missing_credentials}` — signing
+  with a blank key would fail per-request, once per poll cycle, with an opaque
+  AWS error instead of one clear log line here.
 
   ## Examples
 
@@ -94,7 +100,7 @@ defmodule PhoenixKit.Modules.Emails.AwsIntegrations do
        %{
          access_key: access_key,
          secret_key: secret_key,
-         region: present(creds["aws_region"]) || "us-east-1"
+         region: present(creds["aws_region"])
        }}
     else
       {:error, :missing_credentials}

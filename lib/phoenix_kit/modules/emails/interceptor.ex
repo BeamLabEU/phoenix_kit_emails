@@ -53,6 +53,10 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
   require Logger
 
   alias PhoenixKit.Modules.Emails
+
+  # Private opts key recording that `enrich_send_opts/1` has already run, and
+  # what it decided. Namespaced so no caller can plausibly set it.
+  @attribution_marker :__phoenix_kit_emails_attribution__
   alias PhoenixKit.Modules.Emails.EmailLogData
   alias PhoenixKit.Modules.Emails.Event
   alias PhoenixKit.Modules.Emails.Log
@@ -777,6 +781,28 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
   # When core starts passing `:integration_uuid` (the first branch), the
   # restriction lifts on its own for every send that carries it.
   def enrich_send_opts(opts) do
+    # Keyed on OUR OWN marker, not on `:integration_uuid`.
+    #
+    # This runs twice per send (`do_intercept_before_send/2`, then
+    # `create_email_log/2`). Re-deriving trust from `:integration_uuid` made
+    # the second pass read back the uuid the FIRST pass wrote and treat it as
+    # a caller-supplied opt — flipping `trusted?` from false to true and
+    # applying a per-account configuration set that pass one had deliberately
+    # withheld. With an empty global configuration set the two passes then
+    # disagreed, the log won, and `build_ses_headers/2` put another account's
+    # name on the wire: a rejected send, not a lost event.
+    #
+    # A private marker cannot be confused with a caller's opt, and — unlike a
+    # `Keyword.has_key?(:integration_uuid)` guard — it is absent when a caller
+    # passes `integration_uuid: nil` themselves, so the inference still runs
+    # for them.
+    case Keyword.fetch(opts, @attribution_marker) do
+      {:ok, _already_resolved} -> opts
+      :error -> do_enrich_send_opts(opts)
+    end
+  end
+
+  defp do_enrich_send_opts(opts) do
     {integration_uuid, trusted?} = resolve_integration_uuid(opts)
 
     # Three candidates, each validated on its own and falling through to the
@@ -790,18 +816,11 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
         nil
 
     opts
+    |> Keyword.put(@attribution_marker, {integration_uuid, trusted?})
     |> Keyword.put(:integration_uuid, integration_uuid)
     |> Keyword.put(:configuration_set, configuration_set)
   end
 
-  # Idempotence is by VALUE, not by key presence: after one pass both keys
-  # exist, and a `Keyword.has_key?` guard would then skip resolution even when
-  # the value is `nil` — including for a caller that passed
-  # `integration_uuid: nil` itself and expected the inference to run. Re-running
-  # is cheap (both lookups are memoized, see `Emails.default_send_attribution/0`)
-  # and lands on the same answer: the uuid this pass wrote is read back as an
-  # explicit opt, and the configuration set this pass wrote wins the first
-  # candidate above.
   defp account_configuration_set(integration_uuid),
     do: Emails.account_configuration_set(integration_uuid)
 

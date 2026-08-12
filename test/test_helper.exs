@@ -23,7 +23,11 @@ repo_available =
     Ecto.Adapters.SQL.Sandbox.mode(PhoenixKitEmails.Test.Repo, :manual)
     true
   rescue
-    e ->
+    # Narrow on purpose. A bare `rescue e` also catches a broken support file, a
+    # bad config or a compile-time error in the chain itself, and answers by
+    # EXCLUDING every integration test — turning a broken suite green. Only a
+    # genuine "there is no database here" is allowed to do that.
+    e in [DBConnection.ConnectionError, Postgrex.Error] ->
       IO.puts("""
       \n⚠  Could not connect to test database — integration tests will be excluded.
          Run `createdb phoenix_kit_emails_test` to create it.
