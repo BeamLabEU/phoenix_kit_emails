@@ -280,9 +280,19 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
   def handle_event("save_aws_settings", %{"aws_settings" => aws_params}, socket) do
     socket = assign(socket, :saving, true)
 
+    # A blank secret means "keep the stored one" — the form never echoes the
+    # saved secret back (see the template), so on an untouched form this field
+    # arrives empty and must not wipe the credential.
+    submitted_secret = String.trim(aws_params["secret_access_key"] || "")
+
+    secret =
+      if submitted_secret == "",
+        do: Settings.get_setting("aws_secret_access_key", ""),
+        else: submitted_secret
+
     settings_to_update = %{
       "aws_access_key_id" => String.trim(aws_params["access_key_id"] || ""),
-      "aws_secret_access_key" => String.trim(aws_params["secret_access_key"] || ""),
+      "aws_secret_access_key" => secret,
       "aws_region" =>
         if(aws_params["region"] in [nil, ""],
           do: AWS.region(),

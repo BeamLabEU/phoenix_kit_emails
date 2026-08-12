@@ -265,16 +265,26 @@
         <label class="label">
           <span class="label-text font-medium">{gettext("AWS Secret Access Key")}</span>
         </label>
+        <%!-- The stored secret is NEVER rendered back — even a type="password"
+        input carries its value in the DOM (view-source / devtools). Blank on
+        save means "keep the stored secret". --%>
         <input
           name="aws_settings[secret_access_key]"
           type="password"
-          placeholder="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
-          value={@aws_settings.secret_access_key}
+          placeholder={
+            if @aws_settings.secret_access_key != "",
+              do: "••••••••  (#{gettext("saved — leave blank to keep")})",
+              else: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+          }
+          value=""
+          autocomplete="new-password"
           class="input input-bordered focus:input-primary"
         />
         <label class="label">
           <span class="label-text-alt text-sm text-base-content/70">
-            {gettext("Example: wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY")}
+            {if @aws_settings.secret_access_key != "",
+              do: gettext("A secret is saved. Leave blank to keep it, or paste a new one to replace."),
+              else: gettext("Example: wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY")}
           </span>
         </label>
       </div>
