@@ -5,42 +5,133 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
   discovers via `c:PhoenixKit.Module.migration_module/0`:
   `current_version/0` + `migrated_version_runtime/1` + idempotent `up/1` +
   version-aware `down/1`. `PhoenixKit.Modules.Legal.Migrations` is the
-  reference implementation this chain is shaped after — same situation
-  (a core-created table whose FUTURE shape moves here), same
-  `COMMENT`-marker version tracking.
+  reference implementation this chain is shaped after — same situation, and
+  V1 here is the same kind of step: an ADOPTION, not a create.
 
-  ## Ownership
+  ## Ownership history — read before touching
 
-  `phoenix_kit_email_logs` and `phoenix_kit_email_events` are created by
-  core's squashed baseline and stay core-owned: this chain NEVER creates,
-  alters the shape of, or drops those tables' core columns. It only ADDS
-  module-specific columns core's manifest does not know about — core's
-  `PhoenixKit.Migrations.ExpectedSchema` audit reports such a column as an
-  `:info`-level "extra column, not in the manifest" finding, never a
-  failure, which is precisely the affordance that makes this safe without
-  a coordinated core release.
+  Every table this chain names was created by core, back when email
+  tracking still lived inside core, and today ships in core's squashed
+  V135 baseline (plus later deltas — see "Where the DDL comes from"). When
+  the module was extracted into this package the tables stayed in core's
+  chain, exactly as `phoenix_kit_consent_logs` did for
+  `phoenix_kit_legal`. So on every existing install the tables predate this
+  chain and `CREATE TABLE IF NOT EXISTS` finds them already there.
 
-  ## V1 — `integration_uuid` attribution
+  This chain moves ownership of their FUTURE shape here. It is deliberately
+  a TRANSITIONAL duplication: right now BOTH core's baseline and this
+  chain can create these tables, and the statements are written to be
+  shape-identical so that it does not matter which one wins. The next step
+  is a core release that stops creating them, after which this chain is
+  their only creator. See
+  `dev_docs/reports/2026-08-12-emails-table-adoption.md` for the full plan,
+  including the excluded-object protocol core's `ExpectedSchema` manifest
+  needs before that release.
 
-  Adds a nullable `integration_uuid` (uuid) column plus an index to
-  `phoenix_kit_email_logs`. Before it, a log recorded only the provider
-  *kind* (`"aws_ses"`, `"brevo_api"`), so with several accounts of the same
-  kind configured there was no way to tell WHICH account sent a message —
-  which is what per-account event tracking needs (see
-  `PhoenixKit.Modules.Emails.AwsIntegrations`). Nullable because every
-  pre-existing row genuinely has no known account, and because the stamp is
-  best-effort on the send path (see
-  `PhoenixKit.Modules.Emails.Interceptor`): an unstamped row must remain a
-  valid row, not a constraint violation.
+  ## What V1 is
+
+  V1 is an ADOPTION step plus exactly one shape change:
+
+    * **Adoption.** `CREATE TABLE IF NOT EXISTS` + `ADD COLUMN IF NOT
+      EXISTS` + `CREATE INDEX IF NOT EXISTS` + guarded `ADD CONSTRAINT` for
+      the six tables this package owns. On an existing install every one of
+      them is a no-op and the only new object is the `pke_schema:1` marker.
+      On a hypothetical future install whose core baseline no longer
+      creates them, the same statements create them — with core's exact
+      object names, column types, widths and defaults.
+    * **One genuine change:** a nullable `integration_uuid` (uuid) column
+      plus its index on `phoenix_kit_email_logs`. Before it, a log recorded
+      only the provider *kind* (`"aws_ses"`, `"brevo_api"`), so with
+      several accounts of the same kind configured there was no way to tell
+      WHICH account sent a message — which is what per-account event
+      tracking needs (see `PhoenixKit.Modules.Emails.AwsIntegrations`).
+      Nullable because every pre-existing row genuinely has no known
+      account, and because the stamp is best-effort on the send path (see
+      `PhoenixKit.Modules.Emails.Interceptor`): an unstamped row must
+      remain a valid row, not a constraint violation.
+
+  Because the adoption half changes no shape, core's `ExpectedSchema`
+  manifest stays accurate for it and NO core release is required. The
+  `integration_uuid` column is the one declared deviation: core's audit
+  reports an unknown column as an `:info`-level "extra column, not in the
+  manifest" finding, never a failure — checked, and accepted.
+
+  ## Which tables, and which one is NOT here
+
+  Adopted: `phoenix_kit_email_logs`, `phoenix_kit_email_events`,
+  `phoenix_kit_email_blocklist`, `phoenix_kit_email_templates`,
+  `phoenix_kit_email_metrics`, `phoenix_kit_email_orphaned_events`.
+
+  **`phoenix_kit_email_send_profiles` is deliberately NOT adopted.** The
+  send-profile system lives in CORE (`PhoenixKit.Email.SendProfile` /
+  `PhoenixKit.Email.SendProfiles`) and drives `PhoenixKit.Mailer`'s send
+  path with or without this package installed. This package only READS it
+  (through `AwsIntegrations` / `BrevoIntegrations`). Adopting a table core
+  itself depends on would be the mirror of the mistake the legal package's
+  own report documents — claiming ownership of something that outlives you.
+
+  Two of the adopted tables — `phoenix_kit_email_metrics` and
+  `phoenix_kit_email_orphaned_events` — currently have no reader in this
+  package (no Ecto schema, no query); they are pre-extraction leftovers.
+  They are adopted anyway: nothing else in the ecosystem touches them, and
+  leaving them out would strand them with no owner at all the moment core
+  stops creating them.
+
+  ## Where the DDL comes from
+
+  Mechanically extracted from core's own `PhoenixKit.Migrations.ExpectedSchema`
+  manifest — the same object list `mix phoenix_kit.doctor` and
+  `mix phoenix_kit.repair` verify a live database against — so every
+  statement is byte-identical to what core would emit for the same object,
+  at the manifest's CURRENT shape (not just the V135 snapshot). It was not
+  retyped from the baseline by hand, because that is precisely how the
+  legal package accumulated three disagreeing DDL copies of one table.
+  `test/phoenix_kit/modules/emails/migrations_test.exs` pins the
+  correspondence: it compares every statement here against the live
+  manifest and fails on drift, while skipping objects the manifest no
+  longer declares — which is what makes it survive, rather than block, the
+  core release that removes them.
+
+  One deliberate departure from the manifest: the `CREATE TABLE` statements
+  carry core's full column list rather than the manifest's bare
+  `CREATE TABLE ... ()`. See `table_statements/0` — the manifest's form is
+  repair DDL and cannot express `NOT NULL` on a column without a default.
+
+  Two dependencies stay core's: the `uuid_generate_v7()` function used in
+  the `uuid` defaults, and the `pg_trgm` extension behind the
+  `gin_trgm_ops` indexes. `gin_trgm_ops` stays schema-qualified as
+  `public.` even under a custom prefix — an operator class lives in the
+  schema its EXTENSION was installed into, not in the install's own schema,
+  and core's manifest hard-codes it for exactly that reason.
+
+  Both are core infrastructure shared by every module, and core's chain
+  runs before any module chain (`mix phoenix_kit.update`), so they are
+  always in place first.
+
+  ## One known, harmless cosmetic difference
+
+  Two partial indexes on `phoenix_kit_email_events` were originally written
+  by core's V137 as `WHERE event_type NOT IN ('open', 'click')`, while the
+  manifest carries the `pg_get_indexdef` round-trip of that predicate. Both
+  spellings mean the same thing and produce the same index under the same
+  name, but Postgres renders the two parse trees differently, so
+  `pg_get_indexdef` output differs by parenthesisation between a
+  core-CREATED and a manifest-created database. This is core's own
+  behaviour — its repair path emits the manifest form too — and nothing
+  checks index definitions textually (the manifest's own `check` is a
+  catalog existence probe by name). Verified end to end against a real
+  database: dropping all six tables and replaying `up_statements/1` yields
+  IDENTICAL columns and constraints, and identical indexes apart from
+  these two renderings.
 
   ## What `down/1` is NOT
 
-  `down/1` unstamps the version marker; it NEVER drops the table and never
-  drops the column. The table is core-owned and carries the delivery
-  history; the column may already hold attribution an operator relies on,
-  and re-running `up/1` after a rollback would silently return an
-  all-`NULL` column rather than the data. Rolling the MODULE back must not
-  destroy either.
+  `down/1` unstamps the version marker; it NEVER drops a table and never
+  drops a column. These tables carry the delivery history and, on every
+  install that exists today, were created by core — rolling the MODULE
+  back must not destroy either. Re-running `up/1` after a rollback would
+  return the tables, but not the rows. The ownership test pins this by
+  asserting that no statement this module can emit matches `DROP`.
 
   The migrated version is tracked as a `pke_schema:<N>` `COMMENT` on
   `phoenix_kit_email_logs` (the marker convention from the legal/projects
@@ -54,6 +145,232 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
   @marker_prefix "pke_schema:"
   @version_table "phoenix_kit_email_logs"
 
+  # Core's own convention for schema-anchored SQL (see
+  # `PhoenixKit.Migrations.ExpectedSchema`'s "Conventions"): statements are
+  # stored with this token and it is replaced with the validated prefix on
+  # the way out. Kept rather than string interpolation because the
+  # constraint DO-blocks also carry the schema as an `nspname` string
+  # LITERAL, which interpolation makes easy to get subtly wrong.
+  @schema_token "__SCHEMA__"
+
+  # A handful of core's index names embed the runtime prefix in their OWN
+  # name rather than only schema-qualifying the table (V56's
+  # `prefix_index_name/2`): bare on `public`, `"<prefix>_"` everywhere else.
+  # Core's manifest carries that as this marker and resolves it alongside
+  # `@schema_token`; exactly one adopted object here has one
+  # (`phoenix_kit_email_templates_uuid_idx`), and getting it wrong would
+  # create a SECOND index under a different name on every non-public
+  # install — so the marker is carried through verbatim rather than
+  # flattened to the public-schema spelling.
+  @name_marker_exempt "__PK_NAME_EXEMPT__"
+
+  ## --- Adopted core-created objects (see "Where the DDL comes from") ---
+
+  @adopted_tables [
+    "phoenix_kit_email_events",
+    "phoenix_kit_email_logs",
+    "phoenix_kit_email_blocklist",
+    "phoenix_kit_email_templates",
+    "phoenix_kit_email_metrics",
+    "phoenix_kit_email_orphaned_events"
+  ]
+
+  @adopted_columns [
+    {"phoenix_kit_email_events", 10, "\"bounce_type\" character varying(255)", false},
+    {"phoenix_kit_email_events", 11, "\"complaint_type\" character varying(255)", false},
+    {"phoenix_kit_email_events", 4, "\"event_data\" jsonb DEFAULT '{}'::jsonb", false},
+    {"phoenix_kit_email_events", 3, "\"event_type\" character varying(255)", true},
+    {"phoenix_kit_email_events", 8, "\"geo_location\" jsonb DEFAULT '{}'::jsonb", false},
+    {"phoenix_kit_email_events", 12, "\"inserted_at\" timestamp with time zone", true},
+    {"phoenix_kit_email_events", 6, "\"ip_address\" character varying(255)", false},
+    {"phoenix_kit_email_events", 9, "\"link_url\" character varying(255)", false},
+    {"phoenix_kit_email_events", 5,
+     "\"occurred_at\" timestamp with time zone DEFAULT now() NOT NULL", true},
+    {"phoenix_kit_email_events", 13, "\"updated_at\" timestamp with time zone", true},
+    {"phoenix_kit_email_events", 7, "\"user_agent\" character varying(255)", false},
+    {"phoenix_kit_email_logs", 11, "\"attachments_count\" integer DEFAULT 0 NOT NULL", true},
+    {"phoenix_kit_email_logs", 8, "\"body_full\" text", false},
+    {"phoenix_kit_email_logs", 7, "\"body_preview\" text", false},
+    {"phoenix_kit_email_logs", 10, "\"campaign_id\" character varying(255)", false},
+    {"phoenix_kit_email_logs", 18, "\"configuration_set\" character varying(255)", false},
+    {"phoenix_kit_email_logs", 17, "\"delivered_at\" timestamp with time zone", false},
+    {"phoenix_kit_email_logs", 14, "\"error_message\" text", false},
+    {"phoenix_kit_email_logs", 4, "\"from\" character varying(255)", true},
+    {"phoenix_kit_email_logs", 6, "\"headers\" jsonb DEFAULT '{}'::jsonb", false},
+    {"phoenix_kit_email_logs", 22, "\"inserted_at\" timestamp with time zone", true},
+    {"phoenix_kit_email_logs", 2, "\"message_id\" character varying(255)", true},
+    {"phoenix_kit_email_logs", 19, "\"message_tags\" jsonb DEFAULT '{}'::jsonb", false},
+    {"phoenix_kit_email_logs", 20,
+     "\"provider\" character varying(255) DEFAULT 'unknown'::character varying NOT NULL", true},
+    {"phoenix_kit_email_logs", 13, "\"retry_count\" integer DEFAULT 0 NOT NULL", true},
+    {"phoenix_kit_email_logs", 16, "\"sent_at\" timestamp with time zone DEFAULT now() NOT NULL",
+     true},
+    {"phoenix_kit_email_logs", 12, "\"size_bytes\" integer", false},
+    {"phoenix_kit_email_logs", 15,
+     "\"status\" character varying(255) DEFAULT 'sent'::character varying NOT NULL", true},
+    {"phoenix_kit_email_logs", 5, "\"subject\" character varying(255)", false},
+    {"phoenix_kit_email_logs", 9, "\"template_name\" character varying(255)", false},
+    {"phoenix_kit_email_logs", 3, "\"to\" character varying(255)", true},
+    {"phoenix_kit_email_logs", 23, "\"updated_at\" timestamp with time zone", true},
+    {"phoenix_kit_email_blocklist", 2, "\"email\" character varying(255)", true},
+    {"phoenix_kit_email_blocklist", 4, "\"expires_at\" timestamp with time zone", false},
+    {"phoenix_kit_email_blocklist", 6,
+     "\"inserted_at\" timestamp with time zone DEFAULT now() NOT NULL", true},
+    {"phoenix_kit_email_blocklist", 3, "\"reason\" character varying(255)", true},
+    {"phoenix_kit_email_blocklist", 7,
+     "\"updated_at\" timestamp with time zone DEFAULT now() NOT NULL", true},
+    {"phoenix_kit_email_events", 15, "\"delay_type\" character varying(255)", false},
+    {"phoenix_kit_email_events", 17, "\"failure_reason\" character varying(255)", false},
+    {"phoenix_kit_email_events", 14, "\"reject_reason\" character varying(255)", false},
+    {"phoenix_kit_email_events", 16, "\"subscription_type\" character varying(255)", false},
+    {"phoenix_kit_email_logs", 24, "\"aws_message_id\" character varying(255)", false},
+    {"phoenix_kit_email_logs", 25, "\"bounced_at\" timestamp with time zone", false},
+    {"phoenix_kit_email_logs", 28, "\"clicked_at\" timestamp with time zone", false},
+    {"phoenix_kit_email_logs", 26, "\"complained_at\" timestamp with time zone", false},
+    {"phoenix_kit_email_logs", 27, "\"opened_at\" timestamp with time zone", false},
+    {"phoenix_kit_email_logs", 29, "\"body_compressed\" boolean DEFAULT false NOT NULL", true},
+    {"phoenix_kit_email_templates", 10,
+     "\"category\" character varying(255) DEFAULT 'transactional'::character varying NOT NULL",
+     true},
+    {"phoenix_kit_email_templates", 20, "\"created_by_user_uuid\" uuid", false},
+    {"phoenix_kit_email_templates", 6, "\"description\" jsonb", false},
+    {"phoenix_kit_email_templates", 5, "\"display_name\" jsonb", true},
+    {"phoenix_kit_email_templates", 8, "\"html_body\" jsonb", true},
+    {"phoenix_kit_email_templates", 22, "\"inserted_at\" timestamp with time zone", true},
+    {"phoenix_kit_email_templates", 17, "\"is_system\" boolean DEFAULT false NOT NULL", true},
+    {"phoenix_kit_email_templates", 15, "\"last_used_at\" timestamp with time zone", false},
+    {"phoenix_kit_email_templates", 13, "\"metadata\" jsonb DEFAULT '{}'::jsonb", false},
+    {"phoenix_kit_email_templates", 3, "\"name\" character varying(255)", true},
+    {"phoenix_kit_email_templates", 4, "\"slug\" character varying(255)", true},
+    {"phoenix_kit_email_templates", 11,
+     "\"status\" character varying(255) DEFAULT 'draft'::character varying NOT NULL", true},
+    {"phoenix_kit_email_templates", 7, "\"subject\" jsonb", true},
+    {"phoenix_kit_email_templates", 9, "\"text_body\" jsonb", true},
+    {"phoenix_kit_email_templates", 23, "\"updated_at\" timestamp with time zone", true},
+    {"phoenix_kit_email_templates", 21, "\"updated_by_user_uuid\" uuid", false},
+    {"phoenix_kit_email_templates", 14, "\"usage_count\" integer DEFAULT 0 NOT NULL", true},
+    {"phoenix_kit_email_templates", 2,
+     "\"uuid\" uuid DEFAULT __SCHEMA__.uuid_generate_v7() NOT NULL", true},
+    {"phoenix_kit_email_templates", 12, "\"variables\" jsonb DEFAULT '{}'::jsonb", false},
+    {"phoenix_kit_email_templates", 16, "\"version\" integer DEFAULT 1 NOT NULL", true},
+    {"phoenix_kit_email_logs", 33, "\"delayed_at\" timestamp with time zone", false},
+    {"phoenix_kit_email_logs", 32, "\"failed_at\" timestamp with time zone", false},
+    {"phoenix_kit_email_logs", 30, "\"queued_at\" timestamp with time zone", false},
+    {"phoenix_kit_email_logs", 31, "\"rejected_at\" timestamp with time zone", false},
+    {"phoenix_kit_email_metrics", 6, "\"inserted_at\" timestamp with time zone", true},
+    {"phoenix_kit_email_metrics", 4, "\"metadata\" jsonb DEFAULT '{}'::jsonb", false},
+    {"phoenix_kit_email_metrics", 5, "\"metric_date\" date DEFAULT CURRENT_DATE NOT NULL", true},
+    {"phoenix_kit_email_metrics", 2, "\"metric_key\" character varying(255)", true},
+    {"phoenix_kit_email_metrics", 7, "\"updated_at\" timestamp with time zone", true},
+    {"phoenix_kit_email_metrics", 3, "\"value\" bigint DEFAULT 0 NOT NULL", true},
+    {"phoenix_kit_email_orphaned_events", 2, "\"aws_message_id\" character varying(255)", true},
+    {"phoenix_kit_email_orphaned_events", 9, "\"error_message\" text", false},
+    {"phoenix_kit_email_orphaned_events", 4, "\"event_data\" jsonb DEFAULT '{}'::jsonb NOT NULL",
+     true},
+    {"phoenix_kit_email_orphaned_events", 3, "\"event_type\" character varying(255)", true},
+    {"phoenix_kit_email_orphaned_events", 10, "\"inserted_at\" timestamp with time zone", true},
+    {"phoenix_kit_email_orphaned_events", 6, "\"matched\" boolean DEFAULT false NOT NULL", true},
+    {"phoenix_kit_email_orphaned_events", 8, "\"matched_at\" timestamp with time zone", false},
+    {"phoenix_kit_email_orphaned_events", 5,
+     "\"received_at\" timestamp with time zone DEFAULT now() NOT NULL", true},
+    {"phoenix_kit_email_orphaned_events", 11, "\"updated_at\" timestamp with time zone", true},
+    {"phoenix_kit_email_blocklist", 8,
+     "\"uuid\" uuid DEFAULT __SCHEMA__.uuid_generate_v7() NOT NULL", true},
+    {"phoenix_kit_email_events", 18,
+     "\"uuid\" uuid DEFAULT __SCHEMA__.uuid_generate_v7() NOT NULL", true},
+    {"phoenix_kit_email_logs", 34, "\"uuid\" uuid DEFAULT __SCHEMA__.uuid_generate_v7() NOT NULL",
+     true},
+    {"phoenix_kit_email_metrics", 8,
+     "\"uuid\" uuid DEFAULT __SCHEMA__.uuid_generate_v7() NOT NULL", true},
+    {"phoenix_kit_email_orphaned_events", 12,
+     "\"uuid\" uuid DEFAULT __SCHEMA__.uuid_generate_v7() NOT NULL", true},
+    {"phoenix_kit_email_blocklist", 9, "\"user_uuid\" uuid", false},
+    {"phoenix_kit_email_events", 19, "\"email_log_uuid\" uuid", true},
+    {"phoenix_kit_email_logs", 35, "\"user_uuid\" uuid", false},
+    {"phoenix_kit_email_orphaned_events", 13, "\"matched_email_log_uuid\" uuid", false},
+    {"phoenix_kit_email_logs", 36,
+     "\"locale\" character varying(10) DEFAULT 'en'::character varying NOT NULL", true}
+  ]
+
+  @adopted_constraints [
+    {"phoenix_kit_email_events", "phoenix_kit_email_events_pkey", "PRIMARY KEY (uuid)"},
+    {"phoenix_kit_email_logs", "phoenix_kit_email_logs_pkey", "PRIMARY KEY (uuid)"},
+    {"phoenix_kit_email_blocklist", "phoenix_kit_email_blocklist_pkey", "PRIMARY KEY (uuid)"},
+    {"phoenix_kit_email_templates", "phoenix_kit_email_templates_pkey", "PRIMARY KEY (uuid)"},
+    {"phoenix_kit_email_metrics", "phoenix_kit_email_metrics_pkey", "PRIMARY KEY (uuid)"},
+    {"phoenix_kit_email_orphaned_events", "phoenix_kit_email_orphaned_events_pkey",
+     "PRIMARY KEY (uuid)"},
+    {"phoenix_kit_email_events", "fk_email_events_email_log_uuid",
+     "FOREIGN KEY (email_log_uuid) REFERENCES __SCHEMA__.phoenix_kit_email_logs(uuid) ON DELETE CASCADE"}
+  ]
+
+  @adopted_indexes [
+    "CREATE INDEX IF NOT EXISTS phoenix_kit_email_events_occurred_at_idx ON __SCHEMA__.phoenix_kit_email_events USING btree (occurred_at)",
+    "CREATE INDEX IF NOT EXISTS phoenix_kit_email_events_type_occurred_at_idx ON __SCHEMA__.phoenix_kit_email_events USING btree (event_type, occurred_at)",
+    "CREATE INDEX IF NOT EXISTS phoenix_kit_email_logs_campaign_id_idx ON __SCHEMA__.phoenix_kit_email_logs USING btree (campaign_id)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_email_logs_message_id_uidx ON __SCHEMA__.phoenix_kit_email_logs USING btree (message_id)",
+    "CREATE INDEX IF NOT EXISTS phoenix_kit_email_logs_provider_sent_at_idx ON __SCHEMA__.phoenix_kit_email_logs USING btree (provider, sent_at)",
+    "CREATE INDEX IF NOT EXISTS phoenix_kit_email_logs_sent_at_idx ON __SCHEMA__.phoenix_kit_email_logs USING btree (sent_at)",
+    "CREATE INDEX IF NOT EXISTS phoenix_kit_email_logs_status_sent_at_idx ON __SCHEMA__.phoenix_kit_email_logs USING btree (status, sent_at)",
+    "CREATE INDEX IF NOT EXISTS phoenix_kit_email_logs_template_name_idx ON __SCHEMA__.phoenix_kit_email_logs USING btree (template_name)",
+    "CREATE INDEX IF NOT EXISTS phoenix_kit_email_logs_to_sent_at_idx ON __SCHEMA__.phoenix_kit_email_logs USING btree (\"to\", sent_at)",
+    "CREATE INDEX IF NOT EXISTS phoenix_kit_email_blocklist_email_expires_idx ON __SCHEMA__.phoenix_kit_email_blocklist USING btree (email, expires_at)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_email_blocklist_email_uidx ON __SCHEMA__.phoenix_kit_email_blocklist USING btree (email)",
+    "CREATE INDEX IF NOT EXISTS phoenix_kit_email_blocklist_expires_at_idx ON __SCHEMA__.phoenix_kit_email_blocklist USING btree (expires_at)",
+    "CREATE INDEX IF NOT EXISTS phoenix_kit_email_blocklist_reason_inserted_idx ON __SCHEMA__.phoenix_kit_email_blocklist USING btree (reason, inserted_at)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_email_logs_aws_message_id_index ON __SCHEMA__.phoenix_kit_email_logs USING btree (aws_message_id) WHERE (aws_message_id IS NOT NULL)",
+    "CREATE INDEX IF NOT EXISTS phoenix_kit_email_templates_category_index ON __SCHEMA__.phoenix_kit_email_templates USING btree (category)",
+    "CREATE INDEX IF NOT EXISTS phoenix_kit_email_templates_category_status_index ON __SCHEMA__.phoenix_kit_email_templates USING btree (category, status)",
+    "CREATE INDEX IF NOT EXISTS phoenix_kit_email_templates_inserted_at_index ON __SCHEMA__.phoenix_kit_email_templates USING btree (inserted_at)",
+    "CREATE INDEX IF NOT EXISTS phoenix_kit_email_templates_is_system_index ON __SCHEMA__.phoenix_kit_email_templates USING btree (is_system)",
+    "CREATE INDEX IF NOT EXISTS phoenix_kit_email_templates_last_used_at_index ON __SCHEMA__.phoenix_kit_email_templates USING btree (last_used_at)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_email_templates_name_index ON __SCHEMA__.phoenix_kit_email_templates USING btree (name)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_email_templates_slug_index ON __SCHEMA__.phoenix_kit_email_templates USING btree (slug)",
+    "CREATE INDEX IF NOT EXISTS phoenix_kit_email_templates_status_index ON __SCHEMA__.phoenix_kit_email_templates USING btree (status)",
+    "CREATE INDEX IF NOT EXISTS phoenix_kit_email_templates_status_is_system_index ON __SCHEMA__.phoenix_kit_email_templates USING btree (status, is_system)",
+    "CREATE INDEX IF NOT EXISTS phoenix_kit_email_templates_usage_count_index ON __SCHEMA__.phoenix_kit_email_templates USING btree (usage_count)",
+    "CREATE INDEX IF NOT EXISTS phoenix_kit_email_logs_message_ids_idx ON __SCHEMA__.phoenix_kit_email_logs USING btree (message_id, aws_message_id)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_email_logs_aws_message_id_uidx ON __SCHEMA__.phoenix_kit_email_logs USING btree (aws_message_id) WHERE (aws_message_id IS NOT NULL)",
+    "CREATE INDEX IF NOT EXISTS phoenix_kit_email_metrics_date_idx ON __SCHEMA__.phoenix_kit_email_metrics USING btree (metric_date)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_email_metrics_key_date_uidx ON __SCHEMA__.phoenix_kit_email_metrics USING btree (metric_key, metric_date)",
+    "CREATE INDEX IF NOT EXISTS phoenix_kit_orphaned_events_aws_id_idx ON __SCHEMA__.phoenix_kit_email_orphaned_events USING btree (aws_message_id)",
+    "CREATE INDEX IF NOT EXISTS phoenix_kit_orphaned_events_matched_idx ON __SCHEMA__.phoenix_kit_email_orphaned_events USING btree (matched)",
+    "CREATE INDEX IF NOT EXISTS phoenix_kit_orphaned_events_type_received_idx ON __SCHEMA__.phoenix_kit_email_orphaned_events USING btree (event_type, received_at)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_email_blocklist_uuid_idx ON __SCHEMA__.phoenix_kit_email_blocklist USING btree (uuid)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_email_events_uuid_idx ON __SCHEMA__.phoenix_kit_email_events USING btree (uuid)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_email_logs_uuid_idx ON __SCHEMA__.phoenix_kit_email_logs USING btree (uuid)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_email_metrics_uuid_idx ON __SCHEMA__.phoenix_kit_email_metrics USING btree (uuid)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_email_orphaned_events_uuid_idx ON __SCHEMA__.phoenix_kit_email_orphaned_events USING btree (uuid)",
+    "CREATE INDEX IF NOT EXISTS phoenix_kit_email_blocklist_user_uuid_idx ON __SCHEMA__.phoenix_kit_email_blocklist USING btree (user_uuid)",
+    "CREATE INDEX IF NOT EXISTS phoenix_kit_email_events_email_log_uuid_idx ON __SCHEMA__.phoenix_kit_email_events USING btree (email_log_uuid)",
+    "CREATE INDEX IF NOT EXISTS phoenix_kit_email_logs_user_uuid_idx ON __SCHEMA__.phoenix_kit_email_logs USING btree (user_uuid)",
+    "CREATE INDEX IF NOT EXISTS phoenix_kit_email_templates_created_by_user_uuid_idx ON __SCHEMA__.phoenix_kit_email_templates USING btree (created_by_user_uuid)",
+    "CREATE INDEX IF NOT EXISTS phoenix_kit_email_templates_updated_by_user_uuid_idx ON __SCHEMA__.phoenix_kit_email_templates USING btree (updated_by_user_uuid)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS __PK_NAME_EXEMPT__phoenix_kit_email_templates_uuid_idx ON __SCHEMA__.phoenix_kit_email_templates USING btree (uuid)",
+    "CREATE INDEX IF NOT EXISTS phoenix_kit_email_orphaned_events_matched_log_uuid_idx ON __SCHEMA__.phoenix_kit_email_orphaned_events USING btree (matched_email_log_uuid)",
+    "CREATE INDEX IF NOT EXISTS idx_email_logs_locale ON __SCHEMA__.phoenix_kit_email_logs USING btree (locale)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_email_events_log_uuid_event_type_index ON __SCHEMA__.phoenix_kit_email_events USING btree (email_log_uuid, event_type) WHERE ((event_type)::text <> ALL ((ARRAY['open'::character varying, 'click'::character varying])::text[]))",
+    "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_email_events_log_uuid_type_occurred_index ON __SCHEMA__.phoenix_kit_email_events USING btree (email_log_uuid, event_type, occurred_at) WHERE ((event_type)::text = ANY ((ARRAY['open'::character varying, 'click'::character varying])::text[]))",
+    "CREATE INDEX IF NOT EXISTS phoenix_kit_email_logs_campaign_id_trgm_index ON __SCHEMA__.phoenix_kit_email_logs USING gin (campaign_id public.gin_trgm_ops)",
+    "CREATE INDEX IF NOT EXISTS phoenix_kit_email_logs_compress_scan_index ON __SCHEMA__.phoenix_kit_email_logs USING btree (sent_at) WHERE (body_full IS NOT NULL)",
+    "CREATE INDEX IF NOT EXISTS phoenix_kit_email_logs_subject_trgm_index ON __SCHEMA__.phoenix_kit_email_logs USING gin (subject public.gin_trgm_ops)",
+    "CREATE INDEX IF NOT EXISTS phoenix_kit_email_logs_template_clicked_index ON __SCHEMA__.phoenix_kit_email_logs USING btree (template_name, clicked_at) WHERE (clicked_at IS NOT NULL)",
+    "CREATE INDEX IF NOT EXISTS phoenix_kit_email_logs_template_opened_index ON __SCHEMA__.phoenix_kit_email_logs USING btree (template_name, opened_at) WHERE (opened_at IS NOT NULL)",
+    "CREATE INDEX IF NOT EXISTS phoenix_kit_email_logs_to_trgm_index ON __SCHEMA__.phoenix_kit_email_logs USING gin (\"to\" public.gin_trgm_ops)"
+  ]
+
+  ## --- This chain's own objects ---
+
+  # The one genuine shape change in V1 — see the moduledoc's "What V1 is".
+  @owned_columns [
+    {"phoenix_kit_email_logs", "\"integration_uuid\" uuid"}
+  ]
+
+  @owned_indexes [
+    "CREATE INDEX IF NOT EXISTS phoenix_kit_email_logs_integration_uuid_idx " <>
+      "ON #{@schema_token}.phoenix_kit_email_logs USING btree (integration_uuid)"
+  ]
+
   @doc "The chain version this code needs."
   @spec current_version() :: pos_integer()
   def current_version, do: @current_version
@@ -61,6 +378,34 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
   @doc "The table carrying the `pke_schema:<N>` marker (auditor contract)."
   @spec version_table() :: String.t()
   def version_table, do: @version_table
+
+  @doc """
+  Every table whose future shape this chain owns.
+
+  `phoenix_kit_email_send_profiles` is deliberately absent — see the
+  moduledoc.
+  """
+  @spec adopted_tables() :: [String.t()]
+  def adopted_tables, do: @adopted_tables
+
+  @doc false
+  # The manifest-derived object data, exposed so the conformance test can
+  # compare it against core's live `ExpectedSchema` without re-deriving the
+  # statement shapes it is trying to verify.
+  @spec adopted_objects() :: %{
+          tables: [String.t()],
+          columns: [{String.t(), non_neg_integer(), String.t(), boolean()}],
+          constraints: [{String.t(), String.t(), String.t()}],
+          indexes: [String.t()]
+        }
+  def adopted_objects do
+    %{
+      tables: @adopted_tables,
+      columns: @adopted_columns,
+      constraints: @adopted_constraints,
+      indexes: @adopted_indexes
+    }
+  end
 
   @doc """
   The chain version currently applied in the database, read OUTSIDE a
@@ -100,8 +445,8 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
   end
 
   @doc """
-  Rolls back to `target` (`:version` in `opts`). Never drops the table or
-  the column — see the moduledoc.
+  Rolls back to `target` (`:version` in `opts`). Never drops a table or a
+  column — see the moduledoc.
   """
   def down(opts \\ []) do
     prefix = validated_prefix(opts)
@@ -114,33 +459,134 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
 
   @doc """
   The SQL `up/1` executes, as data — the testable single source. Every
-  statement is idempotent (`IF NOT EXISTS`), so the chain can be re-run
-  against a database at any version without a pre-flight check.
+  statement is idempotent (`IF NOT EXISTS`, or a catalog-guarded DO block
+  for constraints, which have no `IF NOT EXISTS` form), so the chain can be
+  re-run against a database at any version without a pre-flight check.
+
+  Ordering is load-bearing: tables before their columns, the primary keys
+  before the foreign key that references one of them, indexes last.
   """
   @spec up_statements(String.t()) :: [String.t()]
   def up_statements(prefix \\ "public") do
     prefix = validated_prefix(prefix: prefix)
-    p = "#{prefix}."
 
-    [
-      "ALTER TABLE #{p}#{@version_table} ADD COLUMN IF NOT EXISTS \"integration_uuid\" uuid",
-      "CREATE INDEX IF NOT EXISTS #{@version_table}_integration_uuid_idx " <>
-        "ON #{p}#{@version_table} USING btree (integration_uuid)",
-      "COMMENT ON TABLE #{p}#{@version_table} IS '#{@marker_prefix}#{@current_version}'"
-    ]
+    statements =
+      table_statements() ++
+        column_statements() ++
+        constraint_statements() ++
+        index_statements() ++
+        [marker_statement(@current_version)]
+
+    Enum.map(statements, &materialize(&1, prefix))
   end
 
   @doc "The SQL `down/1` executes, as data (marker bookkeeping only)."
   @spec down_statements(String.t(), non_neg_integer()) :: [String.t()]
   def down_statements(prefix \\ "public", target \\ 0) do
     prefix = validated_prefix(prefix: prefix)
-    p = "#{prefix}."
 
-    if target > 0 do
-      ["COMMENT ON TABLE #{p}#{@version_table} IS '#{@marker_prefix}#{target}'"]
+    statement =
+      if target > 0 do
+        marker_statement(target)
+      else
+        "COMMENT ON TABLE #{@schema_token}.#{@version_table} IS NULL"
+      end
+
+    [materialize(statement, prefix)]
+  end
+
+  ## --- Statement builders ---
+
+  # Same resolution core's `ExpectedSchema.Object` applies, so a statement
+  # here and the manifest entry it was derived from stay byte-identical for
+  # any prefix — which is what the conformance test asserts.
+  defp materialize(sql, prefix) do
+    sql
+    |> String.replace(@schema_token, prefix)
+    |> String.replace(@name_marker_exempt, if(prefix == "public", do: "", else: prefix <> "_"))
+  end
+
+  # The full table, in core's own column order, with core's defaults AND
+  # its NOT NULLs — the shape a FRESH install must end up with.
+  #
+  # Deliberately NOT the manifest's own `CREATE TABLE ... ()` + per-column
+  # `ADD COLUMN IF NOT EXISTS`: that pair is core's REPAIR form, and it
+  # omits `NOT NULL` on any column without a default, because adding such a
+  # column to a populated table is impossible. Replaying only the repair
+  # form on an empty database therefore yields 26 nullable columns core
+  # would have created `NOT NULL` — verified against a real database, which
+  # is why this is a full column list. The repair-form statements are still
+  # emitted afterwards (see `column_statements/0`), so an existing table
+  # missing a column is still healed exactly the way core heals it.
+  #
+  # Our OWN columns are deliberately absent here: this statement is "the
+  # table core would have created", and `@owned_columns` is the delta on
+  # top of it.
+  defp table_statements do
+    Enum.map(@adopted_tables, fn table ->
+      columns =
+        @adopted_columns
+        |> Enum.filter(fn {t, _pos, _definition, _not_null} -> t == table end)
+        |> Enum.sort_by(fn {_t, pos, _definition, _not_null} -> pos end)
+        |> Enum.map_join(",\n  ", &create_table_column/1)
+
+      "CREATE TABLE IF NOT EXISTS #{@schema_token}.#{table} (\n  #{columns}\n)"
+    end)
+  end
+
+  # The manifest's stored definition already ends in `NOT NULL` whenever the
+  # column has a default (that being the case where adding it to a populated
+  # table is safe). For the rest, the constraint is re-attached here — a
+  # fresh CREATE TABLE has no rows to violate it.
+  defp create_table_column({_table, _pos, definition, not_null}) do
+    if not_null and not String.ends_with?(definition, " NOT NULL") do
+      definition <> " NOT NULL"
     else
-      ["COMMENT ON TABLE #{p}#{@version_table} IS NULL"]
+      definition
     end
+  end
+
+  defp column_statements do
+    adopted =
+      Enum.map(@adopted_columns, fn {table, _pos, definition, _not_null} ->
+        {table, definition}
+      end)
+
+    Enum.map(adopted ++ @owned_columns, fn {table, definition} ->
+      "ALTER TABLE #{@schema_token}.#{table} ADD COLUMN IF NOT EXISTS #{definition}"
+    end)
+  end
+
+  # Postgres has no `ADD CONSTRAINT IF NOT EXISTS`, so idempotency comes
+  # from a catalog probe. This is core's own template, character for
+  # character — the conformance test rebuilds core's manifest strings from
+  # the same data and asserts equality.
+  defp constraint_statements do
+    Enum.map(@adopted_constraints, fn {table, name, definition} ->
+      """
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1
+          FROM pg_constraint c
+          JOIN pg_class t ON t.oid = c.conrelid
+          JOIN pg_namespace n ON n.oid = t.relnamespace
+          WHERE c.conname = '#{name}'
+            AND t.relname = '#{table}'
+            AND n.nspname = '#{@schema_token}'
+        ) THEN
+          ALTER TABLE #{@schema_token}.#{table} ADD CONSTRAINT #{name} #{definition};
+        END IF;
+      END
+      $$\
+      """
+    end)
+  end
+
+  defp index_statements, do: @adopted_indexes ++ @owned_indexes
+
+  defp marker_statement(version) do
+    "COMMENT ON TABLE #{@schema_token}.#{@version_table} IS '#{@marker_prefix}#{version}'"
   end
 
   defp parse_version(n) do
