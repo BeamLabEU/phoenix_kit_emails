@@ -62,6 +62,18 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
   `phoenix_kit_email_blocklist`, `phoenix_kit_email_templates`,
   `phoenix_kit_email_metrics`, `phoenix_kit_email_orphaned_events`.
 
+  "Nothing outside this package READS them" is true; "nothing outside this
+  package DEPENDS on them" is not, and the difference matters for the release
+  that follows. Core's V135 creates
+  `fk_newsletters_broadcasts_template` — `phoenix_kit_newsletters_broadcasts.template_uuid`
+  referencing `phoenix_kit_email_templates(uuid)` — so a core release that
+  stops creating `phoenix_kit_email_templates` breaks a FRESH install outright
+  (core's chain runs before every module chain, so the FK would point at a
+  table that does not exist yet), and breaks it permanently on an install that
+  does not have this package at all. That FK has to move or go in the same
+  release; see the "Transitional state" section of
+  `dev_docs/reports/2026-08-12-emails-table-adoption.md`.
+
   **`phoenix_kit_email_send_profiles` is deliberately NOT adopted.** The
   send-profile system lives in CORE (`PhoenixKit.Email.SendProfile` /
   `PhoenixKit.Email.SendProfiles`) and drives `PhoenixKit.Mailer`'s send
@@ -92,10 +104,27 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
   longer declares — which is what makes it survive, rather than block, the
   core release that removes them.
 
-  One deliberate departure from the manifest: the `CREATE TABLE` statements
-  carry core's full column list rather than the manifest's bare
-  `CREATE TABLE ... ()`. See `table_statements/0` — the manifest's form is
-  repair DDL and cannot express `NOT NULL` on a column without a default.
+  ### Where this chain deliberately differs from the manifest
+
+  Four departures, each narrow and each pinned by name in
+  `migrations_test.exs`, so the list cannot grow quietly:
+
+    * **`CREATE TABLE` carries core's full column list** rather than the
+      manifest's bare `CREATE TABLE ... ()`. The manifest's form is repair DDL
+      and cannot express `NOT NULL` on a column without a default — see
+      `table_statements/0`.
+    * **Primary keys are probed by `contype`, not by name**, and
+    * **the foreign key is added `NOT VALID`** — see `constraint_statements/0`.
+      Both exist because this chain replays constraints on long-lived
+      databases that core's baseline never re-runs on.
+    * **`gin_trgm_ops` is unqualified.** The manifest hard-codes
+      `public.gin_trgm_ops`, which is a `pg_dump`-shaped rendering of what
+      core's V137 actually writes unqualified. An operator class lives in the
+      schema its EXTENSION was installed into, and `pg_trgm` is not required
+      to be in `public`: hard-coding the schema turns "trigram search works"
+      into "the migration fails" on any install that put the extension
+      elsewhere. Unqualified resolves through `search_path`, which is what
+      core's own DDL relies on.
 
   Two dependencies stay core's: the `uuid_generate_v7()` function used in
   the `uuid` defaults, and the `pg_trgm` extension behind the
@@ -115,15 +144,29 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
   transaction (`@disable_ddl_transaction` belongs to the migration module core
   generates, not to this one — it is not ours to set).
 
-  On the installs this matters for, it costs nothing: every statement is
-  `IF NOT EXISTS` and every index already exists, so the DDL is a catalog
-  lookup. The one case that does take a write lock on
-  `phoenix_kit_email_logs` is the new `integration_uuid` index on a large
-  existing table — a `SHARE` lock, blocking writes (not reads) for the length
-  of one index build. Expect seconds on a table of a few million rows, and
-  schedule the update accordingly; a host that cannot take that lock should
-  create the index `CONCURRENTLY` by hand first, after which this statement
-  finds it and does nothing.
+  On the installs this matters for, the DDL itself costs nothing: every
+  statement is `IF NOT EXISTS` and every object already exists, so each one is
+  a catalog lookup. The LOCKS are not free, though — Postgres acquires the
+  lock before it evaluates `IF NOT EXISTS`, so 96 `ADD COLUMN IF NOT EXISTS`
+  against `phoenix_kit_email_logs` each want `ACCESS EXCLUSIVE` on the busiest
+  table in the module. `up_statements/1` therefore opens with
+  `SET LOCAL lock_timeout` (see `lock_timeout_statement/0`): behind a
+  long-running reader the migration fails in five seconds with a clear error
+  instead of hanging the deploy and queueing every query on that table behind
+  it. Retry during a quiet window.
+
+  The one statement that does real work on an existing install is the new
+  `integration_uuid` index — a `SHARE` lock, blocking writes (not reads) for
+  the length of one index build. Expect seconds on a table of a few million
+  rows. A host that cannot take that lock should create the index
+  `CONCURRENTLY` by hand first, after which this statement finds it and does
+  nothing.
+
+  Run `mix phoenix_kit.doctor` before upgrading. It reports exactly the two
+  conditions that make this chain's constraint statements interesting — a
+  drifted `phoenix_kit_email_events` shape and orphaned `email_log_uuid`
+  rows — and it is cheaper to know beforehand than to find out from a failed
+  deploy.
 
   ## One known, harmless cosmetic difference
 
@@ -169,6 +212,9 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
   # constraint DO-blocks also carry the schema as an `nspname` string
   # LITERAL, which interpolation makes easy to get subtly wrong.
   @schema_token "__SCHEMA__"
+
+  # See lock_timeout_statement/0.
+  @lock_timeout "5s"
 
   # A handful of core's index names embed the runtime prefix in their OWN
   # name rather than only schema-qualifying the table (V56's
@@ -368,12 +414,12 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
     "CREATE INDEX IF NOT EXISTS idx_email_logs_locale ON __SCHEMA__.phoenix_kit_email_logs USING btree (locale)",
     "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_email_events_log_uuid_event_type_index ON __SCHEMA__.phoenix_kit_email_events USING btree (email_log_uuid, event_type) WHERE ((event_type)::text <> ALL ((ARRAY['open'::character varying, 'click'::character varying])::text[]))",
     "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_email_events_log_uuid_type_occurred_index ON __SCHEMA__.phoenix_kit_email_events USING btree (email_log_uuid, event_type, occurred_at) WHERE ((event_type)::text = ANY ((ARRAY['open'::character varying, 'click'::character varying])::text[]))",
-    "CREATE INDEX IF NOT EXISTS phoenix_kit_email_logs_campaign_id_trgm_index ON __SCHEMA__.phoenix_kit_email_logs USING gin (campaign_id public.gin_trgm_ops)",
+    "CREATE INDEX IF NOT EXISTS phoenix_kit_email_logs_campaign_id_trgm_index ON __SCHEMA__.phoenix_kit_email_logs USING gin (campaign_id gin_trgm_ops)",
     "CREATE INDEX IF NOT EXISTS phoenix_kit_email_logs_compress_scan_index ON __SCHEMA__.phoenix_kit_email_logs USING btree (sent_at) WHERE (body_full IS NOT NULL)",
-    "CREATE INDEX IF NOT EXISTS phoenix_kit_email_logs_subject_trgm_index ON __SCHEMA__.phoenix_kit_email_logs USING gin (subject public.gin_trgm_ops)",
+    "CREATE INDEX IF NOT EXISTS phoenix_kit_email_logs_subject_trgm_index ON __SCHEMA__.phoenix_kit_email_logs USING gin (subject gin_trgm_ops)",
     "CREATE INDEX IF NOT EXISTS phoenix_kit_email_logs_template_clicked_index ON __SCHEMA__.phoenix_kit_email_logs USING btree (template_name, clicked_at) WHERE (clicked_at IS NOT NULL)",
     "CREATE INDEX IF NOT EXISTS phoenix_kit_email_logs_template_opened_index ON __SCHEMA__.phoenix_kit_email_logs USING btree (template_name, opened_at) WHERE (opened_at IS NOT NULL)",
-    "CREATE INDEX IF NOT EXISTS phoenix_kit_email_logs_to_trgm_index ON __SCHEMA__.phoenix_kit_email_logs USING gin (\"to\" public.gin_trgm_ops)"
+    "CREATE INDEX IF NOT EXISTS phoenix_kit_email_logs_to_trgm_index ON __SCHEMA__.phoenix_kit_email_logs USING gin (\"to\" gin_trgm_ops)"
   ]
 
   ## --- This chain's own objects ---
@@ -503,9 +549,11 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
     version = min(version, @current_version)
 
     statements =
-      table_statements() ++
+      [lock_timeout_statement()] ++
+        table_statements() ++
         column_statements() ++
         constraint_statements() ++
+        validate_foreign_key_statements() ++
         index_statements() ++
         [marker_statement(version)]
 
@@ -554,6 +602,23 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
   # Our OWN columns are deliberately absent here: this statement is "the
   # table core would have created", and `@owned_columns` is the delta on
   # top of it.
+  # Fail fast instead of queueing the whole host behind a long-running reader.
+  #
+  # Every statement here is `IF NOT EXISTS`, but Postgres takes the lock BEFORE
+  # it evaluates the existence check: 96 `ADD COLUMN IF NOT EXISTS` against
+  # `phoenix_kit_email_logs` each want ACCESS EXCLUSIVE, and one open
+  # transaction reading that table is enough to make the whole migration wait —
+  # with every subsequent query on the table queued behind it. Five seconds of
+  # waiting, then a clear "canceling statement due to lock timeout", is a much
+  # better failure than a deploy that hangs and takes the app's busiest table
+  # with it. Retry during a quiet window.
+  #
+  # `SET LOCAL` scopes it to the surrounding transaction (core's generated
+  # migration), so it reverts on its own and cannot leak into the session.
+  # V163 sets the session-level `SET lock_timeout` for the same reason, because
+  # it deliberately runs with `@disable_ddl_transaction`.
+  defp lock_timeout_statement, do: "SET LOCAL lock_timeout = '#{@lock_timeout}'"
+
   defp table_statements do
     Enum.map(@adopted_tables, fn table ->
       columns =
@@ -589,31 +654,110 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
     end)
   end
 
-  # Postgres has no `ADD CONSTRAINT IF NOT EXISTS`, so idempotency comes
-  # from a catalog probe. This is core's own template, character for
-  # character — the conformance test rebuilds core's manifest strings from
-  # the same data and asserts equality.
+  # Postgres has no `ADD CONSTRAINT IF NOT EXISTS`, so idempotency comes from a
+  # catalog probe.
+  #
+  # This is the one place the chain deliberately does NOT reproduce core's
+  # manifest string, and the reason is that we are the first thing to replay
+  # these constraints on databases that have been running for years. Core's own
+  # baseline does not re-run on them; core's V163 exists precisely because it
+  # found production databases where `phoenix_kit_email_events.uuid` was
+  # `varchar` and nullable with no primary key at all, and V163 itself gives up
+  # and leaves the database unrepaired past a row-count or lock threshold. So
+  # "the constraint is missing, add it" is a live case, not a hypothetical, and
+  # it has to be safe.
+  #
+  # Two departures, both narrow:
+  #
+  #   * **Primary keys are guarded by `contype`, not by `conname`.** A table
+  #     whose primary key exists under a DIFFERENT name passes a name-based
+  #     probe and then fails the ALTER with "multiple primary keys for table
+  #     are not allowed", aborting the host's whole migration. What we actually
+  #     need to know is "does this table have a primary key", which is exactly
+  #     what `contype = 'p'` asks.
+  #   * **The foreign key is added `NOT VALID`.** `phoenix_kit.doctor` ships a
+  #     dedicated check for orphaned `phoenix_kit_email_events.email_log_uuid`
+  #     rows, which means they exist in the wild — and validating against them
+  #     aborts the migration. `NOT VALID` enforces the constraint for every new
+  #     row while leaving the existing ones to be validated deliberately, by
+  #     `mix phoenix_kit.repair`, when someone has decided what to do with the
+  #     orphans. The constraint is present and named either way, which is what
+  #     core's catalog probe checks for.
+  #
+  # `to_regclass/1` returns NULL rather than raising for a table that does not
+  # exist, so a chain running against a database that somehow lacks one of
+  # these tables skips its constraint instead of blowing up mid-transaction.
   defp constraint_statements do
     Enum.map(@adopted_constraints, fn {table, name, definition} ->
       """
       DO $$
+      DECLARE
+        rel oid := to_regclass('#{@schema_token}.#{table}');
       BEGIN
-        IF NOT EXISTS (
+        IF rel IS NOT NULL AND NOT EXISTS (
           SELECT 1
           FROM pg_constraint c
-          JOIN pg_class t ON t.oid = c.conrelid
-          JOIN pg_namespace n ON n.oid = t.relnamespace
-          WHERE c.conname = '#{name}'
-            AND t.relname = '#{table}'
-            AND n.nspname = '#{@schema_token}'
+          WHERE c.conrelid = rel
+            AND #{constraint_probe(name, definition)}
         ) THEN
-          ALTER TABLE #{@schema_token}.#{table} ADD CONSTRAINT #{name} #{definition};
+          ALTER TABLE #{@schema_token}.#{table} ADD CONSTRAINT #{name} #{constraint_definition(definition)};
         END IF;
       END
       $$\
       """
     end)
   end
+
+  # `NOT VALID` is the right answer for a populated table and the WRONG one for
+  # an empty one: on a fresh install there are no rows to be orphaned, and
+  # leaving the constraint unvalidated forever would mean every future install
+  # carries a permanently-unvalidated FK that core's catalog probe (which
+  # checks the name, not `convalidated`) would never flag.
+  #
+  # So validation is attempted exactly when it is free: the table is empty, so
+  # the scan is nothing and it cannot fail on existing data. A populated table
+  # skips it entirely — no scan, no lock, no risk — and `mix phoenix_kit.repair`
+  # remains the deliberate path for validating it once someone has decided what
+  # to do with the orphans `phoenix_kit.doctor` reports.
+  #
+  # The EXCEPTION block is belt-and-braces: a failure inside a DO block rolls
+  # back only that block's subtransaction, so even an unforeseen error here
+  # cannot take the host's migration with it.
+  defp validate_foreign_key_statements do
+    Enum.flat_map(@adopted_constraints, fn {table, name, definition} ->
+      if foreign_key?(definition) do
+        [
+          """
+          DO $$
+          BEGIN
+            IF NOT EXISTS (SELECT 1 FROM #{@schema_token}.#{table} LIMIT 1) THEN
+              ALTER TABLE #{@schema_token}.#{table} VALIDATE CONSTRAINT #{name};
+            END IF;
+          EXCEPTION
+            WHEN others THEN
+              RAISE NOTICE 'phoenix_kit_emails: left % unvalidated (%)', '#{name}', SQLERRM;
+          END
+          $$\
+          """
+        ]
+      else
+        []
+      end
+    end)
+  end
+
+  # A primary key is identified by what it IS; everything else by its name.
+  defp constraint_probe(name, definition) do
+    if primary_key?(definition), do: "c.contype = 'p'", else: "c.conname = '#{name}'"
+  end
+
+  defp constraint_definition(definition) do
+    if foreign_key?(definition), do: definition <> " NOT VALID", else: definition
+  end
+
+  defp primary_key?(definition), do: String.starts_with?(definition, "PRIMARY KEY")
+
+  defp foreign_key?(definition), do: String.starts_with?(definition, "FOREIGN KEY")
 
   defp index_statements, do: @adopted_indexes ++ @owned_indexes
 

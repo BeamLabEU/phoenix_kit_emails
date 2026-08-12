@@ -6,7 +6,10 @@
 ## TL;DR
 
 Six tables that this package is the only consumer of are still created by
-**core**, in its squashed `V135` baseline. `PhoenixKit.Modules.Emails.Migrations`
+**core**, in its squashed `V135` baseline. (Only *consumer* — not only
+*dependent*: core's chain also carries a foreign key into one of them. That
+distinction is the subject of "What excluding migrations hid" below, and it is
+the main thing standing between this and the follow-up core release.) `PhoenixKit.Modules.Emails.Migrations`
 V1 now *also* creates them, shape-identically. Right now **both** create them —
 that duplication is deliberate and temporary. The next step is a core release
 that stops creating them, after which this chain is their only creator.
@@ -44,18 +47,48 @@ Not adopted (1):
 
 1. Every table the manifest declares whose name matches `phoenix_kit_email*`
    (7 candidates).
-2. For each, `grep` over `/app/lib` (core, excluding `lib/phoenix_kit/migrations/`)
-   for a consumer. Only `phoenix_kit_email_send_profiles` had one
-   (`lib/phoenix_kit/email/send_profile.ex`).
-3. `phoenix_kit_email_logs` / `phoenix_kit_email_events` do appear in
+2. For each, `grep` over the whole of core's `/app/lib` — **including
+   `lib/phoenix_kit/migrations/`**, which the first pass of this report
+   excluded and should not have; see "What excluding migrations hid" below.
+3. Only `phoenix_kit_email_send_profiles` has a core RUNTIME consumer
+   (`lib/phoenix_kit/email/send_profile.ex`), which is why it is not adopted.
+4. `phoenix_kit_email_logs` / `phoenix_kit_email_events` appear in
    `mix phoenix_kit.doctor` and `mix phoenix_kit.repair_uuid`, but only as
    entries in generic integrity sweeps (null-uuid scan, orphaned-FK scan) that
    probe for the table's existence before touching it. Those are auditors over
    whatever exists, not core business logic, so they do not make the tables
    core's.
-4. Cross-checked the other installed module packages (`phoenix_kit_newsletters`,
-   `phoenix_kit_crm`, …) and the host app: no consumer of any adopted table
-   outside this package.
+5. Cross-checked every module package actually in the host's dependency tree
+   (`phoenix_kit_ai`, `phoenix_kit_comments`, `phoenix_kit_dashboards`,
+   `phoenix_kit_entities`, `phoenix_kit_inbox`, `phoenix_kit_legal`,
+   `phoenix_kit_newsletters`, `phoenix_kit_og`, `phoenix_kit_publishing`,
+   `phoenix_kit_sync`, `phoenix_kit_web_analytics`) and the host app itself:
+   no code in any of them references an adopted table.
+
+### What excluding migrations hid
+
+Restricting the grep to runtime code answered "who READS these tables" and
+silently skipped "who DEPENDS on them". Two things turn up once
+`lib/phoenix_kit/migrations/` is included, and both change the next step:
+
+* **`fk_newsletters_broadcasts_template`** (`v135.ex:7838`) —
+  `phoenix_kit_newsletters_broadcasts.template_uuid` REFERENCES
+  `phoenix_kit_email_templates(uuid)`. A core-created foreign key into an
+  adopted table. Core's chain runs before every module chain
+  (`phoenix_kit.update.ex:734`), so a core release that stops creating
+  `phoenix_kit_email_templates` breaks a fresh install outright — and breaks it
+  permanently on an install that does not have this package at all. The
+  manifest already labels this constraint `owner: :newsletters`, so it is not
+  even core's own object; it is one module's FK into another module's table.
+* **`uuid_fk_columns.ex:107-266`** — core's UUID conversion machinery names
+  `phoenix_kit_email_logs`, `phoenix_kit_email_blocklist`,
+  `phoenix_kit_email_templates` and `phoenix_kit_email_events` explicitly
+  (column renames, and the events → logs FK rebuild). Historical migration
+  machinery rather than a live object, but it is core code that assumes these
+  tables exist.
+
+Neither changes which tables are adopted. Both change what the core release has
+to do first.
 
 ### The two tables with no consumer
 
@@ -138,6 +171,28 @@ emits the manifest form too, and nothing compares index definitions textually
 (the manifest's `check` is a catalog existence probe by name). Accepted, and
 documented in the module's moduledoc.
 
+Re-run after the constraint-safety changes above: columns and constraints are
+still IDENTICAL (the foreign key comes back validated, because the fresh
+tables are empty), and the index diff is unchanged.
+
+## What is verified, and what is only asserted
+
+`migrations_test.exs` compares every emitted statement against the live
+manifest for two schema prefixes, pins the manifest's per-class object counts
+(6 tables / 96 columns / 7 constraints / 52 indexes) so a broken filter cannot
+make the comparison pass vacuously, and holds a `@declared_departures` map that
+fails BOTH on an undeclared departure and on a declared one that no longer
+departs.
+
+That is all string equality, so `migration_runner_test.exs` does the other
+half: it drives `up/1` and `down/1` through a real `Ecto.Migrator` against the
+real database (over a second, unsandboxed connection, because the migrator runs
+each migration in a `Task` that checks out its own connection), asserts the
+marker moves, asserts `down/1` leaves every table and the added column
+standing, and asserts `migration_module/0` actually points at this chain —
+without which core would silently skip the module and every string-level
+assertion would still pass.
+
 ## What is still core's
 
 The chain depends on two core-created objects and does **not** try to own them:
@@ -159,6 +214,17 @@ creates them. Whichever runs first wins; the other is a no-op, and the shapes
 agree, so it does not matter which. Core's `ExpectedSchema` still declares all
 161 objects as core-owned, and `mix phoenix_kit.doctor` still audits them —
 correctly, because the shapes match.
+
+**The protocol already has a slot for this.** Every manifest object carries an
+`owner:` field, and it is already used for module ownership, not just `:core` —
+`:ai`, `:catalogue`, `:comments`, `:crm`, `:document_creator`, `:locations`,
+`:newsletters`, `:og_images`, `:projects` all appear, and
+`phoenix_kit_newsletters_broadcasts` is `owner: :newsletters` today. Our six
+tables and their 161 objects are simply still labelled `owner: :core`. So the
+"excluded-object protocol" is less an invention than two concrete changes:
+relabel these objects `owner: :emails`, and teach `doctor`/`repair` to honour
+the field — **nothing in `lib/phoenix_kit/migrations/` reads `owner` at all
+today**, so it is currently declarative only.
 
 The one shape change V1 makes — `phoenix_kit_email_logs.integration_uuid` —
 is *not* in core's manifest and shows up as an `:info`-level
@@ -188,9 +254,65 @@ have to happen together, and the middle one is the part with no precedent yet:
    at all. That needs a `phoenix_kit` version floor in this package's `mix.exs`
    at the release that drops them, and a `below_floor_error`-style message
    rather than a missing-relation crash.
+4. **The cross-module foreign key and the seeds have to move in the same
+   release.** Two core-chain objects reach into an adopted table and would
+   break a fresh install the moment core stops creating it:
+   * `fk_newsletters_broadcasts_template` (see "What excluding migrations
+     hid"). It must move into `phoenix_kit_newsletters`' own chain — which
+     then needs `phoenix_kit_email_templates` to exist first, i.e. an ordering
+     guarantee between two module chains that
+     `phoenix_kit.update`'s `run_module_migrations/1` does not currently
+     provide — or be dropped, or be made conditional on the table existing.
+   * The two seed objects on `phoenix_kit_email_templates`:
+     `seed:phoenix_kit_email_templates:system_seeder` (`since: 15`,
+     `Mix.Tasks.PhoenixKit.SeedTemplates.run/1`) and
+     `seed:phoenix_kit_email_templates:billing_seeder` (`since: 31`,
+     `PhoenixKit.Modules.Emails.Templates.seed_system_templates/0`). Both are
+     `presence: :required` and both `check:` with
+     `SELECT EXISTS (SELECT 1 FROM __SCHEMA__.phoenix_kit_email_templates)`.
+     On an install without this package, that check stops meaning "the object
+     is absent" and starts meaning "relation does not exist" — an error, not a
+     finding. (The second one already calls INTO this package, so it is a
+     module seed wearing a core label.)
 
-Until all three land, the duplication stays. It is cheap: six idempotent
+Until all four land, the duplication stays. It is cheap: six idempotent
 `CREATE TABLE IF NOT EXISTS` that find their tables already there.
+
+## Running this on a database that has been alive for years
+
+This chain is the first thing to replay these tables' CONSTRAINTS on existing
+installs — core's baseline does not re-run on them — and core itself documents
+that those constraints drift. `v163.ex:5-36` was written because a production
+database had `phoenix_kit_email_events.uuid` as a nullable `varchar` with no
+primary key at all; `v163.ex:70-77,180-215` gives up past a row-count or
+lock threshold and legally leaves a database unrepaired; and
+`phoenix_kit.doctor.ex:695-702` ships a dedicated check for orphaned
+`phoenix_kit_email_events.email_log_uuid` rows, which exists because such rows
+are real. Replayed naively, in one transaction, any of those aborts the host's
+entire migration.
+
+So the constraint statements deliberately differ from core's manifest:
+
+* **`SET LOCAL lock_timeout = '5s'` is the first statement.** Postgres takes
+  the lock BEFORE evaluating `IF NOT EXISTS`, so even a fully no-op run wants
+  `ACCESS EXCLUSIVE` on `phoenix_kit_email_logs` 96 times. One long-running
+  reader would otherwise hang the deploy and queue every query on that table
+  behind it. (V163 sets the session-level equivalent for the same reason.)
+* **Primary keys are probed by `contype = 'p'`, not by constraint name.** A
+  table whose PK exists under a different name passes a name probe and then
+  fails with "multiple primary keys for table are not allowed".
+* **The foreign key is added `NOT VALID`**, then validated only when the table
+  is empty (a fresh install, where it is free and cannot fail) inside an
+  exception-swallowing `DO` block. A populated table keeps the constraint
+  enforced for new rows and leaves validation to `mix phoenix_kit.repair`,
+  once someone has decided what to do with the orphans.
+* **`to_regclass/1`** rather than a `::regclass` cast, so a missing table
+  skips its constraint instead of raising mid-transaction.
+
+**Run `mix phoenix_kit.doctor` before upgrading.** It reports exactly the two
+conditions that make these statements interesting — a drifted
+`phoenix_kit_email_events` shape and orphaned `email_log_uuid` rows — and it is
+cheaper to know beforehand than to learn it from a failed deploy.
 
 ## What `down/1` does not do
 

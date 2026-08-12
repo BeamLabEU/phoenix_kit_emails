@@ -17,9 +17,17 @@ not have, and every query against `phoenix_kit_email_logs` fails until the
 update lands. Both steps are idempotent, so a host that has already run them is
 unaffected.
 
-The migration takes a brief write lock on `phoenix_kit_email_logs` while it
-builds the new index — see `PhoenixKit.Modules.Emails.Migrations`' "Locking"
-section if that table is large.
+Run `mix phoenix_kit.doctor` first. V01 adopts the module's six tables, which
+means it is the first thing to replay their constraints on a long-lived
+database, and doctor reports the two conditions that make that interesting: a
+drifted `phoenix_kit_email_events` shape and orphaned `email_log_uuid` rows.
+
+The migration bounds itself with `SET LOCAL lock_timeout = '5s'`, so behind a
+long-running reader it fails fast with a clear error instead of hanging the
+deploy — retry during a quiet window. It also takes a brief write lock on
+`phoenix_kit_email_logs` while building the new index; see
+`PhoenixKit.Modules.Emails.Migrations`' "Locking" section if that table is
+large.
 
 ### Added
 

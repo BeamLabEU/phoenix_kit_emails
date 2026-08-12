@@ -32,6 +32,45 @@ defmodule PhoenixKit.Modules.Emails.MigrationsTest do
     phoenix_kit_email_orphaned_events
   )
 
+  # What the manifest declares for those tables, per class. Pinned exactly
+  # rather than as a lower bound: a filter that quietly stops matching (a
+  # renamed id format, a class that starts arriving differently) would leave a
+  # conformance test that passes because it compares almost nothing. If core
+  # legitimately adds an object, this fails, someone looks, and the number
+  # moves deliberately.
+  @manifest_object_counts %{table: 6, column: 96, constraint: 7, index: 52}
+
+  # Statements this chain deliberately does NOT copy byte-for-byte from the
+  # manifest, keyed by manifest object id, with the reason. Every departure
+  # must be listed here; the tests below fail both on an unlisted departure
+  # and on a listed one that no longer applies, so this map cannot rot in
+  # either direction. See the module's "Where this chain deliberately differs
+  # from the manifest".
+  @declared_departures %{
+    "table:phoenix_kit_email_logs" => "full column list, not the bare repair-form CREATE TABLE",
+    "table:phoenix_kit_email_events" => "full column list",
+    "table:phoenix_kit_email_blocklist" => "full column list",
+    "table:phoenix_kit_email_templates" => "full column list",
+    "table:phoenix_kit_email_metrics" => "full column list",
+    "table:phoenix_kit_email_orphaned_events" => "full column list",
+    "constraint:phoenix_kit_email_logs.phoenix_kit_email_logs_pkey" =>
+      "probed by contype, not conname",
+    "constraint:phoenix_kit_email_events.phoenix_kit_email_events_pkey" =>
+      "probed by contype, not conname",
+    "constraint:phoenix_kit_email_blocklist.phoenix_kit_email_blocklist_pkey" =>
+      "probed by contype, not conname",
+    "constraint:phoenix_kit_email_templates.phoenix_kit_email_templates_pkey" =>
+      "probed by contype, not conname",
+    "constraint:phoenix_kit_email_metrics.phoenix_kit_email_metrics_pkey" =>
+      "probed by contype, not conname",
+    "constraint:phoenix_kit_email_orphaned_events.phoenix_kit_email_orphaned_events_pkey" =>
+      "probed by contype, not conname",
+    "constraint:phoenix_kit_email_events.fk_email_events_email_log_uuid" => "added NOT VALID",
+    "index:phoenix_kit_email_logs_subject_trgm_index" => "unqualified gin_trgm_ops",
+    "index:phoenix_kit_email_logs_campaign_id_trgm_index" => "unqualified gin_trgm_ops",
+    "index:phoenix_kit_email_logs_to_trgm_index" => "unqualified gin_trgm_ops"
+  }
+
   describe "chain protocol" do
     test "current_version/0 is a positive integer and the marker table is the logs table" do
       assert is_integer(Migrations.current_version())
@@ -207,8 +246,89 @@ defmodule PhoenixKit.Modules.Emails.MigrationsTest do
 
     test "every statement is idempotent" do
       for statement <- Migrations.up_statements() do
-        assert statement =~ "IF NOT EXISTS" or statement =~ "COMMENT ON",
+        assert statement =~ "IF NOT EXISTS" or statement =~ "COMMENT ON" or
+                 statement =~ "SET LOCAL" or
+                 (statement =~ "DO $$" and statement =~ "NOT EXISTS ("),
                "non-idempotent statement: #{statement}"
+      end
+    end
+
+    test "the chain opens by bounding how long it will wait for a lock" do
+      # Postgres takes the lock BEFORE evaluating IF NOT EXISTS, so a
+      # no-op migration can still queue every query on phoenix_kit_email_logs
+      # behind one long-running reader. Failing in seconds beats hanging.
+      assert [first | _] = Migrations.up_statements()
+      assert first =~ ~r/^SET LOCAL lock_timeout = '\d+s'$/
+    end
+
+    test "primary keys are probed by contype, so a differently-named PK is not re-added" do
+      # A name-based probe passes on a table whose PK exists under another
+      # name, and the ALTER then fails with "multiple primary keys for table
+      # are not allowed" — aborting the host's whole migration.
+      for statement <- Migrations.up_statements(),
+          statement =~ "ADD CONSTRAINT" and statement =~ "PRIMARY KEY" do
+        assert statement =~ "c.contype = 'p'",
+               "primary key guarded by name rather than by contype: #{statement}"
+
+        refute statement =~ ~r/c\.conname = '\w+_pkey'/
+      end
+    end
+
+    test "the foreign key is added NOT VALID" do
+      # phoenix_kit.doctor ships a check for orphaned
+      # phoenix_kit_email_events.email_log_uuid rows, which means they exist in
+      # the wild — and validating against them aborts the migration.
+      statement =
+        Enum.find(
+          Migrations.up_statements(),
+          &String.contains?(&1, "fk_email_events_email_log_uuid")
+        )
+
+      assert statement =~ "FOREIGN KEY"
+      assert statement =~ "NOT VALID"
+    end
+
+    test "the foreign key IS validated, but only when that is free" do
+      # NOT VALID is right for a populated table and wrong for an empty one:
+      # a fresh install would otherwise carry a permanently-unvalidated FK
+      # that core's name-based catalog probe never flags.
+      statement =
+        Enum.find(
+          Migrations.up_statements(),
+          &String.contains?(&1, "VALIDATE CONSTRAINT fk_email_events_email_log_uuid")
+        )
+
+      assert statement, "the FK is never validated, not even on an empty table"
+
+      # Guarded on emptiness, so a populated table pays no scan and cannot fail.
+      assert statement =~ "NOT EXISTS (SELECT 1 FROM public.phoenix_kit_email_events LIMIT 1)"
+
+      # ...and even then it cannot take the host's migration down with it.
+      assert statement =~ "EXCEPTION"
+
+      # It has to come after the ADD, or there is nothing to validate.
+      statements = Migrations.up_statements()
+      add_index = Enum.find_index(statements, &String.contains?(&1, "ADD CONSTRAINT fk_email"))
+      validate_index = Enum.find_index(statements, &String.contains?(&1, "VALIDATE CONSTRAINT"))
+      assert add_index < validate_index
+    end
+
+    test "constraint probes tolerate a missing table instead of raising" do
+      for statement <- Migrations.up_statements(), statement =~ "ADD CONSTRAINT" do
+        assert statement =~ "to_regclass(",
+               "a regclass cast would raise mid-transaction on a missing table: #{statement}"
+      end
+    end
+
+    test "the trigram operator class is left unqualified" do
+      trgm = Enum.filter(Migrations.up_statements(), &String.contains?(&1, "gin_trgm_ops"))
+
+      assert length(trgm) == 3
+
+      for statement <- trgm do
+        refute statement =~ ~r/\w+\.gin_trgm_ops/,
+               "a schema-qualified operator class breaks any install whose " <>
+                 "pg_trgm is not in that schema: #{statement}"
       end
     end
 
@@ -228,14 +348,12 @@ defmodule PhoenixKit.Modules.Emails.MigrationsTest do
                &String.contains?(&1, "public.uuid_generate_v7()")
              )
 
-      # `public.gin_trgm_ops` is NOT a leak and must stay: an operator
-      # class lives in the schema its EXTENSION was installed into
-      # (core installs pg_trgm in public), not in the install's own
-      # schema. Core's manifest hard-codes it for the same reason, and
-      # rewriting it to the prefix would make the index uncreatable.
+      # The operator class is unqualified, so there is no schema to leak in
+      # the first place — see "the trigram operator class is left
+      # unqualified" above for why it is not `public.`-prefixed either.
       assert Enum.any?(
                Migrations.up_statements("tenant_a"),
-               &String.contains?(&1, "public.gin_trgm_ops")
+               &String.contains?(&1, "gin_trgm_ops")
              )
     end
 
@@ -283,6 +401,15 @@ defmodule PhoenixKit.Modules.Emails.MigrationsTest do
       :ok
     end
 
+    test "the manifest still declares exactly the objects this chain was built from" do
+      counts =
+        ExpectedSchema.objects("public")
+        |> Enum.filter(&adopted_object?/1)
+        |> Enum.frequencies_by(& &1.class)
+
+      assert counts == @manifest_object_counts
+    end
+
     for prefix <- ["public", "tenant_a"] do
       test "adopted statements match core's manifest under prefix #{prefix}" do
         prefix = unquote(prefix)
@@ -290,23 +417,40 @@ defmodule PhoenixKit.Modules.Emails.MigrationsTest do
 
         core_objects =
           ExpectedSchema.objects(prefix)
-          # `:table` is the one declared departure — see the module's
-          # `table_statements/0`. Its column list is checked separately,
-          # against the same manifest data, by the "CREATE TABLE carries
-          # core's full column list" test above.
-          |> Enum.filter(&(is_binary(&1.create) and &1.class != :table and adopted_object?(&1)))
+          |> Enum.filter(&(is_binary(&1.create) and adopted_object?(&1)))
 
-        # Sanity: if this ever hits zero the filter broke, and the whole
-        # describe block would pass vacuously.
-        assert length(core_objects) > 100
+        assert Enum.frequencies_by(core_objects, & &1.class) == @manifest_object_counts
 
         mismatched =
           core_objects
           |> Enum.reject(&MapSet.member?(ours, &1.create))
           |> Enum.map(& &1.id)
 
-        assert mismatched == [],
-               "these core objects are not emitted byte-identically: #{inspect(mismatched)}"
+        undeclared = mismatched -- Map.keys(@declared_departures)
+
+        assert undeclared == [],
+               "these core objects are neither emitted byte-identically nor declared as " <>
+                 "departures: #{inspect(undeclared)}"
+
+        # ...and the other direction: a departure that no longer departs is a
+        # stale exemption weakening the test, so it has to be removed.
+        stale = Map.keys(@declared_departures) -- mismatched
+
+        assert stale == [],
+               "these departures are no longer departures and should be deleted " <>
+                 "from @declared_departures: #{inspect(stale)}"
+      end
+    end
+
+    test "every declared departure still emits SOMETHING for its object" do
+      # A departure is "we write this differently", never "we skip this".
+      statements = Migrations.up_statements()
+
+      for {id, reason} <- @declared_departures do
+        object_name = id |> String.split(":") |> List.last() |> String.split(".") |> List.last()
+
+        assert Enum.any?(statements, &String.contains?(&1, object_name)),
+               "#{id} is declared as a departure (#{reason}) but nothing is emitted for it"
       end
     end
 
@@ -316,10 +460,16 @@ defmodule PhoenixKit.Modules.Emails.MigrationsTest do
         |> Enum.filter(&is_binary(&1.create))
         |> MapSet.new(& &1.create)
 
+      departure_shapes = ["CREATE TABLE IF NOT EXISTS", "DO $$", "gin_trgm_ops"]
+
       extra =
         Enum.reject(
           Migrations.up_statements(),
-          &(String.starts_with?(&1, "CREATE TABLE IF NOT EXISTS") or MapSet.member?(core, &1))
+          fn statement ->
+            MapSet.member?(core, statement) or
+              String.starts_with?(statement, "SET LOCAL") or
+              Enum.any?(departure_shapes, &String.contains?(statement, &1))
+          end
         )
 
       assert Enum.sort(extra) == [
