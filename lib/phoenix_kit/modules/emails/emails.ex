@@ -954,6 +954,9 @@ defmodule PhoenixKit.Modules.Emails do
   def children, do: [PhoenixKit.Modules.Emails.Supervisor]
 
   @impl PhoenixKit.Module
+  def migration_module, do: PhoenixKit.Modules.Emails.Migrations
+
+  @impl PhoenixKit.Module
   def css_sources, do: [:phoenix_kit_emails]
 
   @impl PhoenixKit.Module
@@ -1018,7 +1021,44 @@ defmodule PhoenixKit.Modules.Emails do
       end
     end
 
+    seed_aws_tracking_from_legacy()
+
     :ok
+  end
+
+  # Copies the single global SES/SQS pipeline settings into the per-account
+  # `aws_tracking:<uuid>` shape for whichever account `emails_aws_integration_uuid`
+  # currently selects — the one account those globals have always described.
+  #
+  # Idempotent in the way that matters: it only writes when that account has
+  # NO tracking settings yet, so an operator who has since edited the
+  # per-account pipeline in the UI never gets it overwritten by the legacy
+  # globals on the next boot. Runs unconditionally (not only inside the
+  # credentials-migration branch above), because the selection can also have
+  # been made by hand in the UI, long after that branch stopped applying.
+  #
+  # A deployment with no selected account keeps working untouched: the
+  # legacy fallback in `SQSPollingJob` reads the same globals directly.
+  defp seed_aws_tracking_from_legacy do
+    uuid = selected_aws_integration_uuid()
+
+    if is_binary(uuid) and is_nil(get_aws_tracking(uuid)) do
+      legacy = %{
+        "queue_url" => Settings.get_setting("aws_sqs_queue_url"),
+        "dlq_url" => Settings.get_setting("aws_sqs_dlq_url"),
+        "queue_arn" => Settings.get_setting("aws_sqs_queue_arn"),
+        "sns_topic_arn" => Settings.get_setting("aws_sns_topic_arn"),
+        "configuration_set" => Settings.get_setting("aws_ses_configuration_set"),
+        "region" => get_aws_region()
+      }
+
+      # Nothing to carry over (a fresh install that only ever picked a
+      # credentials source) — writing an all-nil row would just make the
+      # legacy fallback unreachable for that account for no gain.
+      if Enum.any?(legacy, fn {_k, v} -> is_binary(v) and String.trim(v) != "" end) do
+        set_aws_tracking(uuid, legacy)
+      end
+    end
   end
 
   defp existing_migrated_connection_uuid do
@@ -1777,6 +1817,163 @@ defmodule PhoenixKit.Modules.Emails do
     Settings.delete_setting(@brevo_watermark_prefix <> integration_uuid)
   end
 
+  ## --- AWS SES per-account tracking configuration ---
+
+  @aws_tracking_prefix "aws_tracking:"
+
+  @aws_tracking_fields ~w(queue_url dlq_url queue_arn sns_topic_arn configuration_set region)
+
+  @doc """
+  The per-account SES/SQS tracking pipeline for one `aws_ses` integration —
+  the multi-account replacement for the single global `aws_sqs_queue_url` /
+  `aws_ses_configuration_set` / … settings, stored as one JSON setting per
+  account under the `aws_tracking:<integration_uuid>` key (the same
+  prefix-keyed shape `get_brevo_watermark/1` uses for its cursor).
+
+  Returns a map with every key in #{inspect(@aws_tracking_fields)} (missing
+  or blank entries come back as `nil`), or `nil` when this account has no
+  tracking settings at all — which is what the legacy single-queue fallback
+  in `SQSPollingJob` keys off, so an existing env-configured deployment
+  keeps polling exactly as before.
+
+  ## Examples
+
+      iex> PhoenixKit.Modules.Emails.get_aws_tracking("some-uuid")
+      %{queue_url: "https://sqs.eu-north-1.amazonaws.com/1/q", region: "eu-north-1", ...}
+  """
+  @spec get_aws_tracking(String.t()) :: map() | nil
+  def get_aws_tracking(integration_uuid) when is_binary(integration_uuid) do
+    case Settings.get_json_setting(@aws_tracking_prefix <> integration_uuid, nil) do
+      json when is_map(json) -> decode_aws_tracking(json)
+      _other -> nil
+    end
+  end
+
+  @doc """
+  Persists one account's SES/SQS tracking pipeline. Accepts string- or
+  atom-keyed attrs; unknown keys are dropped and blank values are stored as
+  `nil`, so the stored JSON is always exactly the
+  #{inspect(@aws_tracking_fields)} shape `get_aws_tracking/1` reads back.
+
+  Callers that change this must also reconcile the SES tracker (a queue URL
+  appearing/disappearing changes `SQSPollingManager.eligible?/0`) — see
+  `PhoenixKit.Modules.Emails.EventTrackerReconciler.reconcile_tracker/1`.
+
+  ## Examples
+
+      iex> PhoenixKit.Modules.Emails.set_aws_tracking("some-uuid", %{"queue_url" => "https://..."})
+      {:ok, %Setting{}}
+  """
+  @spec set_aws_tracking(String.t(), map()) :: {:ok, term()} | {:error, term()}
+  def set_aws_tracking(integration_uuid, attrs)
+      when is_binary(integration_uuid) and is_map(attrs) do
+    json =
+      Map.new(@aws_tracking_fields, fn field ->
+        {field, normalize_aws_tracking_value(attrs, field)}
+      end)
+
+    Settings.update_json_setting_with_module(
+      @aws_tracking_prefix <> integration_uuid,
+      json,
+      "email_system"
+    )
+  end
+
+  @doc """
+  Every integration uuid that currently has stored AWS tracking settings —
+  used by `SQSPollingJob` to prune settings for integrations that no longer
+  exist, so those rows don't accumulate forever.
+
+  ## Examples
+
+      iex> PhoenixKit.Modules.Emails.list_aws_tracking_integration_uuids()
+      ["some-uuid"]
+  """
+  @spec list_aws_tracking_integration_uuids() :: [String.t()]
+  def list_aws_tracking_integration_uuids do
+    @aws_tracking_prefix
+    |> Settings.get_json_settings_by_prefix()
+    |> Enum.map(fn {key, _json} -> String.replace_prefix(key, @aws_tracking_prefix, "") end)
+  end
+
+  @doc """
+  Deletes one account's stored AWS tracking settings, if any.
+
+  ## Examples
+
+      iex> PhoenixKit.Modules.Emails.delete_aws_tracking("some-uuid")
+      {:ok, %Setting{}}
+  """
+  @spec delete_aws_tracking(String.t()) :: {:ok, term()} | {:error, term()}
+  def delete_aws_tracking(integration_uuid) when is_binary(integration_uuid) do
+    Settings.delete_setting(@aws_tracking_prefix <> integration_uuid)
+  end
+
+  @doc false
+  # The field names `get_aws_tracking/1` returns and `set_aws_tracking/2`
+  # accepts. Public (as @doc false) so the settings UI and the tests can
+  # iterate the same list instead of re-typing it.
+  @spec aws_tracking_fields() :: [String.t()]
+  def aws_tracking_fields, do: @aws_tracking_fields
+
+  defp decode_aws_tracking(json) do
+    Map.new(@aws_tracking_fields, fn field ->
+      {String.to_atom(field), blank_to_nil(Map.get(json, field))}
+    end)
+  end
+
+  defp normalize_aws_tracking_value(attrs, field) do
+    attrs
+    |> Map.get(field, Map.get(attrs, String.to_atom(field)))
+    |> blank_to_nil()
+  end
+
+  defp blank_to_nil(value) when is_binary(value) do
+    case String.trim(value) do
+      "" -> nil
+      trimmed -> trimmed
+    end
+  end
+
+  defp blank_to_nil(_value), do: nil
+
+  @doc """
+  Integration uuids the operator has explicitly opted OUT of SQS event
+  polling — an empty list (the default) means every active `aws_ses`
+  integration gets polled. `SQSPollingJob` reads this fresh every cycle (no
+  cache invalidation needed). Same comma-separated storage format as
+  `get_brevo_polling_excluded_integrations/0`.
+
+  ## Examples
+
+      iex> PhoenixKit.Modules.Emails.get_sqs_polling_excluded_integrations()
+      []
+  """
+  @spec get_sqs_polling_excluded_integrations() :: [String.t()]
+  def get_sqs_polling_excluded_integrations do
+    Settings.get_setting("sqs_polling_excluded_integrations", "")
+    |> String.split([",", " "], trim: true)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+  end
+
+  @doc """
+  Sets the list of `aws_ses` integration uuids excluded from SQS polling.
+
+  ## Examples
+
+      iex> PhoenixKit.Modules.Emails.set_sqs_polling_excluded_integrations(["uuid-1"])
+      {:ok, %Setting{}}
+  """
+  @spec set_sqs_polling_excluded_integrations([String.t()]) :: {:ok, term()} | {:error, term()}
+  def set_sqs_polling_excluded_integrations(uuids) when is_list(uuids) do
+    Settings.update_setting_with_module(
+      "sqs_polling_excluded_integrations",
+      Enum.join(uuids, ","),
+      "email_system"
+    )
+  end
+
   @impl PhoenixKit.Module
   @doc """
   Gets the current email system configuration.
@@ -1965,7 +2162,12 @@ defmodule PhoenixKit.Modules.Emails do
       # Add system-level defaults
       attrs =
         Map.merge(attrs, %{
-          configuration_set: get_ses_configuration_set(),
+          # Only fill in the global default when the caller resolved nothing:
+          # `Interceptor.extract_email_data/2` now resolves a PER-ACCOUNT
+          # configuration set (that is the name actually put on the wire), and
+          # overwriting it here would make the stored field disagree with the
+          # header that was sent.
+          configuration_set: Map.get(attrs, :configuration_set) || get_ses_configuration_set(),
           body_full:
             if(save_body_enabled?() and Map.get(attrs, :body_full),
               do: Map.get(attrs, :body_full),
@@ -2596,9 +2798,18 @@ defmodule PhoenixKit.Modules.Emails do
   defp aws_ses_credentials do
     cache_miss = :__aws_credentials_cache_miss__
 
+    # Cached under the bare `:credentials` key, NOT `{:credentials, uuid}`:
+    # the unit being memoized here is the whole legacy resolution, selection
+    # lookup included, which is what keeps a send path from re-reading
+    # `emails_aws_integration_uuid` once per `get_aws_*` getter.
     case PhoenixKit.Cache.get(@aws_credentials_cache_name, :credentials, cache_miss) do
       ^cache_miss ->
-        creds = fetch_aws_ses_credentials()
+        creds =
+          case selected_aws_integration_uuid() do
+            uuid when is_binary(uuid) -> fetch_aws_ses_credentials(uuid)
+            _ -> %{}
+          end
+
         PhoenixKit.Cache.put(@aws_credentials_cache_name, :credentials, creds)
         creds
 
@@ -2607,16 +2818,69 @@ defmodule PhoenixKit.Modules.Emails do
     end
   end
 
-  defp fetch_aws_ses_credentials do
-    case Settings.get_setting("emails_aws_integration_uuid") do
-      uuid when is_binary(uuid) and uuid != "" ->
-        case Integrations.get_credentials(uuid) do
-          {:ok, creds} -> creds
-          _ -> %{}
-        end
+  @doc """
+  The single `aws_ses` Integrations connection selected via the
+  `emails_aws_integration_uuid` setting, or `nil`.
 
-      _ ->
-        %{}
+  This is the LEGACY, one-account selection: it names the connection the
+  global `aws_*` settings (queue URL, configuration set, …) have always
+  described, and it is still what the send-path `get_aws_*` getters resolve
+  through. Multi-account callers should go through
+  `PhoenixKit.Modules.Emails.AwsIntegrations.active_integration_uuids/0`
+  instead; this getter exists so they can recognise which one account the
+  legacy globals may still be attributed to.
+
+  ## Examples
+
+      iex> PhoenixKit.Modules.Emails.selected_aws_integration_uuid()
+      "019f562e-0000-7000-8000-000000000000"
+  """
+  @spec selected_aws_integration_uuid() :: String.t() | nil
+  def selected_aws_integration_uuid do
+    case Settings.get_setting("emails_aws_integration_uuid") do
+      uuid when is_binary(uuid) and uuid != "" -> uuid
+      _ -> nil
+    end
+  end
+
+  @doc """
+  The decrypted credential map for ONE `aws_ses` Integrations connection,
+  memoized under `{:credentials, uuid}`.
+
+  Keyed by uuid rather than a single `:credentials` slot because the SQS
+  poller now walks several accounts per cycle: a single-slot cache handed
+  whichever account was resolved first to every subsequent lookup, which
+  with two accounts means polling one account's queue with the other's
+  keys. Invalidate one account with `invalidate_aws_credentials_cache/1`,
+  or the whole instance with `invalidate_aws_credentials_cache/0`.
+
+  ## Examples
+
+      iex> PhoenixKit.Modules.Emails.aws_ses_credentials("some-uuid")
+      %{"access_key" => "AKIA...", "secret_key" => "...", "aws_region" => "eu-north-1"}
+  """
+  @spec aws_ses_credentials(String.t()) :: map()
+  def aws_ses_credentials(uuid) when is_binary(uuid) and uuid != "" do
+    cache_miss = :__aws_credentials_cache_miss__
+    key = {:credentials, uuid}
+
+    case PhoenixKit.Cache.get(@aws_credentials_cache_name, key, cache_miss) do
+      ^cache_miss ->
+        creds = fetch_aws_ses_credentials(uuid)
+        PhoenixKit.Cache.put(@aws_credentials_cache_name, key, creds)
+        creds
+
+      creds ->
+        creds
+    end
+  end
+
+  def aws_ses_credentials(_uuid), do: %{}
+
+  defp fetch_aws_ses_credentials(uuid) do
+    case Integrations.get_credentials(uuid) do
+      {:ok, creds} when is_map(creds) -> creds
+      _ -> %{}
     end
   end
 
@@ -2632,7 +2896,32 @@ defmodule PhoenixKit.Modules.Emails do
   """
   @spec invalidate_aws_credentials_cache() :: :ok
   def invalidate_aws_credentials_cache do
-    PhoenixKit.Cache.invalidate(@aws_credentials_cache_name, :credentials)
+    # Entries are keyed per account (`{:credentials, uuid}`), so "which
+    # credentials should resolve now" can no longer be expressed as a single
+    # key — clearing the whole instance is both correct and cheap (the
+    # instance holds nothing else, and a repopulate is one read per account).
+    PhoenixKit.Cache.clear(@aws_credentials_cache_name)
+  end
+
+  @doc """
+  Invalidates the cached credentials for ONE `aws_ses` connection.
+
+  The targeted counterpart of `invalidate_aws_credentials_cache/0`, for the
+  common case where exactly one account's connection changed and there is
+  no reason to make every other account re-read.
+  """
+  @spec invalidate_aws_credentials_cache(String.t()) :: :ok
+  def invalidate_aws_credentials_cache(uuid) when is_binary(uuid) do
+    PhoenixKit.Cache.invalidate(@aws_credentials_cache_name, {:credentials, uuid})
+
+    # The legacy arity-0 resolution memoizes this same connection under its
+    # own key when it happens to be the selected one — invalidating only the
+    # per-account entry would leave the send path serving the old keys.
+    if uuid == selected_aws_integration_uuid() do
+      PhoenixKit.Cache.invalidate(@aws_credentials_cache_name, :credentials)
+    end
+
+    :ok
   end
 
   # Validate SQS queue URL format

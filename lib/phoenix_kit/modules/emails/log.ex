@@ -204,6 +204,13 @@ defmodule PhoenixKit.Modules.Emails.Log do
     field(:configuration_set, :string)
     field(:message_tags, :map, default: %{})
     field(:provider, :string, default: "unknown")
+    # WHICH account sent this, not just which kind: the uuid of the
+    # `PhoenixKit.Integrations` connection the send resolved to. Nullable —
+    # every row written before this column existed has no known account, and
+    # the stamp is best-effort on the send path (see
+    # `PhoenixKit.Modules.Emails.Interceptor`), so an unstamped row must stay
+    # a valid row. Added by `PhoenixKit.Modules.Emails.Migrations` V1.
+    field(:integration_uuid, UUIDv7)
     field(:user_uuid, UUIDv7)
 
     # Associations
@@ -263,6 +270,7 @@ defmodule PhoenixKit.Modules.Emails.Log do
       :configuration_set,
       :message_tags,
       :provider,
+      :integration_uuid,
       :user_uuid
     ])
     |> validate_required([:message_id, :to, :from, :provider])

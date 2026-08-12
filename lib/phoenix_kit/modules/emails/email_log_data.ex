@@ -20,6 +20,7 @@ defmodule PhoenixKit.Modules.Emails.EmailLogData do
   - `campaign_id` - Campaign identifier if applicable
   - `user_uuid` - Associated user UUID
   - `provider` - Email delivery provider name
+  - `integration_uuid` - Integrations connection the send resolved to (best effort)
   - `configuration_set` - AWS SES configuration set name
   - `message_tags` - Map of message tags
   """
@@ -40,6 +41,7 @@ defmodule PhoenixKit.Modules.Emails.EmailLogData do
     :campaign_id,
     :user_uuid,
     :provider,
+    :integration_uuid,
     :configuration_set,
     :message_tags
   ]
@@ -59,6 +61,7 @@ defmodule PhoenixKit.Modules.Emails.EmailLogData do
           campaign_id: String.t() | nil,
           user_uuid: String.t() | nil,
           provider: String.t() | nil,
+          integration_uuid: String.t() | nil,
           configuration_set: String.t() | nil,
           message_tags: map() | nil
         }

@@ -394,7 +394,7 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
   defp process_delivery_event(event_data) do
     message_id = get_in(event_data, ["mail", "messageId"])
     mail_data = event_data["mail"] || %{}
-    delivery_data = event_data["delivery"] || %{}
+    delivery_data = with_provenance(event_data["delivery"] || %{}, event_data)
     delivery_timestamp = get_in(delivery_data, ["timestamp"])
 
     case find_email_log_by_message_id(message_id) do
@@ -467,7 +467,7 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
   defp process_bounce_event(event_data) do
     message_id = get_in(event_data, ["mail", "messageId"])
     mail_data = event_data["mail"] || %{}
-    bounce_data = event_data["bounce"]
+    bounce_data = with_provenance(event_data["bounce"], event_data)
     bounce_type = get_in(bounce_data, ["bounceType"])
     bounce_subtype = get_in(bounce_data, ["bounceSubType"])
 
@@ -558,7 +558,7 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
   defp process_complaint_event(event_data) do
     message_id = get_in(event_data, ["mail", "messageId"])
     mail_data = event_data["mail"] || %{}
-    complaint_data = event_data["complaint"]
+    complaint_data = with_provenance(event_data["complaint"], event_data)
     complaint_type = get_in(complaint_data, ["complaintFeedbackType"])
 
     update_attrs = %{
@@ -586,7 +586,7 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
   defp process_open_event(event_data) do
     message_id = get_in(event_data, ["mail", "messageId"])
     mail_data = event_data["mail"] || %{}
-    open_data = event_data["open"]
+    open_data = with_provenance(event_data["open"], event_data)
     open_timestamp = get_in(open_data, ["timestamp"])
 
     case find_email_log_by_message_id(message_id) do
@@ -654,7 +654,7 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
   defp process_click_event(event_data) do
     message_id = get_in(event_data, ["mail", "messageId"])
     mail_data = event_data["mail"] || %{}
-    click_data = event_data["click"]
+    click_data = with_provenance(event_data["click"], event_data)
     click_timestamp = get_in(click_data, ["timestamp"])
 
     case find_email_log_by_message_id(message_id) do
@@ -738,7 +738,7 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
   defp process_reject_event(event_data) do
     message_id = get_in(event_data, ["mail", "messageId"])
     mail_data = event_data["mail"] || %{}
-    reject_data = event_data["reject"]
+    reject_data = with_provenance(event_data["reject"], event_data)
     reject_reason = get_in(reject_data, ["reason"])
 
     update_attrs = %{
@@ -766,7 +766,7 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
   defp process_delivery_delay_event(event_data) do
     message_id = get_in(event_data, ["mail", "messageId"])
     mail_data = event_data["mail"] || %{}
-    delay_data = event_data["deliveryDelay"]
+    delay_data = with_provenance(event_data["deliveryDelay"], event_data)
     delay_type = get_in(delay_data, ["delayType"])
     expiration_time = get_in(delay_data, ["expirationTime"])
 
@@ -858,7 +858,7 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
   defp process_subscription_event(event_data) do
     message_id = get_in(event_data, ["mail", "messageId"])
     mail_data = event_data["mail"] || %{}
-    subscription_data = event_data["subscription"]
+    subscription_data = with_provenance(event_data["subscription"], event_data)
     subscription_type = get_in(subscription_data, ["subscriptionType"])
 
     case find_email_log_by_message_id(message_id) do
@@ -914,7 +914,7 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
   defp process_rendering_failure_event(event_data) do
     message_id = get_in(event_data, ["mail", "messageId"])
     mail_data = event_data["mail"] || %{}
-    failure_data = event_data["failure"]
+    failure_data = with_provenance(event_data["failure"], event_data)
     error_message = get_in(failure_data, ["errorMessage"])
     template_name = get_in(failure_data, ["templateName"])
 
@@ -1104,6 +1104,44 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
   end
 
   ## --- Helper Functions ---
+
+  # Carries the SES envelope's own provenance into the stored `event_data`.
+  #
+  # Only the type-specific sub-object (`delivery`, `bounce`, …) is persisted
+  # on the event row, so `mail.sendingAccountId`, `mail.sourceArn` and the
+  # `configurationSet` the event came through were previously dropped — and
+  # with several SES accounts configured, that is the only VERIFIABLE answer
+  # to "which account produced this event". The send-side
+  # `phoenix_kit_email_logs.integration_uuid` stamp is a best-effort index
+  # (see `Interceptor`); this is the receipt.
+  #
+  # Nested under `"_source"` rather than merged flat: AWS owns the key space
+  # of its own sub-objects, and a future SES field named `configurationSet`
+  # inside one of them must not collide with ours. A `nil` sub-object is
+  # passed through untouched — a malformed event stays exactly as malformed
+  # as it was, rather than turning into a map its callers do not expect.
+  defp with_provenance(nil, _event_data), do: nil
+
+  defp with_provenance(sub_data, event_data) when is_map(sub_data) do
+    mail = event_data["mail"] || %{}
+
+    provenance =
+      %{
+        "sendingAccountId" => mail["sendingAccountId"],
+        "sourceArn" => mail["sourceArn"],
+        "configurationSet" => event_data["configurationSet"] || mail["configurationSet"]
+      }
+      |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+      |> Map.new()
+
+    if provenance == %{} do
+      sub_data
+    else
+      Map.put(sub_data, "_source", provenance)
+    end
+  end
+
+  defp with_provenance(sub_data, _event_data), do: sub_data
 
   # Finds email log by message_id with extended search
   defp find_email_log_by_message_id(message_id) when is_binary(message_id) do
