@@ -129,7 +129,42 @@
       </div>
     </div>
 
-    <div :if={@tracking_accounts == []} class="text-sm text-base-content/60">
+    <%!-- An install that never moved to per-account tracking has no rows here,
+         but its poller is reading the single global queue and the tracker row
+         above says "Active" — so "no accounts configured yet" was the one
+         thing on the page that sounded like nothing was being collected.
+         Read-only on purpose: the global queue is not editable from this
+         panel any more (the per-account rows are the one place to set a
+         queue), this line only says out loud what the poller is doing. --%>
+    <div
+      :if={@tracking_accounts == [] and @legacy_queue_url}
+      class="alert alert-info text-sm items-start"
+    >
+      <.icon name="hero-information-circle" class="w-5 h-5 shrink-0" />
+      <div>
+        <p class="font-semibold break-all">
+          {gettext("Polling the legacy global queue: %{url}", url: @legacy_queue_url)}
+        </p>
+        <%!-- Two whole sentences and a self-contained link label, rather than
+             one sentence broken around an inline link: a translator cannot
+             reorder around a hole they are not shown. --%>
+        <p class="mt-1">
+          {gettext(
+            "Every sender shares this one queue. To give each Amazon SES account a queue of its own, add the account below and run Setup Infrastructure."
+          )}
+        </p>
+        <p class="mt-1">
+          <.pk_link navigate="/admin/settings/integrations/website" class="link link-primary">
+            {gettext("Create an Amazon SES connection in Settings → Integrations")}
+          </.pk_link>
+        </p>
+      </div>
+    </div>
+
+    <div
+      :if={@tracking_accounts == [] and is_nil(@legacy_queue_url)}
+      class="text-sm text-base-content/60"
+    >
       {gettext("No accounts configured for event tracking yet.")}
     </div>
 
@@ -267,25 +302,13 @@
     </form>
   </div>
 
-  <%!-- Event collection is switched on ONE place — the Amazon SES row this
-  block is expanded from, which owns both settings the gate needs. Showing the
-  state here (read-only) keeps the answer next to the queues it is about
-  without giving the operator a second switch for the same lamp. --%>
-  <% collecting? = collecting_events?() %>
-  <div class="text-sm flex items-center gap-2">
-    <.icon
-      name={if collecting?, do: "hero-check-circle", else: "hero-minus-circle"}
-      class={"w-4 h-4 " <> if(collecting?, do: "text-success", else: "text-base-content/40")}
-    />
-    <span>
-      {if collecting?,
-        do: gettext("Delivery events from Amazon SES: collection is on"),
-        else: gettext("Delivery events from Amazon SES: collection is off")}
-    </span>
-    <span class="text-base-content/60">
-      {gettext("— switch it with the Tracking toggle on this row")}
-    </span>
-  </div>
+  <%!-- No "collection is on/off" line here any more. It read
+  `SQSPollingJob.should_poll?/0`, which is exactly `sqs_polling_enabled` AND
+  `eligible?/0` — the two things the tracker row this panel expands from
+  already renders, decomposed, in its State column: "Off" for the toggle,
+  "Idle — no integration" for eligibility, each with a tooltip naming what to
+  fix. One collapsed "off" a centimetre below a richer answer told the
+  operator strictly less than the row did. --%>
 
   <%!-- Legacy manual credentials: no longer editable here. They keep working
        as a fallback until a connection is assigned, then become dead weight. --%>

@@ -311,10 +311,31 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
     |> assign(:aws_ses_connections, connections)
     |> assign(:accounts_awaiting_configuration, awaiting)
     |> assign(:tracking_accounts, rows)
+    |> assign(:legacy_queue_url, legacy_queue_url())
     |> assign(
       :unassigned_connections,
       Enum.reject(connections, &MapSet.member?(assigned, &1.uuid))
     )
+  end
+
+  # The single pre-per-account `aws_sqs_queue_url`, or nil when this install
+  # has none. Resolved here rather than in the template because it is only
+  # ever read alongside `tracking_accounts` — an install with no per-account
+  # rows AND a global queue is the one the panel used to describe as having
+  # nothing configured while the poller was happily reading that queue.
+  #
+  # Blank-as-nil, not just nil-as-nil: `get_sqs_queue_url/0` returns whatever
+  # is stored, and a setting cleared through the UI is an empty string, not a
+  # deleted row.
+  defp legacy_queue_url do
+    case Emails.get_sqs_queue_url() do
+      url when is_binary(url) ->
+        trimmed = String.trim(url)
+        if trimmed == "", do: nil, else: trimmed
+
+      _ ->
+        nil
+    end
   end
 
   # Reload the rows AND reconcile the SES tracker — see the handlers above.
@@ -437,11 +458,6 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
       secret_access_key: creds.secret_key
     )
   end
-
-  # Rendered live, not stored in an assign: the switch that decides this lives
-  # in the sibling tracking panel, whose toggles do not re-render this section.
-  # A cached copy would sit there saying "on" long after it was switched off.
-  defp collecting_events?, do: SQSPollingJob.should_poll?()
 
   # Is the send path still running on the global, pre-Integrations key pair?
   defp legacy_credentials? do

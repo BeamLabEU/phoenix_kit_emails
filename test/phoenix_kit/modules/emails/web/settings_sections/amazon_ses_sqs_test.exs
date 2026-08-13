@@ -67,7 +67,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqsTest do
       refute html =~ "Save AWS Settings"
     end
 
-    test "the global aws_* values are not shown even when they are set" do
+    test "the global aws_* values are not shown as settings even when they are set" do
       # They used to be rendered read-only in an "Inherited settings (legacy)"
       # accordion. The code fallback still reads them — poller and interceptor
       # are untouched — but an operator has no business seeing, let alone
@@ -79,10 +79,56 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqsTest do
 
       refute html =~ "Inherited settings"
       refute html =~ "legacy-set"
-      refute html =~ "sqs.eu-north-1.amazonaws.com/1/q"
 
       # Still reads the globals under the hood — this is a UI removal only.
       assert Emails.get_sqs_queue_url() == "https://sqs.eu-north-1.amazonaws.com/1/q"
+    end
+
+    test "an install still on the global queue is told so, instead of 'no accounts yet'" do
+      {:ok, _} = Emails.set_sqs_queue_url("https://sqs.eu-north-1.amazonaws.com/1/q")
+
+      html = render_section()
+
+      # The poller reads that queue and the tracker row above says "Active";
+      # the panel used to answer "No accounts configured for event tracking
+      # yet", which is the one reading of the page that sounds like nothing is
+      # being collected at all.
+      assert html =~ "Polling the legacy global queue"
+      assert html =~ "sqs.eu-north-1.amazonaws.com/1/q"
+      refute html =~ "No accounts configured for event tracking yet"
+
+      # A pointer out of the legacy setup, not a second place to edit it.
+      assert html =~ "Setup Infrastructure" or html =~ "Settings → Integrations"
+      refute html =~ ~s|name="aws_sqs_queue_url"|
+    end
+
+    test "with no global queue and no accounts it still says there is nothing yet" do
+      html = render_section()
+
+      assert html =~ "No accounts configured for event tracking yet"
+      refute html =~ "Polling the legacy global queue"
+    end
+
+    test "a blank global queue setting is not a queue" do
+      {:ok, _} = Emails.set_sqs_queue_url("   ")
+
+      html = render_section()
+
+      # `get_sqs_queue_url/0` returns whatever is stored, and a value cleared
+      # through the UI is an empty string rather than a deleted row.
+      refute html =~ "Polling the legacy global queue"
+      assert html =~ "No accounts configured for event tracking yet"
+    end
+
+    test "the global-queue line gives way to the per-account rows" do
+      {:ok, _} = Emails.set_sqs_queue_url("https://sqs.eu-north-1.amazonaws.com/1/q")
+      {:ok, %{uuid: tracked}} = Integrations.add_connection("aws_ses", "tracked")
+      {:ok, _} = Emails.set_aws_tracking(tracked, %{})
+
+      html = render_section()
+
+      refute html =~ "Polling the legacy global queue"
+      assert html =~ "tracked"
     end
 
     test "one tracked account, one still on offer" do
@@ -117,25 +163,20 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqsTest do
       assert render_section() =~ "legacy credentials"
     end
 
-    test "the events status line follows what actually gates collection" do
+    test "the collection on/off line is gone, in either state" do
       {:ok, _} = Emails.set_ses_events(true)
       {:ok, _} = Emails.set_sqs_polling(false)
 
-      html = render_section()
+      refute render_section() =~ "collection is o"
 
-      # `email_ses_events` alone used to drive this line, so it claimed
-      # collection was on while the tracker was off.
-      assert html =~ "collection is off"
-    end
-
-    test "and says so the other way round when collection really is running" do
       create_ses_connection_with_queue()
-      {:ok, _} = Emails.set_ses_events(true)
       {:ok, _} = Emails.set_sqs_polling(true)
 
-      html = render_section()
-
-      assert html =~ "collection is on"
+      # It read should_poll?/0 — `sqs_polling_enabled` AND `eligible?/0` — which
+      # is what the tracker row a centimetre above already renders decomposed
+      # into "Off" vs "Idle — no integration", each with a tooltip saying what
+      # to fix. One collapsed word said strictly less than the row did.
+      refute render_section() =~ "collection is o"
     end
   end
 
