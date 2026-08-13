@@ -61,7 +61,6 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
         )
         |> assign_tracking_accounts()
         |> assign(:saving, false)
-        |> assign(:setting_up_aws, false)
         |> assign(:setting_up_account, nil)
         |> assign(:verifying_credentials, false)
         |> assign(:credential_verification_status, :pending)
@@ -158,127 +157,6 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
           )
 
         {:noreply, socket}
-    end
-  end
-
-  def handle_event("setup_aws_infrastructure", _params, socket) do
-    socket = assign(socket, :setting_up_aws, true)
-
-    project_name = project_name()
-
-    # Resolved credentials: the assigned Integrations connection first, then
-    # the legacy settings fallback — the form no longer carries credentials.
-    region = Emails.get_aws_region() || AWS.region()
-
-    access_key_id =
-      case Emails.get_aws_access_key() do
-        key when is_binary(key) and key != "" -> key
-        _ -> nil
-      end
-
-    secret_access_key =
-      case Emails.get_aws_secret_key() do
-        key when is_binary(key) and key != "" -> key
-        _ -> nil
-      end
-
-    if access_key_id && secret_access_key do
-      case InfrastructureSetup.run(
-             project_name: project_name,
-             region: region,
-             access_key_id: access_key_id,
-             secret_access_key: secret_access_key
-           ) do
-        {:ok, config} ->
-          case Settings.update_settings_batch(config) do
-            {:ok, _results} ->
-              new_aws_settings = %{
-                access_key_id: access_key_id,
-                secret_access_key: secret_access_key,
-                region: config["aws_region"],
-                sqs_queue_url: config["aws_sqs_queue_url"],
-                sqs_dlq_url: config["aws_sqs_dlq_url"],
-                sqs_queue_arn: config["aws_sqs_queue_arn"],
-                sns_topic_arn: config["aws_sns_topic_arn"],
-                ses_configuration_set: config["aws_ses_configuration_set"]
-              }
-
-              socket =
-                socket
-                |> assign(:aws_settings, new_aws_settings)
-                |> assign(:setting_up_aws, false)
-                |> put_flash(:info, """
-                ✅ AWS Email Infrastructure Created Successfully!
-
-                📦 Created Resources:
-                • Project: #{project_name}
-                • Region: #{config["aws_region"]}
-                • SNS Topic: #{config["aws_sns_topic_arn"]}
-                • SQS Queue: #{config["aws_sqs_queue_url"]}
-                • Dead Letter Queue: #{config["aws_sqs_dlq_url"]}
-                • SES Configuration Set: #{config["aws_ses_configuration_set"]}
-
-                🎉 All settings have been automatically filled below.
-                Click "Save AWS Settings" to persist the configuration.
-
-                ⚡ Next steps:
-                1. Verify your email/domain in AWS SES Console
-                2. Turn on tracking for Amazon SES in the "Delivery Event Tracking" section above
-                3. Start sending emails!
-                """)
-
-              {:noreply, socket}
-
-            {:error, _failed_operation, _failed_value, _changes} ->
-              socket =
-                socket
-                |> assign(:setting_up_aws, false)
-                |> put_flash(:error, """
-                ⚠️ Infrastructure created but failed to save settings.
-
-                AWS resources were created successfully, but there was an error saving configuration to database.
-                Please save AWS settings manually.
-                """)
-
-              {:noreply, socket}
-          end
-
-        {:error, step, reason} ->
-          socket =
-            socket
-            |> assign(:setting_up_aws, false)
-            |> put_flash(:error, """
-            ❌ AWS Setup Failed
-
-            Failed at step: #{step}
-            Reason: #{reason}
-
-            Please check:
-            • AWS credentials are valid
-            • IAM permissions (SQS, SNS, SES, STS)
-            • AWS region is correct
-            • No resource limits exceeded
-
-            You can also use the manual bash script:
-            ./scripts/setup_aws_email_infrastructure.sh
-            """)
-
-          {:noreply, socket}
-      end
-    else
-      socket =
-        socket
-        |> assign(:setting_up_aws, false)
-        |> put_flash(:error, """
-        ❌ AWS Credentials Required
-
-        Please configure AWS Access Key ID and Secret Access Key before running setup.
-
-        You can get these credentials from AWS IAM Console:
-        https://console.aws.amazon.com/iam/home#/users
-        """)
-
-      {:noreply, socket}
     end
   end
 

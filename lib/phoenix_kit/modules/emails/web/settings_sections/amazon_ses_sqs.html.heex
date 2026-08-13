@@ -503,56 +503,22 @@
       </div>
     </div>
 
-    <%!-- Warning for credentials changes --%>
-    <%= if String.trim(@aws_settings.access_key_id) != "" or String.trim(@aws_settings.secret_access_key) != "" do %>
-      <div class="alert alert-warning mt-4">
-        <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
-        <div>
-          <h3 class="font-bold">{gettext("Configuration Changes Detected")}</h3>
-          <p class="text-sm mt-1">
-            {gettext(
-              "You've modified your AWS credentials. Click \"Save AWS Settings\" first, then use \"Setup AWS Infrastructure\" to create the required resources."
-            )}
-          </p>
-        </div>
-      </div>
-    <% end %>
-
-    <%!-- Action Buttons --%>
-    <div class="flex flex-col sm:flex-row gap-4 mt-6">
-      <div class="flex-1">
-        <button
-          type="submit"
-          class={["btn btn-primary w-full sm:w-auto", if(@saving, do: "loading", else: "")]}
-          disabled={@saving or @verifying_credentials}
-        >
-          <%= if @saving do %>
-            {gettext("Saving...")}
-          <% else %>
-            <.icon name="hero-check" class="w-4 h-4 mr-2" /> {gettext("Save AWS Settings")}
-          <% end %>
-        </button>
-      </div>
-
-      <div class="flex-1">
-        <button
-          type="button"
-          phx-click="setup_aws_infrastructure"
-          phx-target={@myself}
-          class={["btn btn-accent w-full sm:w-auto", if(@setting_up_aws, do: "loading", else: "")]}
-          disabled={
-            @setting_up_aws or @saving or String.trim(@aws_settings.access_key_id) == "" or
-              String.trim(@aws_settings.secret_access_key) == ""
-          }
-        >
-          <%= if @setting_up_aws do %>
-            {gettext("Setting up...")}
-          <% else %>
-            <.icon name="hero-cog-6-tooth" class="w-4 h-4 mr-2" />
-            {gettext("Setup AWS Infrastructure")}
-          <% end %>
-        </button>
-      </div>
+    <%!-- Saving the pipeline fields is the only global action left here. AWS
+    resources are created per account, from that account's own credentials —
+    see "Per-account event tracking" above. --%>
+    <div class="mt-6">
+      <button
+        type="submit"
+        class={["btn btn-primary w-full sm:w-auto", if(@saving, do: "loading", else: "")]}
+        disabled={@saving}
+      >
+        <%= if @saving do %>
+          {gettext("Saving...")}
+        <% else %>
+          <.icon name="hero-check" class="w-4 h-4 mr-2" /> {gettext("Save AWS Settings")}
+        <% end %>
+      </button>
     </div>
+
   </form>
 </div>
