@@ -569,15 +569,22 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
   def resolve_aws_config(%{integration_uuid: nil}, config),
     do: {:ok, build_aws_config(config || Emails.get_sqs_config())}
 
-  # Per-account: this connection's own keys, and its own region — the
-  # per-account `aws_tracking` region wins over the connection's, since the
-  # queue being polled is the one the tracking row names.
-  def resolve_aws_config(%{integration_uuid: uuid, region: region} = account, config) do
+  # Per-account: this connection's own keys and ONE region.
+  #
+  # The region used to be settable in three places — on the connection, on the
+  # tracking row, and globally — and the tracking row won. That is how an
+  # account ends up signing requests for a region its queue does not live in
+  # (the install this was found on had a queue in eu-north-1 and a tracking row
+  # saying eu-central-1). The queue URL is the only self-evident answer: it
+  # names the region the queue is actually in. Everything else falls back to the
+  # connection, which is where the credentials that must be valid there live.
+  # A stored tracking region is deliberately ignored.
+  def resolve_aws_config(%{integration_uuid: uuid} = account, config) do
     config = config || Emails.get_sqs_config()
 
     case AwsIntegrations.resolve_credentials(uuid) do
       {:ok, creds} ->
-        case region || region_from_queue_url(account.queue_url) || creds.region do
+        case region_from_queue_url(account.queue_url) || creds.region do
           nil ->
             {:error, :missing_region}
 
@@ -901,14 +908,17 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
   # because a failed receive is logged and the cycle still returns `:ok`, so it
   # repeats forever at full cadence with nothing in the UI to show for it.
   # The URL is the one place that always knows the truth.
-  defp region_from_queue_url(url) when is_binary(url) do
+  @doc false
+  # Public: the settings UI shows the same derived region it polls with, so the
+  # operator and the poller can never disagree about where a queue lives.
+  def region_from_queue_url(url) when is_binary(url) do
     case Regex.run(~r{^https://sqs\.([a-z0-9-]+)\.amazonaws\.com/}, url) do
       [_, region] -> region
       _ -> nil
     end
   end
 
-  defp region_from_queue_url(_url), do: nil
+  def region_from_queue_url(_url), do: nil
 
   # Build AWS configuration for the LEGACY single-account path from the
   # process-wide `get_aws_*` resolution. Per-account credentials do not come
