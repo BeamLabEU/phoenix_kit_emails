@@ -31,7 +31,8 @@
                 phx-click="toggle_expand"
                 phx-value-provider={row.provider_kind}
                 phx-target={@myself}
-                aria-expanded={to_string(expanded?)}
+                aria-controls={"tracker-settings-#{row.provider_kind}"}
+              aria-expanded={to_string(expanded?)}
                 aria-label={gettext("%{label} settings", label: row.label)}
                 title={gettext("%{label} settings", label: row.label)}
               >
@@ -144,7 +145,7 @@
           another clickable row. --%>
           <tr :if={expanded?} class="hover:bg-transparent">
             <td colspan="9" class="bg-base-200/60 p-4">
-              <div class="space-y-6">
+              <div id={"tracker-settings-#{row.provider_kind}"} class="space-y-6">
                 <%!-- Generic for every tracker: the cadence its own chain
                 self-schedules at. Used to be a table column, where it took a
                 permanent slot for a value that is set once and then never

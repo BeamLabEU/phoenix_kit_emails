@@ -303,7 +303,11 @@ defmodule PhoenixKit.Modules.Emails.EventTracker do
   """
   @spec settings_component(t()) :: module() | nil
   def settings_component(tracker) when is_atom(tracker) do
-    if function_exported?(tracker, :settings_component, 0) do
+    # `Code.ensure_loaded?/1` first: under interactive code loading an
+    # unloaded tracker answers `false` to `function_exported?/3`, and the row
+    # would quietly render "no settings of its own" for a provider that has
+    # them.
+    if Code.ensure_loaded?(tracker) and function_exported?(tracker, :settings_component, 0) do
       tracker.settings_component()
     else
       nil
