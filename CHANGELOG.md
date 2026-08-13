@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.3.0 - 2026-08-12
+## 0.3.0 - 2026-08-13
 
 ### Upgrading — read this first
 
@@ -100,6 +100,48 @@ large.
 - The "Add account" button in the SES settings rendered as **"Accounts"** in
   every locale — `mix gettext.extract --merge` had fuzzy-matched it to the
   table column of that name, and no test rendered the button.
+
+### Fixed (review follow-ups, #33)
+
+- **Three translations were glued to the wrong source string.** They had been
+  merged onto a similar-looking msgid and left fuzzy, which gettext ignores, so
+  the UI showed another setting's wording or fell back to English. The worst
+  told the operator that a failed send-queue update was about saving email
+  headers. The catalogues now extract with zero fuzzy entries.
+
+- **Enabling polling is one transaction, not three steps.** It used to write the
+  eligibility flag, then the polling flag, then insert the first job — a failure
+  in step two or three left the flag flipped with polling off, and the panel
+  reported the failure without saying what it had already changed. The
+  deliberate asymmetry with *disabling* (which leaves the eligibility flag on,
+  because that same flag gates the SNS webhook path, which polls nothing) is now
+  argued in the `EventTracker` docs instead of contradicting them.
+
+- **An install on the global queue no longer looks unconfigured.** Removing the
+  legacy accordion removed the only place that queue was ever shown, so such an
+  install was told "no accounts configured" while the poller was reading it and
+  the tracker said Active. The panel now names the queue and says how to give
+  each account its own.
+
+- **The settings forms are styled at all now.** `form-control`, `label-text` and
+  `label-text-alt` do not exist in daisyUI 5 — not merely outdated, they styled
+  nothing: field labels fell through to the one live `.label` rule, which dims
+  text to 60%, and hints rendered at body size. Both files now use
+  `fieldset`/`fieldset-legend`, the idiom core's own forms use.
+
+- **The status line that repeated its own row is gone.** It read `should_poll?/0`,
+  which is exactly what the State column above it already splits into "Off" and
+  "Idle — no integration", each with a tooltip naming what to fix.
+
+- **The scrubber's linearity test no longer measures wall clock.** It timed a
+  large run that gets preempted more often than a small one, so a busy machine
+  looked like quadratic scrubbing. It counts reductions now — charged for work
+  actually done, stable to ~0.1% across runs, blind to load. The ceiling is
+  unchanged and a quadratic implementation still costs ~16x.
+
+### Changed
+
+- Dependency updates: `phoenix_kit` 2.3.0.
 
 ### Known limitation
 
