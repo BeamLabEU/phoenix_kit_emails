@@ -188,8 +188,12 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTracking d
 
   # A row that both exists and exposes an account list (`accounts` is nil for
   # single-account trackers).
+  # An EMPTY list is not openable either: the trigger is disabled for it, and a
+  # forged phx-value would otherwise open a dialog with nothing to toggle.
   defp account_row(rows, provider_kind) do
-    Enum.find(rows, fn row -> row.provider_kind == provider_kind and row.accounts != nil end)
+    Enum.find(rows, fn row ->
+      row.provider_kind == provider_kind and row.accounts not in [nil, []]
+    end)
   end
 
   # A dialog must never outlive the row it edits: a tracker removed by a deploy

@@ -362,6 +362,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTrackingTe
 
   describe "the accounts dialog" do
     test "opening targets a provider that has an account list" do
+      create_brevo_profile()
       {:ok, socket} = Panel.update(%{id: "panel"}, bare_socket())
 
       {:noreply, opened} =
@@ -371,6 +372,19 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTrackingTe
 
       {:noreply, closed} = Panel.handle_event("close_accounts", %{}, opened)
       assert closed.assigns.accounts_for == nil
+    end
+
+    test "a provider whose account list is empty never opens the dialog" do
+      {:ok, socket} = Panel.update(%{id: "panel"}, bare_socket())
+
+      # SES starts with no accounts at all — the trigger renders disabled, and
+      # the handler must agree with it rather than open an empty dialog.
+      assert row_for(socket.assigns.rows, "aws_ses").accounts == []
+
+      {:noreply, untouched} =
+        Panel.handle_event("open_accounts", %{"provider" => "aws_ses"}, socket)
+
+      assert untouched.assigns.accounts_for == nil
     end
 
     test "a forged provider never opens the dialog" do
@@ -383,6 +397,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTrackingTe
     end
 
     test "a dialog left open over a vanished row closes itself on the next update" do
+      create_brevo_profile()
       {:ok, socket} = Panel.update(%{id: "panel"}, bare_socket())
       socket = Phoenix.Component.assign(socket, :accounts_for, "gone_provider")
 
@@ -392,6 +407,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTrackingTe
     end
 
     test "accounts_row/2 resolves the row the dialog renders from" do
+      create_brevo_profile()
       {:ok, socket} = Panel.update(%{id: "panel"}, bare_socket())
 
       row = Panel.accounts_row(socket.assigns.rows, "brevo_api")
