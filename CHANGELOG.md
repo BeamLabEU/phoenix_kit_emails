@@ -1,5 +1,115 @@
 # Changelog
 
+## 0.3.0 - 2026-08-12
+
+### Upgrading — read this first
+
+This release adds a column to `phoenix_kit_email_logs`, and the schema in the
+code expects it. **Migrate before you restart**, not after:
+
+```
+mix phoenix_kit.update --yes   # applies the module chain (Emails V01)
+# ...then restart the application
+```
+
+Restarting first leaves the running code selecting a column the database does
+not have, and every query against `phoenix_kit_email_logs` fails until the
+update lands. Both steps are idempotent, so a host that has already run them is
+unaffected.
+
+Run `mix phoenix_kit.doctor` first. V01 adopts the module's six tables, which
+means it is the first thing to replay their constraints on a long-lived
+database, and doctor reports the two conditions that make that interesting: a
+drifted `phoenix_kit_email_events` shape and orphaned `email_log_uuid` rows.
+
+The migration bounds itself with `SET LOCAL lock_timeout = '5s'`, so behind a
+long-running reader it fails fast with a clear error instead of hanging the
+deploy — retry during a quiet window. It also takes a brief write lock on
+`phoenix_kit_email_logs` while building the new index; see
+`PhoenixKit.Modules.Emails.Migrations`' "Locking" section if that table is
+large.
+
+### Added
+
+- **Multi-account AWS SES delivery event tracking.** SQS polling could only ever
+  reach one AWS account: the queue URL was a single setting, the credentials
+  cache had a single key, and the Oban chain is unique per worker. With two SES
+  connections configured, one account's events were never collected — and the
+  poller could be handed account A's queue with account B's keys.
+
+  One Oban chain still, with N accounts polled inside each cycle (the shape
+  `BrevoPollingJob` already used). Each account carries its own queue, DLQ,
+  topic, configuration set and region under an `aws_tracking:<integration_uuid>`
+  setting, its own credentials, and its own opt-out. The "Amazon SES & SQS"
+  settings section grows a row per account, each with its own "Setup
+  Infrastructure" button that creates the resources in *that* account.
+
+- **Per-account SES configuration sets.** SES publishes delivery, bounce and
+  complaint events only through a configuration set that exists in the SENDING
+  account, so a single global name is silence for every account but one. The
+  name now travels with the account. While the sending account can only be
+  inferred (see below), the global name is still used for safety: a
+  configuration set that does not exist in the sending account is a failed
+  send, not just a lost event.
+
+- **`phoenix_kit_email_logs.integration_uuid`** — which account sent a message,
+  not just which provider kind. Nullable, best-effort, and backed by the SES
+  event's own `mail.sendingAccountId`, which is now kept in the stored
+  `event_data` alongside `sourceArn` and `configurationSet` as verifiable
+  provenance.
+
+- **A module-owned migration chain** (`PhoenixKit.Modules.Emails.Migrations`).
+  V01 adopts the six tables nothing outside this package uses, alongside core's
+  baseline, which still creates them — a deliberate transitional duplication.
+  See `dev_docs/reports/2026-08-12-emails-table-adoption.md`.
+
+### Changed
+
+- **The Email Sending settings page no longer has an "Amazon SES & SQS"
+  section.** It was listed as a peer of "Delivery Event Tracking" while
+  actually being the detail of one of that table's rows: it repeated the
+  table's "is collection on" answer, and nothing on the page said which row it
+  belonged to. Every tracker row now expands to its own settings, and the SES
+  row expands to exactly what that section used to hold — credentials source,
+  per-account queues, Setup Infrastructure, Add account, the warnings. Nothing
+  was removed; it moved one level in.
+
+  Trackers name their own settings component through a new optional
+  `EventTracker.settings_component/0` callback, so a provider that has none
+  (Brevo today) renders a note instead, and a future Mailgun needs no panel
+  code either way.
+
+- **The polling interval moved out of the tracker table into the expanded
+  row**, next to the SQS worker tuning knobs (max messages per poll,
+  visibility timeout) that moved there with it. A value set once and then
+  never looked at no longer holds a permanent column. The "Performance Tips"
+  block is gone.
+
+- **The global `aws_*` pipeline settings are no longer shown or editable.**
+  The read-only "Inherited settings (legacy)" accordion listed the SAME fields
+  the per-account rows carry (two of which — SNS topic ARN, queue ARN — are
+  read by nothing at all), inviting operators to reason about values only the
+  account rows can change. **The code fallback is untouched:** the poller and
+  the tracking interceptor still read `aws_sqs_queue_url`, `aws_region` and
+  friends for an install that has not moved to per-account tracking. Only the
+  UI is gone — the warning that sending is still running on legacy credentials
+  stays.
+
+### Fixed
+
+- The "Add account" button in the SES settings rendered as **"Accounts"** in
+  every locale — `mix gettext.extract --merge` had fuzzy-matched it to the
+  table column of that name, and no test rendered the button.
+
+### Known limitation
+
+Core does not yet pass the sending integration's uuid to the tracking
+interceptor, so for a send routed explicitly through a non-default connection of
+the same provider kind, `integration_uuid` is inferred and can name the default
+account instead. The column is an index, not a source of truth; the SES event's
+`mail.sendingAccountId` is. Per-account configuration sets are deliberately
+withheld in exactly that ambiguous case.
+
 ## 0.2.1 - 2026-08-11
 
 ### Fixed

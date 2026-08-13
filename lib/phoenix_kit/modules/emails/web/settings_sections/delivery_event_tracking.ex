@@ -12,6 +12,24 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTracking d
   those modules' moduledocs for what stayed behind (transport/identity
   config, not polling).
 
+  ## The expandable row
+
+  Every row expands to its own settings: the polling interval (generic —
+  every tracker has one) plus whatever the tracker names through
+  `EventTracker.settings_component/1`. SES points that at
+  `SettingsSections.AmazonSesSqs`, which used to be a third, sibling
+  section on this page — a peer of this table while actually being the
+  detail of one of its rows, duplicating its "is collection on" answer
+  and offering no clue which row it belonged to.
+
+  Expansion is an assign (`@expanded`, a MapSet of provider_kinds), not a
+  `<details>` or a daisyUI `collapse` checkbox: LiveView's morphdom patch
+  resets the DOM-only open state of both, so any row would snap shut on
+  the next poll-count refresh. Like the accounts dialog, the set is
+  re-resolved against fresh rows in `assign_rows/1` — the ONE place rows
+  are built — so a provider that disappeared (a tracker dropped by a
+  deploy) cannot leave an expanded row rendering against nothing.
+
   ## "Poll now" vs `poll_cycle/1`
 
   `EventTracker.poll_cycle/1`'s own moduledoc anticipated this button
@@ -35,10 +53,17 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTracking d
 
   @impl true
   def update(assigns, socket) do
+    # Merged FIRST, and only then defaulted: reading `socket.assigns` inside
+    # the same pipe would read the pre-merge socket (the pipe's argument is
+    # evaluated against the outer binding), silently discarding anything the
+    # parent passed in for these two keys.
+    socket = assign(socket, assigns)
+
     socket =
       socket
-      |> assign(assigns)
-      |> assign(:rows, build_rows())
+      |> assign(:accounts_for, Map.get(socket.assigns, :accounts_for))
+      |> assign(:expanded, Map.get(socket.assigns, :expanded) || MapSet.new())
+      |> assign_rows()
 
     {:ok, socket}
   end
@@ -64,7 +89,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTracking d
           EventTrackerReconciler.reconcile_tracker(tracker)
 
           socket
-          |> assign(:rows, build_rows())
+          |> assign_rows()
           |> put_flash(:info, gettext("%{label} tracking updated", label: tracker.label()))
 
         false ->
@@ -89,7 +114,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTracking d
         case tracker.poll_now() do
           {:ok, _job} ->
             socket
-            |> assign(:rows, build_rows())
+            |> assign_rows()
             |> put_flash(:info, gettext("%{label} poll triggered", label: tracker.label()))
 
           {:error, _reason} ->
@@ -110,7 +135,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTracking d
       case EventTrackerReconciler.reconcile_tracker(tracker) do
         {:ok, _} ->
           socket
-          |> assign(:rows, build_rows())
+          |> assign_rows()
           |> put_flash(:info, gettext("%{label} restarted", label: tracker.label()))
 
         {:error, _reason} ->
@@ -128,7 +153,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTracking d
           case tracker.set_polling_interval(interval_ms) do
             {:ok, _setting} ->
               socket
-              |> assign(:rows, build_rows())
+              |> assign_rows()
               |> put_flash(
                 :info,
                 gettext("%{label} polling interval updated to %{ms}ms",
@@ -151,11 +176,29 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTracking d
     end)
   end
 
+  def handle_event("open_accounts", %{"provider" => provider_kind}, socket) do
+    # Only a provider that actually exposes an account list can open the dialog:
+    # a forged phx-value would otherwise render a modal over a row that has none.
+    case account_row(socket.assigns.rows, provider_kind) do
+      nil ->
+        {:noreply, socket}
+
+      _row ->
+        # Through assign_rows/1 like every other path, so the row the dialog
+        # renders from is always the freshly resolved one.
+        {:noreply, socket |> assign(:accounts_for, provider_kind) |> assign_rows()}
+    end
+  end
+
+  def handle_event("close_accounts", _params, socket) do
+    {:noreply, socket |> assign(:accounts_for, nil) |> assign(:accounts_row, nil)}
+  end
+
   def handle_event("toggle_account", %{"provider" => provider_kind, "uuid" => uuid}, socket) do
     with_tracker(socket, provider_kind, fn tracker ->
       case EventTracker.toggle_account_polling(tracker, uuid) do
         {:ok, _result} ->
-          assign(socket, :rows, build_rows())
+          assign_rows(socket)
 
         {:error, _reason} ->
           put_flash(socket, :error, gettext("Failed to update account polling"))
@@ -163,7 +206,66 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTracking d
     end)
   end
 
+  # Only a provider_kind that has a row can be expanded — a forged
+  # phx-value would otherwise leave a dead entry in @expanded that
+  # assign_rows/1 has to prune on every refresh for no reason. Rows are
+  # rebuilt afterwards so the freshly expanded row renders against current
+  # data rather than whatever the last refresh left behind.
+  def handle_event("toggle_expand", %{"provider" => provider_kind}, socket) do
+    if Enum.any?(socket.assigns.rows, &(&1.provider_kind == provider_kind)) do
+      expanded = socket.assigns.expanded
+
+      expanded =
+        if MapSet.member?(expanded, provider_kind),
+          do: MapSet.delete(expanded, provider_kind),
+          else: MapSet.put(expanded, provider_kind)
+
+      {:noreply, socket |> assign(:expanded, expanded) |> assign_rows()}
+    else
+      {:noreply, socket}
+    end
+  end
+
   ## --- Private ---
+
+  # A row that both exists and exposes an account list (`accounts` is nil for
+  # single-account trackers).
+  # An EMPTY list is not openable either: the trigger is disabled for it, and a
+  # forged phx-value would otherwise open a dialog with nothing to toggle.
+  defp account_row(rows, provider_kind) do
+    Enum.find(rows, fn row ->
+      row.provider_kind == provider_kind and row.accounts not in [nil, []]
+    end)
+  end
+
+  # The ONE place rows are assigned. The open dialog is re-resolved against the
+  # fresh rows every time, and the template renders from that resolved row
+  # rather than looking it up itself: a dialog whose row disappeared (its last
+  # enabled send profile switched off in the next section, a tracker removed by
+  # a deploy) closes instead of rendering against nothing. Handlers refresh rows
+  # far more often than `update/2` runs, so guarding only there left the common
+  # path unprotected.
+  # Template helper: how many of a tracker's accounts are being polled.
+  defp polled_count(accounts) do
+    Enum.count(accounts, fn {_uuid, _name, polled?} -> polled? end)
+  end
+
+  defp assign_rows(socket) do
+    rows = build_rows()
+    row = socket.assigns[:accounts_for] && account_row(rows, socket.assigns[:accounts_for])
+    kinds = MapSet.new(rows, & &1.provider_kind)
+
+    socket
+    |> assign(:rows, rows)
+    |> assign(:accounts_for, row && row.provider_kind)
+    |> assign(:accounts_row, row)
+    # Same re-resolution as the dialog above: an expanded provider that no
+    # longer has a row is dropped rather than carried as a stale key.
+    |> assign(
+      :expanded,
+      MapSet.intersection(socket.assigns[:expanded] || MapSet.new(), kinds)
+    )
+  end
 
   # Resolves provider_kind to its registered tracker and runs fun/1
   # against it, always returning {:noreply, socket}. A provider_kind
@@ -220,7 +322,8 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTracking d
       pending_jobs: EventTracker.pending_jobs_count(tracker),
       interval_ms: tracker.interval_ms(),
       min_interval_ms: tracker.min_interval_ms(),
-      accounts: EventTracker.accounts(tracker)
+      accounts: EventTracker.accounts(tracker),
+      settings_component: EventTracker.settings_component(tracker)
     }
   end
 

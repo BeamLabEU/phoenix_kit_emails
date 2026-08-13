@@ -119,10 +119,25 @@ defmodule PhoenixKit.Modules.Emails.EventTracker do
   """
   @callback last_polled_at() :: DateTime.t() | nil
 
+  @doc """
+  The `Phoenix.LiveComponent` rendering this tracker's own provider-specific
+  settings, shown inside its expanded row in the "Delivery event tracking"
+  panel. **Optional** — a tracker that skips it (or returns `nil`) gets a
+  plain "no separate settings" note instead (see `settings_component/1`).
+
+  Only the module is returned, never `{module, assigns}`: the panel has no
+  provider-specific data to hand down, and the component is required to load
+  its own state in `update/2` — a caller-supplied assigns map would be a
+  second source of truth for the same settings, and the panel would have to
+  know what every provider needs in order to build it.
+  """
+  @callback settings_component() :: module() | nil
+
   @optional_callbacks integration_count: 0,
                       accounts: 0,
                       toggle_account_polling: 1,
-                      last_polled_at: 0
+                      last_polled_at: 0,
+                      settings_component: 0
 
   @doc """
   `eligible?() and enabled?()` — the single condition the reconciler
@@ -276,6 +291,26 @@ defmodule PhoenixKit.Modules.Emails.EventTracker do
       tracker.toggle_account_polling(uuid)
     else
       {:ok, :not_applicable}
+    end
+  end
+
+  @doc """
+  `settings_component/0` if the tracker defines it, otherwise `nil` — the
+  single guarded call site the panel uses, so a provider with no settings
+  of its own (and a Mailgun implementation that never heard of this
+  callback) renders the "no separate settings" note rather than crashing
+  the panel with an `UndefinedFunctionError`.
+  """
+  @spec settings_component(t()) :: module() | nil
+  def settings_component(tracker) when is_atom(tracker) do
+    # `Code.ensure_loaded?/1` first: under interactive code loading an
+    # unloaded tracker answers `false` to `function_exported?/3`, and the row
+    # would quietly render "no settings of its own" for a provider that has
+    # them.
+    if Code.ensure_loaded?(tracker) and function_exported?(tracker, :settings_component, 0) do
+      tracker.settings_component()
+    else
+      nil
     end
   end
 end

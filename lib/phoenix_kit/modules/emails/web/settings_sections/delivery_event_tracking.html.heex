@@ -9,11 +9,11 @@
     <table class="table table-zebra table-sm">
       <thead>
         <tr>
+          <th class="w-8"><span class="sr-only">{gettext("Settings")}</span></th>
           <th>{gettext("Provider")}</th>
           <th>{gettext("Integration")}</th>
           <th>{gettext("Tracking")}</th>
           <th>{gettext("State")}</th>
-          <th>{gettext("Interval")}</th>
           <th>{gettext("Last poll")}</th>
           <th>{gettext("Queued")}</th>
           <th>{gettext("Accounts")}</th>
@@ -22,7 +22,27 @@
       </thead>
       <tbody>
         <%= for row <- @rows do %>
+          <% expanded? = MapSet.member?(@expanded, row.provider_kind) %>
           <tr>
+            <td>
+              <button
+                type="button"
+                class="btn btn-ghost btn-xs px-1"
+                phx-click="toggle_expand"
+                phx-value-provider={row.provider_kind}
+                phx-target={@myself}
+                aria-controls={"tracker-settings-#{row.provider_kind}"}
+              aria-expanded={to_string(expanded?)}
+                aria-label={gettext("%{label} settings", label: row.label)}
+                title={gettext("%{label} settings", label: row.label)}
+              >
+                <.icon
+                  name={if expanded?, do: "hero-chevron-down", else: "hero-chevron-right"}
+                  class="w-4 h-4"
+                />
+              </button>
+            </td>
+
             <td class="font-medium">{row.label}</td>
 
             <td class="text-sm">{integration_summary(row.integration_count)}</td>
@@ -46,26 +66,6 @@
               </div>
             </td>
 
-            <td>
-              <div class="join">
-                <%!-- No `step`: with step == min the browser only accepts multiples
-                of the floor (Brevo: 30s, 60s, 90s, …) while phx-blur posts — and
-                the manager accepts — any value at or above it, so the input marked
-                perfectly valid intervals invalid. `min` is the real constraint. --%>
-                <input
-                  type="number"
-                  name="interval"
-                  value={row.interval_ms}
-                  class="input input-bordered input-xs join-item w-20"
-                  min={row.min_interval_ms}
-                  phx-blur="update_interval"
-                  phx-value-provider={row.provider_kind}
-                  phx-target={@myself}
-                />
-                <span class="join-item bg-base-200 px-2 text-xs flex items-center">ms</span>
-              </div>
-            </td>
-
             <td class="text-xs text-base-content/70">
               <%= if row.last_polled_at do %>
                 {gettext("Last polled: %{time}", time: row.last_polled_at)}
@@ -77,38 +77,38 @@
             <td>{row.pending_jobs}</td>
 
             <td>
+              <%!-- The account list opens in a modal, NOT in a dropdown anchored
+              inside the cell: this table scrolls horizontally, and any panel
+              positioned within it is clipped by that scroll container the moment
+              an account name is long or a second account appears. A dialog lives
+              in the top layer, so it is unaffected by whatever surrounds the
+              cell, and it has room to say WHY an account is not being polled. --%>
               <%= if row.accounts do %>
-                <details class="dropdown">
-                  <summary class="btn btn-xs btn-outline">
-                    {gettext("%{polled}/%{total}",
-                      polled: Enum.count(row.accounts, fn {_uuid, _name, polled?} -> polled? end),
+                <button
+                  type="button"
+                  class="btn btn-xs btn-outline font-mono"
+                  disabled={row.accounts == []}
+                  title={
+                    if row.accounts == [],
+                      do: gettext("No accounts yet"),
+                      else:
+                        gettext("Accounts polled: %{polled} of %{total}",
+                          polled: polled_count(row.accounts),
+                          total: length(row.accounts)
+                        )
+                  }
+                  aria-label={
+                    gettext("Accounts polled: %{polled} of %{total}",
+                      polled: polled_count(row.accounts),
                       total: length(row.accounts)
-                    )}
-                  </summary>
-                  <ul class="dropdown-content menu bg-base-100 rounded-box z-10 w-64 p-2 shadow-sm">
-                    <%= if row.accounts == [] do %>
-                      <li class="text-xs text-base-content/60 px-2 py-1">
-                        {gettext("No accounts yet")}
-                      </li>
-                    <% end %>
-                    <%= for {uuid, name, polled?} <- row.accounts do %>
-                      <li>
-                        <label class="label cursor-pointer justify-start gap-2">
-                          <input
-                            type="checkbox"
-                            class="checkbox checkbox-xs"
-                            checked={polled?}
-                            phx-click="toggle_account"
-                            phx-value-provider={row.provider_kind}
-                            phx-value-uuid={uuid}
-                            phx-target={@myself}
-                          />
-                          <span class="label-text text-xs">{name}</span>
-                        </label>
-                      </li>
-                    <% end %>
-                  </ul>
-                </details>
+                    )
+                  }
+                  phx-click="open_accounts"
+                  phx-value-provider={row.provider_kind}
+                  phx-target={@myself}
+                >
+                  {polled_count(row.accounts)}/{length(row.accounts)}
+                </button>
               <% else %>
                 <span class="text-base-content/40">—</span>
               <% end %>
@@ -139,8 +139,116 @@
               </div>
             </td>
           </tr>
+
+          <%!-- The row's own settings. `hover:bg-transparent` because a
+          settings panel that highlights as a table row on mouse-over reads as
+          another clickable row. --%>
+          <tr :if={expanded?} class="hover:bg-transparent">
+            <td colspan="9" class="bg-base-200/60 p-4">
+              <div id={"tracker-settings-#{row.provider_kind}"} class="space-y-6">
+                <%!-- Generic for every tracker: the cadence its own chain
+                self-schedules at. Used to be a table column, where it took a
+                permanent slot for a value that is set once and then never
+                looked at again. --%>
+                <div class="form-control">
+                  <label class="label" for={"#{@id}-interval-#{row.provider_kind}"}>
+                    <span class="label-text font-medium">{gettext("Polling interval")}</span>
+                  </label>
+                  <div class="join">
+                    <%!-- No `step`: with step == min the browser only accepts multiples
+                    of the floor (Brevo: 30s, 60s, 90s, …) while phx-blur posts — and
+                    the manager accepts — any value at or above it, so the input marked
+                    perfectly valid intervals invalid. `min` is the real constraint. --%>
+                    <input
+                      id={"#{@id}-interval-#{row.provider_kind}"}
+                      type="number"
+                      name="interval"
+                      value={row.interval_ms}
+                      class="input input-bordered input-sm join-item w-32"
+                      min={row.min_interval_ms}
+                      phx-blur="update_interval"
+                      phx-value-provider={row.provider_kind}
+                      phx-target={@myself}
+                    />
+                    <span class="join-item bg-base-300 px-3 text-sm flex items-center">ms</span>
+                  </div>
+                  <label class="label">
+                    <span class="label-text-alt text-base-content/70">
+                      {gettext("At least %{ms}ms for this provider.", ms: row.min_interval_ms)}
+                    </span>
+                  </label>
+                </div>
+
+                <%!-- Provider-specific, when the tracker names a component
+                (`EventTracker.settings_component/1`). It loads its own state
+                in `update/2`; the only thing handed down is this panel's id,
+                so the child can tell it when it changed something the row
+                above displays. --%>
+                <.live_component
+                  :if={row.settings_component}
+                  module={row.settings_component}
+                  id={"#{@id}-settings-#{row.provider_kind}"}
+                  parent_id={@id}
+                />
+                <p :if={is_nil(row.settings_component)} class="text-sm text-base-content/60">
+                  {gettext("This provider has no settings of its own.")}
+                </p>
+              </div>
+            </td>
+          </tr>
         <% end %>
       </tbody>
     </table>
   </div>
+
+  <%!-- One dialog for the whole panel, rendered outside the scroll container.
+  `@accounts_for` holds the provider_kind whose accounts are being edited; the
+  rows themselves stay the single source of truth, so a toggle refreshes the
+  list under the open dialog without closing it. --%>
+  <.modal
+    :if={@accounts_row}
+    show={true}
+    id={"#{@id}-accounts-modal"}
+    on_close="close_accounts"
+    max_width="lg"
+  >
+    <:title>
+      {gettext("Accounts polled — %{provider}", provider: @accounts_row.label)}
+    </:title>
+
+    <p class="text-sm text-base-content/70 mb-3">
+      {gettext(
+        "Each account is polled on its own queue. Unchecking one leaves its events unread until it is checked again."
+      )}
+    </p>
+
+    <ul class="divide-y divide-base-200">
+      <li
+        :for={{uuid, name, polled?} <- @accounts_row.accounts}
+        class="py-2"
+      >
+        <label class="label cursor-pointer justify-start gap-3 p-0">
+          <input
+            type="checkbox"
+            class="checkbox checkbox-sm"
+            checked={polled?}
+            phx-click="toggle_account"
+            phx-value-provider={@accounts_row.provider_kind}
+            phx-value-uuid={uuid}
+            phx-target={@myself}
+          />
+          <span class="flex flex-col min-w-0">
+            <span class="text-sm font-medium text-base-content truncate">{name}</span>
+            <span class="text-xs text-base-content/60 font-mono truncate">{uuid}</span>
+          </span>
+        </label>
+      </li>
+    </ul>
+
+    <:actions>
+      <button type="button" class="btn btn-sm" phx-click="close_accounts" phx-target={@myself}>
+        {gettext("Close")}
+      </button>
+    </:actions>
+  </.modal>
 </div>

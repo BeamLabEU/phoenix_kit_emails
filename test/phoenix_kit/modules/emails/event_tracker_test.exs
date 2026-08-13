@@ -53,6 +53,30 @@ defmodule PhoenixKit.Modules.Emails.EventTrackerTest do
         assert is_integer(tracker.min_interval_ms())
         assert tracker.min_interval_ms() > 0
       end
+
+      test "#{inspect(tracker)}: settings_component/1 answers a loadable component or nil" do
+        tracker = unquote(tracker)
+
+        case EventTracker.settings_component(tracker) do
+          nil ->
+            :ok
+
+          component ->
+            assert Code.ensure_loaded?(component)
+            # The panel renders it with nothing but an id — anything else it
+            # needs, it has to load in update/2 itself.
+            assert function_exported?(component, :update, 2)
+        end
+      end
+    end
+  end
+
+  describe "settings_component/1" do
+    alias PhoenixKit.Modules.Emails.FakeEventTracker
+
+    test "a tracker that never heard of the callback gets nil, not a crash" do
+      refute function_exported?(FakeEventTracker, :settings_component, 0)
+      assert EventTracker.settings_component(FakeEventTracker) == nil
     end
   end
 

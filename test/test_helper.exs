@@ -9,10 +9,25 @@ repo_available =
   try do
     {:ok, _} = PhoenixKitEmails.Test.Repo.start_link()
     PhoenixKit.Migration.ensure_current(PhoenixKitEmails.Test.Repo, log: false)
+
+    # ...then this package's own chain, which extends core-created tables
+    # (see PhoenixKit.Modules.Emails.Migrations). Executed as raw statements
+    # rather than through `up/1` because `Ecto.Migration.execute/1` needs a
+    # migration runner process; `up_statements/1` is the same single source
+    # `up/1` itself iterates, and every statement is idempotent.
+    Enum.each(
+      PhoenixKit.Modules.Emails.Migrations.up_statements(),
+      &PhoenixKitEmails.Test.Repo.query!/1
+    )
+
     Ecto.Adapters.SQL.Sandbox.mode(PhoenixKitEmails.Test.Repo, :manual)
     true
   rescue
-    e ->
+    # Narrow on purpose. A bare `rescue e` also catches a broken support file, a
+    # bad config or a compile-time error in the chain itself, and answers by
+    # EXCLUDING every integration test — turning a broken suite green. Only a
+    # genuine "there is no database here" is allowed to do that.
+    e in [DBConnection.ConnectionError, Postgrex.Error] ->
       IO.puts("""
       \n⚠  Could not connect to test database — integration tests will be excluded.
          Run `createdb phoenix_kit_emails_test` to create it.

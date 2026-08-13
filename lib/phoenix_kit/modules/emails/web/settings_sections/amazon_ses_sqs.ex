@@ -1,27 +1,34 @@
 defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
   @moduledoc """
-  "Amazon SES & SQS" section on the core Email Sending settings page
-  (`/admin/settings/email-sending`).
+  The Amazon SES half of the "Delivery event tracking" panel: everything
+  SES-specific behind the expanded `aws_ses` row — which Integrations
+  connection supplies SES/SQS credentials, the per-account queues, one-click
+  infrastructure setup, and the SQS worker's tuning knobs.
 
-  Covers the module's SES-specific concerns: which Integrations connection
-  (or legacy manual credentials) supplies SES/SQS credentials, event
-  tracking, one-click infrastructure setup, and the SQS polling worker.
-  Contributed via `PhoenixKit.Modules.Emails.email_settings_sections/0`.
+  Reached through `SQSPollingManager.settings_component/0`, not through
+  `PhoenixKit.Modules.Emails.email_settings_sections/0`. It used to be a
+  third section on the settings page, listed as a peer of the tracker table
+  while actually being the detail of one of its rows: it repeated that
+  table's "is collection on" answer, and nothing on the page said which
+  row it belonged to.
+
+  Loads everything it renders in `update/2` and takes no assigns but `id`,
+  which is what lets the panel render it without knowing anything about SES.
   """
 
   use PhoenixKitWeb, :live_component
   use Gettext, backend: PhoenixKit.Modules.Emails.Gettext
 
-  import PhoenixKitWeb.Components.Core.AWSCredentialsVerify
-
-  alias PhoenixKit.AWS.CredentialsVerifier
   alias PhoenixKit.AWS.InfrastructureSetup
-  alias PhoenixKit.Config.AWS
   alias PhoenixKit.Integrations
   alias PhoenixKit.Modules.Emails
+  alias PhoenixKit.Modules.Emails.AwsIntegrations
+  alias PhoenixKit.Modules.Emails.EventTrackerReconciler
+  alias PhoenixKit.Modules.Emails.SQSPollingJob
+  alias PhoenixKit.Modules.Emails.SQSPollingManager
   alias PhoenixKit.Modules.Emails.Utils
+  alias PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTracking
   alias PhoenixKit.Settings
-  alias PhoenixKitWeb.Live.Components.SearchableSelect
 
   @dialyzer {:nowarn_function, handle_event: 3}
 
@@ -30,71 +37,36 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
     socket = assign(socket, assigns)
 
     socket =
-      if Map.has_key?(socket.assigns, :aws_settings) do
+      if Map.has_key?(socket.assigns, :tracking_accounts) do
         socket
       else
         email_config = Emails.get_config()
 
-        aws_settings = %{
-          access_key_id: Settings.get_setting("aws_access_key_id", ""),
-          secret_access_key: Settings.get_setting("aws_secret_access_key", ""),
-          region: Settings.get_setting("aws_region", ""),
-          sqs_queue_url: Settings.get_setting("aws_sqs_queue_url", ""),
-          sqs_dlq_url: Settings.get_setting("aws_sqs_dlq_url", ""),
-          sqs_queue_arn: Settings.get_setting("aws_sqs_queue_arn", ""),
-          sns_topic_arn: Settings.get_setting("aws_sns_topic_arn", ""),
-          ses_configuration_set: Settings.get_setting("aws_ses_configuration_set", "")
-        }
-
         socket
         |> assign(:mailer_status, Utils.mailer_adapter_status())
-        |> assign(:current_provider, Emails.current_provider())
         |> assign(:aws_configured, Emails.aws_configured?())
-        |> assign(:email_ses_events, email_config.ses_events)
         |> assign(:sqs_max_messages_per_poll, email_config.sqs_max_messages_per_poll)
         |> assign(:sqs_visibility_timeout, email_config.sqs_visibility_timeout)
-        |> assign(:aws_settings, aws_settings)
+        # The only global `aws_*` setting still read by this panel, and only
+        # to warn that sending is running on it. The rest are no longer shown
+        # or editable here: they are the SAME fields the per-account rows
+        # carry, and the account rows are the one place to change them. The
+        # CODE fallback is untouched — poller and interceptor still read the
+        # globals for an install that has not moved to per-account tracking.
+        |> assign(:legacy_credentials?, legacy_credentials?())
         |> assign(:aws_ses_connections, Integrations.list_connections("aws_ses"))
         |> assign(
           :selected_aws_integration_uuid,
           Settings.get_setting("emails_aws_integration_uuid", "")
         )
-        |> assign(:saving, false)
-        |> assign(:setting_up_aws, false)
-        |> assign(:verifying_credentials, false)
-        |> assign(:credential_verification_status, :pending)
-        |> assign(:credential_verification_message, "")
-        |> assign(:aws_permissions, %{})
+        |> assign_tracking_accounts()
+        |> assign(:setting_up_account, nil)
       end
 
     {:ok, socket}
   end
 
   @impl true
-  def handle_event("toggle_email_ses_events", _params, socket) do
-    new_ses_events = !socket.assigns.email_ses_events
-
-    case Emails.set_ses_events(new_ses_events) do
-      {:ok, _setting} ->
-        socket =
-          socket
-          |> assign(:email_ses_events, new_ses_events)
-          |> put_flash(
-            :info,
-            if(new_ses_events,
-              do: gettext("AWS SES events tracking enabled"),
-              else: gettext("AWS SES events tracking disabled")
-            )
-          )
-
-        {:noreply, socket}
-
-      {:error, _changeset} ->
-        socket = put_flash(socket, :error, gettext("Failed to update AWS SES events tracking"))
-        {:noreply, socket}
-    end
-  end
-
   def handle_event("update_max_messages", params, socket) do
     value = Map.get(params, "max_messages") || Map.get(params, "value")
 
@@ -159,169 +131,99 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
     end
   end
 
-  def handle_event("setup_aws_infrastructure", _params, socket) do
-    socket = assign(socket, :setting_up_aws, true)
+  def handle_event("assign_tracking_account", %{"uuid" => ""}, socket) do
+    {:noreply, put_flash(socket, :error, gettext("Select an Amazon SES connection to add"))}
+  end
 
-    project_name =
-      Settings.get_setting("project_title", "myapp")
-      |> String.downcase()
-      |> String.replace(~r/[^a-z0-9-]/, "-")
-      |> String.trim("-")
+  def handle_event("assign_tracking_account", %{"uuid" => uuid}, socket) do
+    if known_connection?(socket, uuid) do
+      case Emails.set_aws_tracking(uuid, %{}) do
+        {:ok, _setting} ->
+          {:noreply,
+           socket
+           |> after_tracking_change()
+           |> put_flash(:info, gettext("Account added to event tracking"))}
 
-    aws_config = socket.assigns.aws_settings
-    region = aws_config.region || AWS.region()
-
-    access_key_id =
-      if aws_config.access_key_id != "", do: aws_config.access_key_id, else: nil
-
-    secret_access_key =
-      if aws_config.secret_access_key != "", do: aws_config.secret_access_key, else: nil
-
-    if access_key_id && secret_access_key do
-      case InfrastructureSetup.run(
-             project_name: project_name,
-             region: region,
-             access_key_id: access_key_id,
-             secret_access_key: secret_access_key
-           ) do
-        {:ok, config} ->
-          case Settings.update_settings_batch(config) do
-            {:ok, _results} ->
-              new_aws_settings = %{
-                access_key_id: access_key_id,
-                secret_access_key: secret_access_key,
-                region: config["aws_region"],
-                sqs_queue_url: config["aws_sqs_queue_url"],
-                sqs_dlq_url: config["aws_sqs_dlq_url"],
-                sqs_queue_arn: config["aws_sqs_queue_arn"],
-                sns_topic_arn: config["aws_sns_topic_arn"],
-                ses_configuration_set: config["aws_ses_configuration_set"]
-              }
-
-              socket =
-                socket
-                |> assign(:aws_settings, new_aws_settings)
-                |> assign(:setting_up_aws, false)
-                |> put_flash(:info, """
-                ✅ AWS Email Infrastructure Created Successfully!
-
-                📦 Created Resources:
-                • Project: #{project_name}
-                • Region: #{config["aws_region"]}
-                • SNS Topic: #{config["aws_sns_topic_arn"]}
-                • SQS Queue: #{config["aws_sqs_queue_url"]}
-                • Dead Letter Queue: #{config["aws_sqs_dlq_url"]}
-                • SES Configuration Set: #{config["aws_ses_configuration_set"]}
-
-                🎉 All settings have been automatically filled below.
-                Click "Save AWS Settings" to persist the configuration.
-
-                ⚡ Next steps:
-                1. Verify your email/domain in AWS SES Console
-                2. Turn on tracking for Amazon SES in the "Delivery Event Tracking" section above
-                3. Start sending emails!
-                """)
-
-              {:noreply, socket}
-
-            {:error, _failed_operation, _failed_value, _changes} ->
-              socket =
-                socket
-                |> assign(:setting_up_aws, false)
-                |> put_flash(:error, """
-                ⚠️ Infrastructure created but failed to save settings.
-
-                AWS resources were created successfully, but there was an error saving configuration to database.
-                Please save AWS settings manually.
-                """)
-
-              {:noreply, socket}
-          end
-
-        {:error, step, reason} ->
-          socket =
-            socket
-            |> assign(:setting_up_aws, false)
-            |> put_flash(:error, """
-            ❌ AWS Setup Failed
-
-            Failed at step: #{step}
-            Reason: #{reason}
-
-            Please check:
-            • AWS credentials are valid
-            • IAM permissions (SQS, SNS, SES, STS)
-            • AWS region is correct
-            • No resource limits exceeded
-
-            You can also use the manual bash script:
-            ./scripts/setup_aws_email_infrastructure.sh
-            """)
-
-          {:noreply, socket}
+        {:error, _reason} ->
+          {:noreply, put_flash(socket, :error, gettext("Failed to add account"))}
       end
     else
-      socket =
-        socket
-        |> assign(:setting_up_aws, false)
-        |> put_flash(:error, """
-        ❌ AWS Credentials Required
-
-        Please configure AWS Access Key ID and Secret Access Key before running setup.
-
-        You can get these credentials from AWS IAM Console:
-        https://console.aws.amazon.com/iam/home#/users
-        """)
-
+      # Not an aws_ses connection this page could have offered — a stale tab
+      # or a forged phx-value. Ignored rather than written.
       {:noreply, socket}
     end
   end
 
-  def handle_event("save_aws_settings", %{"aws_settings" => aws_params}, socket) do
-    socket = assign(socket, :saving, true)
-
-    settings_to_update = %{
-      "aws_access_key_id" => String.trim(aws_params["access_key_id"] || ""),
-      "aws_secret_access_key" => String.trim(aws_params["secret_access_key"] || ""),
-      "aws_region" =>
-        if(aws_params["region"] in [nil, ""],
-          do: AWS.region(),
-          else: aws_params["region"]
-        ),
-      "aws_sqs_queue_url" => aws_params["sqs_queue_url"] || "",
-      "aws_sqs_dlq_url" => aws_params["sqs_dlq_url"] || "",
-      "aws_sqs_queue_arn" => aws_params["sqs_queue_arn"] || "",
-      "aws_sns_topic_arn" => aws_params["sns_topic_arn"] || "",
-      "aws_ses_configuration_set" =>
-        if(aws_params["ses_configuration_set"] in [nil, ""],
-          do: "phoenixkit-tracking",
-          else: aws_params["ses_configuration_set"]
-        )
-    }
-
-    case Settings.update_settings_batch(settings_to_update) do
-      {:ok, _results} ->
-        new_aws_settings = build_aws_settings_map(aws_params)
-
-        socket =
-          socket
-          |> assign(:aws_settings, new_aws_settings)
-          |> assign(:saving, false)
-          |> put_flash(:info, gettext("AWS settings saved successfully"))
-
-        {:noreply, socket}
-
-      {:error, _failed_operation, _failed_value, _changes} ->
-        socket =
-          socket
-          |> assign(:saving, false)
-          |> put_flash(:error, gettext("Failed to save AWS settings"))
-
-        {:noreply, socket}
+  def handle_event("unassign_tracking_account", %{"uuid" => uuid}, socket) do
+    if known_connection?(socket, uuid) do
+      do_unassign_tracking_account(uuid, socket)
+    else
+      {:noreply, socket}
     end
   end
 
-  def handle_event("select_aws_integration", %{"uuid" => uuid}, socket) do
+  def handle_event("save_tracking_account", %{"uuid" => uuid} = params, socket) do
+    attrs = Map.get(params, "tracking", %{})
+
+    if known_connection?(socket, uuid) do
+      case Emails.set_aws_tracking(uuid, attrs) do
+        {:ok, _setting} ->
+          {:noreply,
+           socket
+           |> after_tracking_change()
+           |> put_flash(:info, gettext("Account tracking settings saved"))}
+
+        {:error, _reason} ->
+          {:noreply, put_flash(socket, :error, gettext("Failed to save account settings"))}
+      end
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("setup_account_infrastructure", %{"uuid" => uuid}, socket) do
+    if known_connection?(socket, uuid) do
+      {:noreply, run_account_setup(assign(socket, :setting_up_account, uuid), uuid)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("assign_aws_integration", %{"uuid" => uuid}, socket)
+      when uuid != "" do
+    # Every other handler here validates; this one did not, and it writes the
+    # setting that decides which account may inherit the global queue. A forged
+    # phx-value pointing at nothing would leave the globals attributable to no
+    # active account, and polling would stop with the panel still calling it
+    # healthy.
+    if known_connection?(socket, uuid) do
+      do_assign_aws_integration(uuid, socket)
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("assign_aws_integration", %{"uuid" => uuid}, socket) do
+    do_assign_aws_integration(uuid, socket)
+  end
+
+  defp do_unassign_tracking_account(uuid, socket) do
+    case Emails.delete_aws_tracking(uuid) do
+      {:error, :not_found} ->
+        {:noreply, after_tracking_change(socket)}
+
+      {:error, _reason} ->
+        {:noreply, put_flash(socket, :error, gettext("Failed to remove account"))}
+
+      _ok ->
+        {:noreply,
+         socket
+         |> after_tracking_change()
+         |> put_flash(:info, gettext("Account removed from event tracking"))}
+    end
+  end
+
+  defp do_assign_aws_integration(uuid, socket) do
     # An empty uuid means "back to legacy" — clear the setting instead of
     # writing an empty value (the key isn't in Setting's optional-value
     # allowlist, so an empty-string write would fail changeset validation).
@@ -346,9 +248,18 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
         # cache's TTL — see Emails.invalidate_aws_credentials_cache/0.
         Emails.invalidate_aws_credentials_cache()
 
+        # This setting decides which account may inherit the global queue
+        # (SQSPollingJob.configured_accounts/0), so changing it can make the
+        # SES tracker newly eligible or newly ineligible. Same reasoning as
+        # after_tracking_change/1 and the Delivery Event Tracking toggle:
+        # without a reconcile the chain is only corrected on the next cron
+        # tick, or never on a host that skipped wiring the cron.
+        EventTrackerReconciler.reconcile_tracker(SQSPollingManager)
+
         socket =
           socket
           |> assign(:selected_aws_integration_uuid, uuid)
+          |> assign_tracking_accounts()
           |> put_flash(:info, gettext("SES credentials source updated"))
 
         {:noreply, socket}
@@ -358,113 +269,200 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
     end
   end
 
-  def handle_event("verify_aws_credentials", _params, socket) do
-    aws_settings = socket.assigns.aws_settings
+  # Rows for the per-account tracking list, plus the connections that don't
+  # have one yet (what the "add account" picker offers). Both derived from
+  # the same `list_connections("aws_ses")` read the credentials-source
+  # picker already does, so a connection can never appear in both.
+  defp assign_tracking_accounts(socket) do
+    # Reads the connection list itself rather than trusting an assign: this
+    # runs from every write handler, and one of them (assign_aws_integration)
+    # is reachable on a socket that never went through update/2.
+    connections = Integrations.list_connections("aws_ses")
+    assigned = MapSet.new(Emails.list_aws_tracking_integration_uuids())
+    active = MapSet.new(AwsIntegrations.active_integration_uuids())
 
-    if credentials_missing?(aws_settings) do
-      {:noreply,
-       assign_verification_error(
-         socket,
-         "Please enter Access Key ID and Secret Access Key before verification."
-       )}
-    else
-      socket = assign(socket, :verifying_credentials, true)
+    rows =
+      connections
+      |> Enum.filter(&MapSet.member?(assigned, &1.uuid))
+      |> Enum.map(fn connection ->
+        %{
+          uuid: connection.uuid,
+          name: connection.name,
+          active?: MapSet.member?(active, connection.uuid),
+          tracking: Emails.get_aws_tracking(connection.uuid) || %{}
+        }
+      end)
 
-      task = Task.async(fn -> verify_aws_credentials(aws_settings) end)
+    # Active accounts with no queue of their own: the poller is still running,
+    # but on the single legacy queue rather than per account (see
+    # SQSPollingJob.configured_accounts/0). Named here because the alternative
+    # is an operator who upgraded, sees "Running normally", and has no idea
+    # half their accounts are not being polled.
+    awaiting =
+      SQSPollingJob.accounts_awaiting_configuration()
+      |> Enum.map(fn uuid ->
+        case Enum.find(connections, &(&1.uuid == uuid)) do
+          %{name: name} -> name
+          _ -> uuid
+        end
+      end)
 
-      case Task.yield(task, 15_000) || Task.shutdown(task) do
-        {:ok, result} ->
-          {:noreply, handle_verification_result(socket, result)}
+    socket
+    |> assign(:aws_ses_connections, connections)
+    |> assign(:accounts_awaiting_configuration, awaiting)
+    |> assign(:tracking_accounts, rows)
+    |> assign(
+      :unassigned_connections,
+      Enum.reject(connections, &MapSet.member?(assigned, &1.uuid))
+    )
+  end
 
-        nil ->
-          {:noreply,
-           assign_verification_error(socket, "❌ Verification timed out. Please try again.")}
-      end
+  # Reload the rows AND reconcile the SES tracker — see the handlers above.
+  # Credentials are invalidated too: a per-account setup run can have
+  # rewritten the region the send path resolves for this connection.
+  defp after_tracking_change(socket) do
+    EventTrackerReconciler.reconcile_tracker(SQSPollingManager)
+    Emails.invalidate_aws_credentials_cache()
+
+    # Everything reached through here changes what the tracker ROW above this
+    # panel says — the account count, and whether the tracker is eligible at
+    # all. A child's event does not re-run the parent's update/2, so adding the
+    # first account left the row one pixel higher still reporting "no
+    # integration" until something else redrew it. The panel is a detail of
+    # that row; it has to tell the row when it changed.
+    notify_parent(socket)
+
+    socket
+    |> assign_tracking_accounts()
+    |> assign(:setting_up_account, nil)
+  end
+
+  defp notify_parent(socket) do
+    case socket.assigns[:parent_id] do
+      nil -> :ok
+      parent_id -> send_update(DeliveryEventTracking, id: parent_id)
     end
   end
 
-  # Private helpers for AWS credentials verification
+  # Scoped `owner: :any`, matching how the poller and the send-path attribution
+  # resolve accounts (`Integrations.get_credentials/2` and
+  # `get_integration_by_uuid/2` both default to `:any`). Validating against the
+  # narrower `:system` list would reject a USER-owned connection that the
+  # poller happily uses — a guard stricter than the thing it guards is a bug
+  # wearing a safety jacket.
+  defp known_connection?(socket, uuid) do
+    connections =
+      Map.get(socket.assigns, :aws_ses_connections) ||
+        Integrations.list_connections("aws_ses", owner: :any)
 
-  defp credentials_missing?(aws_settings) do
-    String.trim(aws_settings.access_key_id) == "" or
-      String.trim(aws_settings.secret_access_key) == ""
+    Enum.any?(connections, &(&1.uuid == uuid))
   end
 
-  defp verify_aws_credentials(aws_settings) do
-    CredentialsVerifier.verify_credentials(
-      aws_settings.access_key_id,
-      aws_settings.secret_access_key,
-      aws_settings.region
+  # Creates the SNS topic / SQS queue / DLQ / configuration set in THIS
+  # account (its own keys, not the globally selected connection's) and
+  # stores the result under `aws_tracking:<uuid>` instead of the global
+  # `aws_*` settings — the whole point of the per-account model: resources
+  # created with account A's credentials only ever exist in account A.
+  defp run_account_setup(socket, uuid) do
+    with {:ok, creds} <- AwsIntegrations.resolve_credentials(uuid),
+         {:ok, config} <- setup_infrastructure(creds) do
+      tracking = %{
+        "queue_url" => config["aws_sqs_queue_url"],
+        "dlq_url" => config["aws_sqs_dlq_url"],
+        "queue_arn" => config["aws_sqs_queue_arn"],
+        "sns_topic_arn" => config["aws_sns_topic_arn"],
+        "configuration_set" => config["aws_ses_configuration_set"],
+        "region" => config["aws_region"]
+      }
+
+      case Emails.set_aws_tracking(uuid, tracking) do
+        {:ok, _setting} ->
+          socket
+          |> after_tracking_change()
+          |> put_flash(:info, gettext("AWS infrastructure created for this account"))
+
+        {:error, _reason} ->
+          socket
+          |> assign(:setting_up_account, nil)
+          |> put_flash(
+            :error,
+            gettext("Infrastructure created but the settings could not be saved")
+          )
+      end
+    else
+      {:error, :missing_credentials} ->
+        socket
+        |> assign(:setting_up_account, nil)
+        |> put_flash(
+          :error,
+          gettext("This connection has no AWS credentials — add them in Settings → Integrations")
+        )
+
+      {:error, :missing_region} ->
+        socket
+        |> assign(:setting_up_account, nil)
+        |> put_flash(
+          :error,
+          gettext(
+            "This connection has no AWS region — set it in Settings → Integrations before creating infrastructure"
+          )
+        )
+
+      {:error, step, reason} ->
+        socket
+        |> assign(:setting_up_account, nil)
+        |> put_flash(
+          :error,
+          gettext("AWS setup failed at step %{step}: %{reason}", step: step, reason: reason)
+        )
+
+      {:error, reason} ->
+        socket
+        |> assign(:setting_up_account, nil)
+        |> put_flash(:error, gettext("AWS setup failed: %{reason}", reason: inspect(reason)))
+    end
+  end
+
+  # A missing region is refused, never guessed. `InfrastructureSetup.run/1`
+  # creates an SNS topic, a queue, a DLQ and a configuration set — in a guessed
+  # region that is four real AWS resources in the wrong place, invisible to the
+  # account that actually sends, and removable only by hand in a console.
+  defp setup_infrastructure(%{region: nil}), do: {:error, :missing_region}
+
+  defp setup_infrastructure(creds) do
+    InfrastructureSetup.run(
+      project_name: project_name(),
+      region: creds.region,
+      access_key_id: creds.access_key,
+      secret_access_key: creds.secret_key
     )
   end
 
-  defp assign_verification_error(socket, message) do
-    socket
-    |> assign(:verifying_credentials, false)
-    |> assign(:credential_verification_status, :error)
-    |> assign(:credential_verification_message, message)
+  # Rendered live, not stored in an assign: the switch that decides this lives
+  # in the sibling tracking panel, whose toggles do not re-render this section.
+  # A cached copy would sit there saying "on" long after it was switched off.
+  defp collecting_events?, do: SQSPollingJob.should_poll?()
+
+  # Is the send path still running on the global, pre-Integrations key pair?
+  defp legacy_credentials? do
+    case Settings.get_setting("aws_access_key_id", "") do
+      value when is_binary(value) -> String.trim(value) != ""
+      _ -> false
+    end
   end
 
-  defp handle_verification_result(socket, {:ok, credential_info}) do
-    socket
-    |> assign(:verifying_credentials, false)
-    |> assign(:credential_verification_status, :success)
-    |> assign(
-      :credential_verification_message,
-      "✅ Credentials verified! Account: #{credential_info.account_id}. Ready for Setup AWS Infrastructure."
-    )
-    |> assign(:aws_permissions, %{})
+  defp project_name do
+    Settings.get_setting("project_title", "myapp")
+    |> String.downcase()
+    |> String.replace(~r/[^a-z0-9-]/, "-")
+    |> String.trim("-")
   end
 
-  defp handle_verification_result(socket, {:error, :invalid_credentials, message}) do
-    assign_verification_error(socket, "❌ Invalid credentials: #{message}")
-  end
-
-  defp handle_verification_result(socket, {:error, :authentication_failed, message}) do
-    assign_verification_error(socket, "❌ Authentication failed: #{message}")
-  end
-
-  defp handle_verification_result(socket, {:error, :configuration_error, message}) do
-    assign_verification_error(socket, "❌ Configuration error: #{message}")
-  end
-
-  defp handle_verification_result(socket, {:error, :rate_limited, message}) do
-    assign_verification_error(socket, "❌ Rate limited: #{message}")
-  end
-
-  defp handle_verification_result(socket, {:error, :network_error, message}) do
-    assign_verification_error(socket, "❌ Network error: #{message}")
-  end
-
-  defp handle_verification_result(socket, {:error, :response_error, message}) do
-    assign_verification_error(socket, "❌ Response parsing error: #{message}")
-  end
-
-  defp handle_verification_result(socket, {:error, reason}) do
-    assign_verification_error(socket, "❌ Verification failed: #{reason}")
-  end
-
-  # Paste-able config.exs snippet to configure (or switch to) the Amazon SES
-  # adapter, using the actually-detected mailer module/app so it's always
-  # copy-pasteable as-is.
   defp mailer_config_snippet(%{config_app: app, config_module: mod}) do
     """
     config :#{app}, #{inspect(mod)},
       adapter: Swoosh.Adapters.AmazonSES,
       region: "eu-north-1"
     """
-  end
-
-  defp build_aws_settings_map(aws_params) do
-    %{
-      access_key_id: aws_params["access_key_id"] || "",
-      secret_access_key: aws_params["secret_access_key"] || "",
-      region: aws_params["region"] || "",
-      sqs_queue_url: aws_params["sqs_queue_url"] || "",
-      sqs_dlq_url: aws_params["sqs_dlq_url"] || "",
-      sqs_queue_arn: aws_params["sqs_queue_arn"] || "",
-      sns_topic_arn: aws_params["sns_topic_arn"] || "",
-      ses_configuration_set: aws_params["ses_configuration_set"] || ""
-    }
   end
 end

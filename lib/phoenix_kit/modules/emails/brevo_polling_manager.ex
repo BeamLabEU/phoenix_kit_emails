@@ -71,6 +71,15 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingManager do
   # and a polling cadence too slow for the generic Oban-history
   # last-poll derivation to survive the Pruner.
 
+  # settings_component/0 is the fifth, and this one is answered `nil` on
+  # purpose rather than skipped: Brevo's whole transport config (API key,
+  # sender identity) lives in Settings → Integrations, and its polling
+  # cadence and account opt-outs are already in the panel's own row. There
+  # is nothing left that is Brevo-specific, and stating that here is worth
+  # more to the next provider author than an absence they have to infer.
+  @impl PhoenixKit.Modules.Emails.EventTracker
+  def settings_component, do: nil
+
   # Number of distinct active brevo_api integrations — the admin panel's
   # "N active accounts" Integration-column count.
   @impl PhoenixKit.Modules.Emails.EventTracker

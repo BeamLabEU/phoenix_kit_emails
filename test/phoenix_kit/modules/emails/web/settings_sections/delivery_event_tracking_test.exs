@@ -10,6 +10,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTrackingTe
   use PhoenixKitEmails.DataCase, async: false
 
   import Ecto.Query
+  import Phoenix.LiveViewTest
 
   alias PhoenixKit.Email.SendProfiles
   alias PhoenixKit.Integrations
@@ -18,6 +19,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTrackingTe
   alias PhoenixKit.Modules.Emails.BrevoPollingManager
   alias PhoenixKit.Modules.Emails.SQSPollingJob
   alias PhoenixKit.Modules.Emails.SQSPollingManager
+  alias PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs, as: SesSection
   alias PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTracking, as: Panel
   alias PhoenixKitEmails.Test.Repo
 
@@ -67,7 +69,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTrackingTe
 
     {:ok, _} = Integrations.save_setup(integration_uuid, %{"api_key" => "test-key"})
 
-    {:ok, _profile} =
+    {:ok, profile} =
       SendProfiles.create_send_profile(%{
         name: "Brevo profile #{System.unique_integer([:positive])}",
         integration_uuid: integration_uuid,
@@ -76,10 +78,19 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTrackingTe
         enabled: true
       })
 
-    :ok
+    profile
   end
 
   defp row_for(rows, provider_kind), do: Enum.find(rows, &(&1.provider_kind == provider_kind))
+
+  # This package ships no Endpoint, so `render_component/3` is the only way to
+  # get real HTML out of a section — including the nested live_component an
+  # expanded row mounts, which no socket-level assertion can reach.
+  defp render_panel(expanded \\ MapSet.new()) do
+    render_component(Panel, %{id: "panel", expanded: expanded},
+      endpoint: PhoenixKitEmails.Test.StubEndpoint
+    )
+  end
 
   describe "update/2 — the registry-driven rows" do
     test "one row per registered tracker, :off by default (nothing enabled)" do
@@ -118,13 +129,16 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTrackingTe
       assert row_for(socket.assigns.rows, "aws_ses").state == :stalled
     end
 
-    test "Brevo row exposes an accounts list, SES row does not" do
+    test "both rows expose an accounts list — SES is multi-account too now" do
       create_brevo_profile()
 
       {:ok, socket} = Panel.update(%{id: "panel"}, bare_socket())
 
       assert row_for(socket.assigns.rows, "brevo_api").accounts != nil
-      assert row_for(socket.assigns.rows, "aws_ses").accounts == nil
+      # Empty, not nil: this deployment has no aws_ses send profile, but the
+      # tracker implements the callback, so the column renders a real (if
+      # empty) list rather than the "—" a tracker without it gets.
+      assert row_for(socket.assigns.rows, "aws_ses").accounts == []
     end
   end
 
@@ -354,6 +368,258 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTrackingTe
           ] do
         assert {:noreply, %Phoenix.LiveView.Socket{}} = Panel.handle_event(event, params, socket)
       end
+    end
+  end
+
+  describe "the accounts dialog" do
+    test "opening targets a provider that has an account list" do
+      create_brevo_profile()
+      {:ok, socket} = Panel.update(%{id: "panel"}, bare_socket())
+
+      {:noreply, opened} =
+        Panel.handle_event("open_accounts", %{"provider" => "brevo_api"}, socket)
+
+      assert opened.assigns.accounts_for == "brevo_api"
+
+      {:noreply, closed} = Panel.handle_event("close_accounts", %{}, opened)
+      assert closed.assigns.accounts_for == nil
+    end
+
+    test "a provider whose account list is empty never opens the dialog" do
+      {:ok, socket} = Panel.update(%{id: "panel"}, bare_socket())
+
+      # SES starts with no accounts at all — the trigger renders disabled, and
+      # the handler must agree with it rather than open an empty dialog.
+      assert row_for(socket.assigns.rows, "aws_ses").accounts == []
+
+      {:noreply, untouched} =
+        Panel.handle_event("open_accounts", %{"provider" => "aws_ses"}, socket)
+
+      assert untouched.assigns.accounts_for == nil
+    end
+
+    test "a forged provider never opens the dialog" do
+      {:ok, socket} = Panel.update(%{id: "panel"}, bare_socket())
+
+      {:noreply, untouched} =
+        Panel.handle_event("open_accounts", %{"provider" => "not_a_tracker"}, socket)
+
+      assert untouched.assigns.accounts_for == nil
+    end
+
+    test "a dialog left open over a vanished row closes itself on the next update" do
+      create_brevo_profile()
+      {:ok, socket} = Panel.update(%{id: "panel"}, bare_socket())
+      socket = Phoenix.Component.assign(socket, :accounts_for, "gone_provider")
+
+      {:ok, refreshed} = Panel.update(%{id: "panel"}, socket)
+
+      assert refreshed.assigns.accounts_for == nil
+    end
+
+    test "the open dialog resolves to a row, and toggling keeps it open" do
+      create_brevo_profile()
+      {:ok, socket} = Panel.update(%{id: "panel"}, bare_socket())
+
+      {:noreply, opened} =
+        Panel.handle_event("open_accounts", %{"provider" => "brevo_api"}, socket)
+
+      assert opened.assigns.accounts_row.provider_kind == "brevo_api"
+      [{uuid, _name, _polled?}] = opened.assigns.accounts_row.accounts
+
+      {:noreply, toggled} =
+        Panel.handle_event(
+          "toggle_account",
+          %{"provider" => "brevo_api", "uuid" => uuid},
+          opened
+        )
+
+      # The dialog stays open on a fresh row — the whole point of the rework.
+      assert toggled.assigns.accounts_for == "brevo_api"
+      assert toggled.assigns.accounts_row.provider_kind == "brevo_api"
+    end
+
+    test "a row that disappears under an open dialog closes it in the handler, not just in update/2" do
+      profile = create_brevo_profile()
+      {:ok, socket} = Panel.update(%{id: "panel"}, bare_socket())
+
+      {:noreply, opened} =
+        Panel.handle_event("open_accounts", %{"provider" => "brevo_api"}, socket)
+
+      [{uuid, _name, _polled?}] = opened.assigns.accounts_row.accounts
+
+      # Somebody disables the last enabled Brevo profile in the section next
+      # door; the account list this dialog renders from goes empty. The next
+      # toggle must not render against a row that is no longer there.
+      {:ok, _} = SendProfiles.update_send_profile(profile, %{enabled: false})
+
+      {:noreply, refreshed} =
+        Panel.handle_event(
+          "toggle_account",
+          %{"provider" => "brevo_api", "uuid" => uuid},
+          opened
+        )
+
+      assert refreshed.assigns.accounts_row == nil
+      assert refreshed.assigns.accounts_for == nil
+    end
+  end
+
+  describe "the expandable row" do
+    test "starts collapsed, expands, and collapses again" do
+      {:ok, socket} = Panel.update(%{id: "panel"}, bare_socket())
+      assert MapSet.size(socket.assigns.expanded) == 0
+
+      {:noreply, opened} =
+        Panel.handle_event("toggle_expand", %{"provider" => "aws_ses"}, socket)
+
+      assert MapSet.member?(opened.assigns.expanded, "aws_ses")
+      # Only the row that was clicked.
+      refute MapSet.member?(opened.assigns.expanded, "brevo_api")
+
+      {:noreply, closed} =
+        Panel.handle_event("toggle_expand", %{"provider" => "aws_ses"}, opened)
+
+      refute MapSet.member?(closed.assigns.expanded, "aws_ses")
+    end
+
+    test "a forged provider never expands anything" do
+      {:ok, socket} = Panel.update(%{id: "panel"}, bare_socket())
+
+      {:noreply, untouched} =
+        Panel.handle_event("toggle_expand", %{"provider" => "not_a_tracker"}, socket)
+
+      assert MapSet.size(untouched.assigns.expanded) == 0
+    end
+
+    # The reason this is an assign and not `<details>`/a daisyUI collapse: the
+    # row must survive every rebuild of the data under it.
+    test "an expanded row survives a data refresh" do
+      create_ses_profile()
+      {:ok, socket} = Panel.update(%{id: "panel"}, bare_socket())
+
+      {:noreply, opened} =
+        Panel.handle_event("toggle_expand", %{"provider" => "aws_ses"}, socket)
+
+      {:noreply, after_toggle} =
+        Panel.handle_event("toggle_tracking", %{"provider" => "aws_ses"}, opened)
+
+      assert MapSet.member?(after_toggle.assigns.expanded, "aws_ses")
+
+      {:ok, refreshed} = Panel.update(%{id: "panel"}, after_toggle)
+      assert MapSet.member?(refreshed.assigns.expanded, "aws_ses")
+    end
+
+    test "an expanded provider that no longer has a row is dropped" do
+      {:ok, socket} = Panel.update(%{id: "panel"}, bare_socket())
+      socket = Phoenix.Component.assign(socket, :expanded, MapSet.new(["gone_provider"]))
+
+      {:ok, refreshed} = Panel.update(%{id: "panel"}, socket)
+
+      assert MapSet.size(refreshed.assigns.expanded) == 0
+    end
+
+    test "each row carries the settings component its tracker names" do
+      {:ok, socket} = Panel.update(%{id: "panel"}, bare_socket())
+
+      assert row_for(socket.assigns.rows, "aws_ses").settings_component == SesSection
+      assert row_for(socket.assigns.rows, "brevo_api").settings_component == nil
+    end
+  end
+
+  describe "the rendered panel" do
+    test "collapsed: no provider settings, and no Interval column" do
+      html = render_panel()
+
+      refute html =~ "Per-account event tracking"
+      refute html =~ "SQS Worker Tuning"
+      # The interval moved into the expanded row; the column it used to own is
+      # gone, header included.
+      refute html =~ ">Interval<"
+    end
+
+    test "expanded SES: the whole former \"Amazon SES & SQS\" section renders inline" do
+      # One account already tracked (so its row and Setup Infrastructure
+      # render) and one still unassigned (so the "Add account" picker does).
+      {:ok, %{uuid: tracked}} = Integrations.add_connection("aws_ses", "tracked")
+      {:ok, _} = Integrations.add_connection("aws_ses", "spare")
+      {:ok, _} = Emails.set_aws_tracking(tracked, %{})
+
+      {:ok, socket} = Panel.update(%{id: "panel"}, bare_socket())
+
+      {:noreply, opened} =
+        Panel.handle_event("toggle_expand", %{"provider" => "aws_ses"}, socket)
+
+      html = render_panel(opened.assigns.expanded)
+
+      # The nested live_component actually renders — the whole point of
+      # settings_component/0, and the thing a socket-level assertion cannot see.
+      assert html =~ "SES credentials source"
+      assert html =~ "Per-account event tracking"
+      assert html =~ "Setup Infrastructure"
+      assert html =~ "Unassign"
+      assert html =~ "Add account"
+      assert html =~ "SQS Worker Tuning"
+      # Generic, panel-owned, next to the SQS knobs.
+      assert html =~ "Polling interval"
+      # Deleted for good.
+      refute html =~ "Performance Tips"
+      refute html =~ "Inherited settings"
+    end
+
+    test "expanded Brevo: a note where a settings component would be" do
+      {:ok, socket} = Panel.update(%{id: "panel"}, bare_socket())
+
+      {:noreply, opened} =
+        Panel.handle_event("toggle_expand", %{"provider" => "brevo_api"}, socket)
+
+      html = render_panel(opened.assigns.expanded)
+
+      assert html =~ "no settings of its own"
+      assert html =~ "Polling interval"
+      refute html =~ "Per-account event tracking"
+    end
+  end
+
+  describe "the SQS tuning knobs in their new home" do
+    test "max messages per poll saves from the expanded row" do
+      assert {:noreply, socket} =
+               SesSection.handle_event(
+                 "update_max_messages",
+                 %{"max_messages" => "7"},
+                 bare_socket()
+               )
+
+      assert Emails.get_config().sqs_max_messages_per_poll == 7
+      assert socket.assigns.flash["error"] == nil
+    end
+
+    test "visibility timeout saves from the expanded row" do
+      assert {:noreply, socket} =
+               SesSection.handle_event(
+                 "update_visibility_timeout",
+                 %{"timeout" => "600"},
+                 bare_socket()
+               )
+
+      assert Emails.get_config().sqs_visibility_timeout == 600
+      assert socket.assigns.flash["error"] == nil
+    end
+  end
+
+  describe "one switch owns both SES event settings" do
+    test "turning tracking on also turns on the ses-events precondition" do
+      create_ses_profile()
+      {:ok, _} = Emails.set_ses_events(false)
+      {:ok, socket} = Panel.update(%{id: "panel"}, bare_socket())
+
+      {:noreply, _socket} =
+        Panel.handle_event("toggle_tracking", %{"provider" => "aws_ses"}, socket)
+
+      # Both halves of `should_poll?/0` are on — the old UI let an operator
+      # enable one and silently collect nothing.
+      assert Emails.sqs_polling_enabled?()
+      assert Emails.ses_events_enabled?()
     end
   end
 end

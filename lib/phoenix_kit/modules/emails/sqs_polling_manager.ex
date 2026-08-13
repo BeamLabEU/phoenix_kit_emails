@@ -62,6 +62,7 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingManager do
   require Logger
 
   alias PhoenixKit.Modules.Emails
+  alias PhoenixKit.Modules.Emails.AwsIntegrations
   alias PhoenixKit.Modules.Emails.SQSPollingJob
 
   ## --- EventTracker behaviour ---
@@ -97,15 +98,91 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingManager do
   @impl PhoenixKit.Modules.Emails.EventTracker
   def worker, do: SQSPollingJob
 
-  # SES has no multi-account concept in this codebase (one "SES
-  # credentials source" picker, not a list) — 1 when a working event
-  # source is configured (mirrors eligible?/0), 0 otherwise. Formal
-  # @optional_callback on EventTracker — see BrevoPollingManager's own
-  # "Optional EventTracker callbacks" section for the full rationale
-  # (SQS skips accounts/0 + toggle_account_polling/1, no opt-out concept
-  # here).
+  ## --- Optional EventTracker callbacks ---
+  #
+  # integration_count/0, accounts/0 and toggle_account_polling/1 are formal
+  # @optional_callbacks on EventTracker; the panel never calls them directly
+  # on a tracker module, always through EventTracker.integration_count/1,
+  # accounts/1, toggle_account_polling/2, which supply a safe
+  # default/no-op/fallback for a tracker that skips them. SES used to skip
+  # accounts/0 and toggle_account_polling/1 because it had no multi-account
+  # concept (one "SES credentials source" picker, not a list); it does now —
+  # every `aws_ses` connection an enabled SendProfile points at is an account
+  # with its own queue and keys (see
+  # `PhoenixKit.Modules.Emails.AwsIntegrations`).
+  #
+  # last_polled_at/0 is still skipped: SQS's polling cadence is seconds, so
+  # EventTracker's generic Oban-history derivation still finds a `completed`
+  # job before the Pruner removes it — the reason BrevoPollingManager needs
+  # its own durable timestamp does not apply here.
+
+  # Everything SES-specific — credentials source, per-account queues, Setup
+  # Infrastructure, SQS worker tuning — renders inside this tracker's own
+  # expanded row in the Delivery event tracking panel. It used to be a third,
+  # sibling section on the same settings page, which read as a peer of the
+  # tracker table while actually being a detail of one of its rows.
+  #
+  # A module reference, not an alias: the component belongs to the Web layer
+  # and aliasing it here would suggest this manager depends on the admin UI
+  # to work. It does not — this callback is the panel asking the tracker
+  # "who renders you", and nothing else in this module touches it.
   @impl PhoenixKit.Modules.Emails.EventTracker
-  def integration_count, do: if(SQSPollingJob.pollable_ignoring_toggle?(), do: 1, else: 0)
+  def settings_component, do: PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs
+
+  # Number of accounts with somewhere to poll — the admin panel's "N active
+  # integrations" Integration-column count. Counts `configured_accounts/0`
+  # rather than active integrations so it keeps mirroring eligible?/0 (an
+  # account with no queue is not "a working SES event source", the property
+  # this column has always reported) AND still reports the legacy
+  # single-queue deployment, which has no integration to count but is very
+  # much polling one thing.
+  @impl PhoenixKit.Modules.Emails.EventTracker
+  def integration_count, do: length(SQSPollingJob.configured_accounts())
+
+  # Per-account opt-out list for the admin panel's Accounts column:
+  # {uuid, name, polled?} for every currently-active SES account. The
+  # legacy single-queue deployment contributes no row — it has no uuid to
+  # name it by, and nothing to toggle.
+  #
+  # `length(accounts/0)` and `integration_count/0` deliberately DISAGREE, and
+  # the panel renders them in different columns for different questions:
+  #
+  #   * `accounts/0` answers "which accounts can I toggle?" — every active
+  #     SES account, including one with no queue configured yet.
+  #   * `integration_count/0` answers "is there a working event source?" —
+  #     it mirrors eligible?/0, so it counts only accounts with somewhere to
+  #     poll, and counts the legacy single-queue deployment as 1 even though
+  #     it has no account to name.
+  #
+  # The two coincide on a fully configured multi-account install, which is
+  # why the difference is easy to mistake for a bug. It is not: making
+  # either follow the other would break the column it belongs to.
+  @impl PhoenixKit.Modules.Emails.EventTracker
+  def accounts do
+    excluded = MapSet.new(Emails.get_sqs_polling_excluded_integrations())
+
+    AwsIntegrations.active_integrations_with_names()
+    |> Enum.map(fn {uuid, name} -> {uuid, name, not MapSet.member?(excluded, uuid)} end)
+  end
+
+  # Flips one account's polling opt-out (see accounts/0). A uuid that isn't
+  # a currently-active aws_ses integration (stale, already removed, or
+  # simply forged in a phx-click) is ignored rather than written into the
+  # exclusion setting — that list should only ever contain uuids accounts/0
+  # could plausibly have shown a checkbox for.
+  @impl PhoenixKit.Modules.Emails.EventTracker
+  def toggle_account_polling(uuid) do
+    if uuid in AwsIntegrations.active_integration_uuids() do
+      excluded = Emails.get_sqs_polling_excluded_integrations()
+
+      new_excluded =
+        if uuid in excluded, do: List.delete(excluded, uuid), else: [uuid | excluded]
+
+      Emails.set_sqs_polling_excluded_integrations(new_excluded)
+    else
+      {:ok, :ignored}
+    end
+  end
 
   ## --- Admin panel duck-typed extras (informal, not EventTracker callbacks) ---
   #
@@ -129,7 +206,12 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingManager do
   def enable_polling do
     Logger.info("SQS Polling Manager: Enabling polling")
 
-    with {:ok, _setting} <- Emails.set_sqs_polling(true),
+    # `email_ses_events` is the OTHER half of this switch: `should_poll?/0`
+    # requires both, and having them in two places meant an operator could turn
+    # tracking on here and get nothing, with no hint that a checkbox in another
+    # section still said no. One switch now owns both.
+    with {:ok, _} <- Emails.set_ses_events(true),
+         {:ok, _setting} <- Emails.set_sqs_polling(true),
          {:ok, job} <- insert_poll_job() do
       Logger.info("SQS Polling Manager: Polling enabled and first job started")
       {:ok, job}

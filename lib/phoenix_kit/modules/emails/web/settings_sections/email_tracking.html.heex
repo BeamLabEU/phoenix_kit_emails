@@ -326,46 +326,32 @@
     <div class="divider"></div>
   <% end %>
 
-  <%!-- S3 Archival Toggle --%>
+  <%!-- S3 Archival — NOT IMPLEMENTED YET. The real uploader (Archiver) is not
+  wired to anything: the button below calls a placeholder that loads the logs
+  and returns them without touching S3, the bucket name has no setter, the log
+  table has no archived_at/s3_key columns, and there is no scheduled worker.
+  The toggle stays visible so the plan is not forgotten, but it is disabled and
+  labelled rather than quietly reporting success. --%>
   <div class="form-control">
-    <.checkbox
-      name="email_tracking[archive_to_s3]"
-      checked={@email_archive_to_s3}
-      phx-click="toggle_s3_archival"
-      phx-target={@myself}
-      label={gettext("Enable S3 Archival")}
-    >
-      <:description>
-        {gettext("Move old email data to AWS S3 for long-term cold storage")}
-      </:description>
-    </.checkbox>
-  </div>
-
-  <%= if @email_archive_to_s3 do %>
-    <div class="form-control mt-2">
-      <div class="flex gap-2 items-start">
-        <div class="flex-1">
-          <span class="text-sm text-base-content/70">
-            {gettext("Manually trigger S3 archival for emails older than retention period")}
-          </span>
-        </div>
-        <button
-          type="button"
-          phx-click="run_s3_archival_now"
-          phx-target={@myself}
-          class={["btn btn-warning btn-sm", if(@running_archival, do: "loading", else: "")]}
-          disabled={@running_archival}
-        >
-          <%= if @running_archival do %>
-            {gettext("Archiving...")}
-          <% else %>
-            <.icon name="hero-cloud-arrow-up" class="w-4 h-4 mr-1" />
-            {gettext("Archive to S3 Now")}
-          <% end %>
-        </button>
-      </div>
+    <div class="flex items-center gap-2">
+      <.checkbox
+        name="email_tracking[archive_to_s3]"
+        checked={@email_archive_to_s3}
+        disabled
+        label={gettext("Enable S3 Archival")}
+      >
+        <:description>
+          {gettext("Move old email data to AWS S3 for long-term cold storage")}
+        </:description>
+      </.checkbox>
+      <span class="badge badge-warning badge-sm">{gettext("In development")}</span>
     </div>
-  <% end %>
+    <p class="text-sm text-base-content/70 mt-1">
+      {gettext(
+        "Not available yet: nothing is uploaded to S3. Retention cleanup below already removes old records."
+      )}
+    </p>
+  </div>
 
   <div class="alert alert-warning mt-2">
     <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
