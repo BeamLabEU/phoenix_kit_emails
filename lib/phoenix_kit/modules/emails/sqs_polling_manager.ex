@@ -204,9 +204,13 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingManager do
   rows do not exist yet it would create them without the `email_system`
   module tag the settings page groups by.
 
-  Cache invalidation inside the setting writers stays valid across a
-  rollback: it only clears entries, so the next read comes from the
-  rolled-back row rather than a stale cached one.
+  Cache invalidation cuts both ways here. On a rollback it stays valid:
+  the writers only CLEAR entries, so the next read comes from the
+  rolled-back row rather than a stale cached one. On success it is not
+  enough on its own — the writers clear inside the transaction, before
+  the commit is visible, so a reader that misses the cache in that window
+  would cache the pre-commit value and keep it for the cache's whole TTL.
+  Both keys are therefore invalidated again after the commit.
 
   ## Returns
 
@@ -242,6 +246,15 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingManager do
 
     case result do
       {:ok, job} ->
+        # The writers invalidate inside the transaction, i.e. BEFORE the commit
+        # is visible. A reader that misses the cache in that window reads the
+        # pre-commit value from the database and caches it — and nothing would
+        # invalidate it again for the cache's whole TTL. Re-invalidating here,
+        # after the commit, closes that window; it is a delete, so it is safe
+        # to repeat.
+        PhoenixKit.Cache.invalidate(:settings, "email_ses_events")
+        PhoenixKit.Cache.invalidate(:settings, "sqs_polling_enabled")
+
         Logger.info("SQS Polling Manager: Polling enabled and first job started")
         {:ok, job}
 
@@ -265,7 +278,8 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingManager do
   (`Emails.Web.WebhookController`), which has nothing to do with SQS
   polling. Clearing it here would silently switch off webhook ingestion
   from a button labelled "stop polling". It keeps its own control in the
-  Email tracking settings section for an operator who really does mean
+  Email Tracking page (`Web.EmailTracking`, not the settings section of
+  the same name) for an operator who really does mean
   "no SES events at all". See `EventTracker`'s moduledoc, which spells
   out why an eligibility flag otherwise must not move with an operator
   toggle.

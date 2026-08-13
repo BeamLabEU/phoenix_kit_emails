@@ -180,7 +180,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqsTest do
       {:ok, _} = Emails.set_ses_events(true)
       {:ok, _} = Emails.set_sqs_polling(false)
 
-      refute render_section() =~ "collection is o"
+      refute render_section() =~ "Delivery events from Amazon SES"
 
       create_ses_connection_with_queue()
       {:ok, _} = Emails.set_sqs_polling(true)
@@ -189,7 +189,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqsTest do
       # is what the tracker row a centimetre above already renders decomposed
       # into "Off" vs "Idle — no integration", each with a tooltip saying what
       # to fix. One collapsed word said strictly less than the row did.
-      refute render_section() =~ "collection is o"
+      refute render_section() =~ "Delivery events from Amazon SES"
     end
   end
 

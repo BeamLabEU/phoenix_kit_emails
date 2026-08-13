@@ -312,12 +312,19 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
     |> assign(:accounts_awaiting_configuration, awaiting)
     |> assign(:tracking_accounts, rows)
     |> assign(:legacy_queue_url, legacy_queue_url())
-    |> assign(:legacy_queue_polled?, SQSPollingJob.should_poll?())
     |> assign(
       :unassigned_connections,
       Enum.reject(connections, &MapSet.member?(assigned, &1.uuid))
     )
   end
+
+  # Whether that queue is actually being polled — read at RENDER time, never
+  # stored. The switch that decides it lives in the tracker row above this
+  # panel, whose toggle does not re-run this component's `update/2` (its
+  # assigns are seeded once, behind a guard). A cached copy would sit here
+  # claiming the queue is polled long after collection was switched off, which
+  # is the very statement this notice exists to get right.
+  defp legacy_queue_polled?, do: SQSPollingJob.should_poll?()
 
   # The single pre-per-account `aws_sqs_queue_url`, or nil when this install
   # has none. Resolved here rather than in the template because it is only
