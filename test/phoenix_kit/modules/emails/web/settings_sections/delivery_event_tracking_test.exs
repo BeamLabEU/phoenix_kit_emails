@@ -359,4 +359,46 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTrackingTe
       end
     end
   end
+
+  describe "the accounts dialog" do
+    test "opening targets a provider that has an account list" do
+      {:ok, socket} = Panel.update(%{id: "panel"}, bare_socket())
+
+      {:noreply, opened} =
+        Panel.handle_event("open_accounts", %{"provider" => "brevo_api"}, socket)
+
+      assert opened.assigns.accounts_for == "brevo_api"
+
+      {:noreply, closed} = Panel.handle_event("close_accounts", %{}, opened)
+      assert closed.assigns.accounts_for == nil
+    end
+
+    test "a forged provider never opens the dialog" do
+      {:ok, socket} = Panel.update(%{id: "panel"}, bare_socket())
+
+      {:noreply, untouched} =
+        Panel.handle_event("open_accounts", %{"provider" => "not_a_tracker"}, socket)
+
+      assert untouched.assigns.accounts_for == nil
+    end
+
+    test "a dialog left open over a vanished row closes itself on the next update" do
+      {:ok, socket} = Panel.update(%{id: "panel"}, bare_socket())
+      socket = Phoenix.Component.assign(socket, :accounts_for, "gone_provider")
+
+      {:ok, refreshed} = Panel.update(%{id: "panel"}, socket)
+
+      assert refreshed.assigns.accounts_for == nil
+    end
+
+    test "accounts_row/2 resolves the row the dialog renders from" do
+      {:ok, socket} = Panel.update(%{id: "panel"}, bare_socket())
+
+      row = Panel.accounts_row(socket.assigns.rows, "brevo_api")
+
+      assert row.provider_kind == "brevo_api"
+      assert is_list(row.accounts)
+      assert Panel.accounts_row(socket.assigns.rows, "nope") == nil
+    end
+  end
 end

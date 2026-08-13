@@ -77,38 +77,26 @@
             <td>{row.pending_jobs}</td>
 
             <td>
+              <%!-- The account list opens in a modal, NOT in a dropdown anchored
+              inside the cell: this table scrolls horizontally, and any panel
+              positioned within it is clipped by that scroll container the moment
+              an account name is long or a second account appears. A dialog lives
+              in the top layer, so it is unaffected by whatever surrounds the
+              cell, and it has room to say WHY an account is not being polled. --%>
               <%= if row.accounts do %>
-                <details class="dropdown">
-                  <summary class="btn btn-xs btn-outline">
-                    {gettext("%{polled}/%{total}",
-                      polled: Enum.count(row.accounts, fn {_uuid, _name, polled?} -> polled? end),
-                      total: length(row.accounts)
-                    )}
-                  </summary>
-                  <ul class="dropdown-content menu bg-base-100 rounded-box z-10 w-64 p-2 shadow-sm">
-                    <%= if row.accounts == [] do %>
-                      <li class="text-xs text-base-content/60 px-2 py-1">
-                        {gettext("No accounts yet")}
-                      </li>
-                    <% end %>
-                    <%= for {uuid, name, polled?} <- row.accounts do %>
-                      <li>
-                        <label class="label cursor-pointer justify-start gap-2">
-                          <input
-                            type="checkbox"
-                            class="checkbox checkbox-xs"
-                            checked={polled?}
-                            phx-click="toggle_account"
-                            phx-value-provider={row.provider_kind}
-                            phx-value-uuid={uuid}
-                            phx-target={@myself}
-                          />
-                          <span class="label-text text-xs">{name}</span>
-                        </label>
-                      </li>
-                    <% end %>
-                  </ul>
-                </details>
+                <button
+                  type="button"
+                  class="btn btn-xs btn-outline font-mono"
+                  disabled={row.accounts == []}
+                  phx-click="open_accounts"
+                  phx-value-provider={row.provider_kind}
+                  phx-target={@myself}
+                >
+                  {gettext("%{polled}/%{total}",
+                    polled: Enum.count(row.accounts, fn {_uuid, _name, polled?} -> polled? end),
+                    total: length(row.accounts)
+                  )}
+                </button>
               <% else %>
                 <span class="text-base-content/40">—</span>
               <% end %>
@@ -143,4 +131,55 @@
       </tbody>
     </table>
   </div>
+
+  <%!-- One dialog for the whole panel, rendered outside the scroll container.
+  `@accounts_for` holds the provider_kind whose accounts are being edited; the
+  rows themselves stay the single source of truth, so a toggle refreshes the
+  list under the open dialog without closing it. --%>
+  <.modal
+    :if={@accounts_for}
+    show={true}
+    id="tracker-accounts-modal"
+    on_close="close_accounts"
+    max_width="lg"
+  >
+    <:title>
+      {gettext("Accounts polled — %{provider}", provider: accounts_row(@rows, @accounts_for).label)}
+    </:title>
+
+    <p class="text-sm text-base-content/70 mb-3">
+      {gettext(
+        "Each account is polled on its own queue. Unchecking one leaves its events unread until it is checked again."
+      )}
+    </p>
+
+    <ul class="divide-y divide-base-200">
+      <li
+        :for={{uuid, name, polled?} <- accounts_row(@rows, @accounts_for).accounts}
+        class="py-2"
+      >
+        <label class="label cursor-pointer justify-start gap-3 p-0">
+          <input
+            type="checkbox"
+            class="checkbox checkbox-sm"
+            checked={polled?}
+            phx-click="toggle_account"
+            phx-value-provider={@accounts_for}
+            phx-value-uuid={uuid}
+            phx-target={@myself}
+          />
+          <span class="flex flex-col min-w-0">
+            <span class="text-sm font-medium truncate">{name}</span>
+            <span class="text-xs text-base-content/60 font-mono truncate">{uuid}</span>
+          </span>
+        </label>
+      </li>
+    </ul>
+
+    <:actions>
+      <button type="button" class="btn btn-sm" phx-click="close_accounts" phx-target={@myself}>
+        {gettext("Close")}
+      </button>
+    </:actions>
+  </.modal>
 </div>

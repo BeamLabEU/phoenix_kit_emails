@@ -35,10 +35,14 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTracking d
 
   @impl true
   def update(assigns, socket) do
+    rows = build_rows()
+
     socket =
       socket
       |> assign(assigns)
-      |> assign(:rows, build_rows())
+      |> assign(:rows, rows)
+      |> assign_new(:accounts_for, fn -> nil end)
+      |> keep_open_only_for_existing_row(rows)
 
     {:ok, socket}
   end
@@ -151,6 +155,19 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTracking d
     end)
   end
 
+  def handle_event("open_accounts", %{"provider" => provider_kind}, socket) do
+    # Only a provider that actually exposes an account list can open the dialog:
+    # a forged phx-value would otherwise render a modal over a row that has none.
+    case account_row(socket.assigns.rows, provider_kind) do
+      nil -> {:noreply, socket}
+      _row -> {:noreply, assign(socket, :accounts_for, provider_kind)}
+    end
+  end
+
+  def handle_event("close_accounts", _params, socket) do
+    {:noreply, assign(socket, :accounts_for, nil)}
+  end
+
   def handle_event("toggle_account", %{"provider" => provider_kind, "uuid" => uuid}, socket) do
     with_tracker(socket, provider_kind, fn tracker ->
       case EventTracker.toggle_account_polling(tracker, uuid) do
@@ -163,7 +180,32 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTracking d
     end)
   end
 
+  @doc false
+  # The row whose accounts the dialog is editing — the template reads it.
+  def accounts_row(rows, provider_kind), do: account_row(rows, provider_kind)
+
   ## --- Private ---
+
+  # A row that both exists and exposes an account list (`accounts` is nil for
+  # single-account trackers).
+  defp account_row(rows, provider_kind) do
+    Enum.find(rows, fn row -> row.provider_kind == provider_kind and row.accounts != nil end)
+  end
+
+  # A dialog must never outlive the row it edits: a tracker removed by a deploy
+  # (or a provider whose accounts went away) closes it instead of rendering over
+  # a row that is no longer there.
+  defp keep_open_only_for_existing_row(socket, rows) do
+    case socket.assigns[:accounts_for] do
+      nil ->
+        socket
+
+      provider_kind ->
+        if account_row(rows, provider_kind),
+          do: socket,
+          else: assign(socket, :accounts_for, nil)
+    end
+  end
 
   # Resolves provider_kind to its registered tracker and runs fun/1
   # against it, always returning {:noreply, socket}. A provider_kind
