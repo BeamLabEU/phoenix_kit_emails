@@ -150,11 +150,17 @@
                 self-schedules at. Used to be a table column, where it took a
                 permanent slot for a value that is set once and then never
                 looked at again. --%>
-                <div class="form-control">
-                  <label class="label" for={"#{@id}-interval-#{row.provider_kind}"}>
-                    <span class="label-text font-medium">{gettext("Polling interval")}</span>
-                  </label>
-                  <div class="join">
+                <%!-- daisyUI 5 form idiom: `fieldset`/`fieldset-legend`, not the
+                v4 `form-control`/`label-text` trio — those three classes no
+                longer exist in the shipped v5 bundle, so they styled nothing.
+                `w-fit` on the join is load-bearing: `.fieldset` is a grid, and
+                a bare inline-flex child would stretch across the whole panel
+                instead of hugging the 8rem input. --%>
+                <fieldset class="fieldset">
+                  <legend class="fieldset-legend font-semibold">
+                    {gettext("Polling interval")}
+                  </legend>
+                  <div class="join w-fit">
                     <%!-- No `step`: with step == min the browser only accepts multiples
                     of the floor (Brevo: 30s, 60s, 90s, …) while phx-blur posts — and
                     the manager accepts — any value at or above it, so the input marked
@@ -164,7 +170,8 @@
                       type="number"
                       name="interval"
                       value={row.interval_ms}
-                      class="input input-bordered input-sm join-item w-32"
+                      class="input input-sm join-item w-32"
+                      aria-label={gettext("Polling interval")}
                       min={row.min_interval_ms}
                       phx-blur="update_interval"
                       phx-value-provider={row.provider_kind}
@@ -172,12 +179,10 @@
                     />
                     <span class="join-item bg-base-300 px-3 text-sm flex items-center">ms</span>
                   </div>
-                  <label class="label">
-                    <span class="label-text-alt text-base-content/70">
-                      {gettext("At least %{ms}ms for this provider.", ms: row.min_interval_ms)}
-                    </span>
-                  </label>
-                </div>
+                  <p class="text-xs text-base-content/70">
+                    {gettext("At least %{ms}ms for this provider.", ms: row.min_interval_ms)}
+                  </p>
+                </fieldset>
 
                 <%!-- Provider-specific, when the tracker names a component
                 (`EventTracker.settings_component/1`). It loads its own state

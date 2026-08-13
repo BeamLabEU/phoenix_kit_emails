@@ -126,23 +126,28 @@
 
   <%!-- Send queue — the card above only reports these two; without a switch the
        operator's only way to turn a default-on queue off is the settings table. --%>
-  <div class="form-control">
-    <.checkbox
-      name="email_tracking[queue_enabled]"
-      checked={@status.queue.enabled?}
-      phx-click="toggle_email_queue"
-      phx-target={@myself}
-      label={gettext("Queue Outgoing Emails")}
-    >
-      <:description>
-        {gettext(
-          "Hand outgoing mail to the :emails Oban queue instead of sending it on the request. Requires `emails: N` in the host application's Oban queues; without it mail is sent immediately."
-        )}
-      </:description>
-    </.checkbox>
-  </div>
+  <%!-- daisyUI 5 form idiom throughout this file: `fieldset` /
+       `fieldset-legend` and plain paragraphs for helper text. The v4 trio
+       `form-control` / `label-text` / `label-text-alt` (and `input-bordered`,
+       `input-group`) was still here but has no rule at all in the shipped v5
+       bundle, so it styled nothing — the captions were being rendered by
+       `.label` alone (muted, 60% opacity) and the hints at full body size.
+       `.checkbox` brings its own layout, so its wrappers are simply gone. --%>
+  <.checkbox
+    name="email_tracking[queue_enabled]"
+    checked={@status.queue.enabled?}
+    phx-click="toggle_email_queue"
+    phx-target={@myself}
+    label={gettext("Queue Outgoing Emails")}
+  >
+    <:description>
+      {gettext(
+        "Hand outgoing mail to the :emails Oban queue instead of sending it on the request. Requires `emails: N` in the host application's Oban queues; without it mail is sent immediately."
+      )}
+    </:description>
+  </.checkbox>
 
-  <div :if={@status.queue.enabled?} class="form-control mt-2">
+  <div :if={@status.queue.enabled?} class="mt-2">
     <.checkbox
       name="email_tracking[queue_auth_mail]"
       checked={@status.queue.auth_mail?}
@@ -161,87 +166,90 @@
   <div class="divider"></div>
 
   <%!-- Save Email Bodies --%>
-  <div class="form-control">
-    <.checkbox
-      name="email_tracking[save_body]"
-      checked={@email_save_body}
-      phx-click="toggle_email_save_body"
-      phx-target={@myself}
-      label={gettext("Save Email Bodies")}
-    >
-      <:description>
-        {gettext("Store the full content of sent emails for debugging and analysis")}
-      </:description>
-    </.checkbox>
-  </div>
+  <.checkbox
+    name="email_tracking[save_body]"
+    checked={@email_save_body}
+    phx-click="toggle_email_save_body"
+    phx-target={@myself}
+    label={gettext("Save Email Bodies")}
+  >
+    <:description>
+      {gettext("Store the full content of sent emails for debugging and analysis")}
+    </:description>
+  </.checkbox>
 
   <div class="divider"></div>
 
   <%!-- Save Email Headers --%>
-  <div class="form-control">
-    <.checkbox
-      name="email_tracking[save_headers]"
-      checked={@email_save_headers}
-      phx-click="toggle_email_save_headers"
-      phx-target={@myself}
-      label={gettext("Save Email Headers")}
-    >
-      <:description>
-        {gettext("Store email headers for debugging and analysis (increases storage usage)")}
-      </:description>
-    </.checkbox>
-  </div>
+  <.checkbox
+    name="email_tracking[save_headers]"
+    checked={@email_save_headers}
+    phx-click="toggle_email_save_headers"
+    phx-target={@myself}
+    label={gettext("Save Email Headers")}
+  >
+    <:description>
+      {gettext("Store email headers for debugging and analysis (increases storage usage)")}
+    </:description>
+  </.checkbox>
 
   <div class="divider"></div>
 
-  <%!-- Sampling Rate --%>
-  <div class="form-control">
-    <label class="label">
-      <span class="label-text text-lg font-semibold">{gettext("Emails Sampling Rate")}</span>
-    </label>
-    <div class="input-group">
+  <%!-- Sampling Rate. daisyUI 5's own unit-suffix idiom: `.input` on a LABEL
+       wrapping the field and a `.label` span (rule
+       `.label:is(.input > *, .select > *)`), so the pair draws one border with
+       the right radii and a divider, and the unit inherits the field's font
+       size. A `.join` around a bare `.input` gets the input's corners cut but
+       leaves the suffix square and borderless — half a control.
+       `w-32` is load-bearing: `.fieldset` is a grid, so a width-less flex
+       child stretches the whole column instead of hugging its input. And the
+       legend names the GROUP, not the field, so each input carries an
+       `aria-label` with the same text. --%>
+  <fieldset class="fieldset">
+    <legend class="fieldset-legend text-lg font-semibold">
+      {gettext("Emails Sampling Rate")}
+    </legend>
+    <label class="input w-32">
       <input
         name="sampling_rate"
         type="number"
         placeholder={gettext("Enter sampling rate")}
-        class="input input-bordered w-full max-w-xs"
+        aria-label={gettext("Emails Sampling Rate")}
         value={@email_sampling_rate}
         min="0"
         max="100"
         phx-blur="update_email_sampling_rate"
         phx-target={@myself}
       />
-      <span class="bg-base-200 px-4 py-3 text-sm">%</span>
-    </div>
-    <label class="label">
-      <span class="label-text-alt text-base-content/70">
-        {gettext("Percentage of emails to fully track for analytics (0-100%)")}
-      </span>
+      <span class="label">%</span>
     </label>
-  </div>
+    <p class="text-xs text-base-content/70">
+      {gettext("Percentage of emails to fully track for analytics (0-100%)")}
+    </p>
+  </fieldset>
 
   <.section_header icon="hero-archive-box" title={gettext("Data Retention")} />
 
   <%!-- Retention Period --%>
-  <div class="form-control">
-    <label class="label">
-      <span class="label-text text-lg font-semibold">{gettext("Email Retention Period")}</span>
-    </label>
-    <div class="flex gap-2 items-start">
-      <div class="input-group flex-1">
+  <fieldset class="fieldset">
+    <legend class="fieldset-legend text-lg font-semibold">
+      {gettext("Email Retention Period")}
+    </legend>
+    <div class="flex gap-2 items-center">
+      <label class="input w-32">
         <input
           name="retention_days"
           type="number"
           placeholder={gettext("Enter retention days")}
-          class="input input-bordered w-full max-w-xs"
+          aria-label={gettext("Email Retention Period")}
           value={@email_retention_days}
           min="1"
           max="365"
           phx-blur="update_email_retention"
           phx-target={@myself}
         />
-        <span class="bg-base-200 px-4 py-3 text-sm">{gettext("days")}</span>
-      </div>
+        <span class="label">{gettext("days")}</span>
+      </label>
       <button
         type="button"
         phx-click="run_cleanup_now"
@@ -256,46 +264,43 @@
         <% end %>
       </button>
     </div>
-    <label class="label">
-      <span class="label-text-alt text-base-content/70">
-        {gettext("How long to keep emails data before automatic cleanup (1-365 days)")}
-      </span>
-    </label>
-  </div>
+    <p class="text-xs text-base-content/70">
+      {gettext("How long to keep emails data before automatic cleanup (1-365 days)")}
+    </p>
+  </fieldset>
 
   <div class="divider"></div>
 
   <%= if @email_save_body do %>
     <%!-- Compress Body After Days --%>
-    <div class="form-control">
-      <label class="label">
-        <span class="label-text text-lg font-semibold">
-          {gettext("Compress Email Bodies After")}
-        </span>
-        <span class="label-text-alt text-base-content/70">
-          {gettext("Auto-saves when you click outside the input field")}
-        </span>
-      </label>
-      <div class="flex gap-2 items-start">
-        <div class="input-group flex-1">
+    <fieldset class="fieldset">
+      <%!-- The hint used to sit inside the <legend>, where it became part of
+           the group's accessible name ("Compress Email Bodies After
+           Auto-saves when you click outside the input field"). Below the
+           field instead, like the SES section next door. --%>
+      <legend class="fieldset-legend text-lg font-semibold">
+        {gettext("Compress Email Bodies After")}
+      </legend>
+      <div class="flex gap-2 items-center">
+        <label class={[
+          "input w-32",
+          "transition-colors duration-200",
+          "focus-within:input-primary",
+          if(@updating_compress_days, do: "input-warning loading", else: "")
+        ]}>
           <input
             name="compress_days"
             type="number"
             placeholder={gettext("Enter compression days")}
-            class={[
-              "input input-bordered w-full max-w-xs",
-              "transition-colors duration-200",
-              "focus:input-primary",
-              if(@updating_compress_days, do: "input-warning loading", else: "")
-            ]}
+            aria-label={gettext("Compress Email Bodies After")}
             value={@email_compress_body}
             min="7"
             max="365"
             phx-blur="update_compress_days"
             phx-target={@myself}
           />
-          <span class="bg-base-200 px-4 py-3 text-sm">{gettext("days")}</span>
-        </div>
+          <span class="label">{gettext("days")}</span>
+        </label>
         <button
           type="button"
           phx-click="run_compression_now"
@@ -311,17 +316,16 @@
           <% end %>
         </button>
       </div>
-      <label class="label">
-        <span class="label-text-alt text-base-content/70">
-          <span class="flex items-center gap-1">
-            <.icon name="hero-information-circle" class="w-3 h-3" />
-            {gettext(
-              "Compress old email bodies to save storage space (7-365 days). Changes are saved automatically."
-            )}
-          </span>
-        </span>
-      </label>
-    </div>
+      <p class="text-xs text-base-content/70">
+        {gettext("Auto-saves when you click outside the input field")}
+      </p>
+      <p class="text-xs text-base-content/70 flex items-center gap-1">
+        <.icon name="hero-information-circle" class="w-3 h-3" />
+        {gettext(
+          "Compress old email bodies to save storage space (7-365 days). Changes are saved automatically."
+        )}
+      </p>
+    </fieldset>
 
     <div class="divider"></div>
   <% end %>
@@ -332,7 +336,7 @@
   table has no archived_at/s3_key columns, and there is no scheduled worker.
   The toggle stays visible so the plan is not forgotten, but it is disabled and
   labelled rather than quietly reporting success. --%>
-  <div class="form-control">
+  <div>
     <div class="flex items-center gap-2">
       <.checkbox
         name="email_tracking[archive_to_s3]"

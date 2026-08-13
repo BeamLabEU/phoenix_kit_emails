@@ -67,13 +67,13 @@ msgid "Tracking Options"
 msgstr ""
 
 #: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:16
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:170
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:174
 #, elixir-autogen, elixir-format
 msgid "Save Email Bodies"
 msgstr ""
 
 #: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:18
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:173
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:177
 #, elixir-autogen, elixir-format
 msgid "Store the full content of sent emails for debugging and analysis"
 msgstr ""
@@ -90,27 +90,28 @@ msgstr ""
 
 #: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:56
 #: lib/phoenix_kit/modules/emails/web/metrics.html.heex:376
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:223
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:231
 #, elixir-autogen, elixir-format
 msgid "Data Retention"
 msgstr ""
 
 #: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:61
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:228
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:236
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:244
 #, elixir-autogen, elixir-format
 msgid "Email Retention Period"
 msgstr ""
 
 #: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:66
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:235
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:243
 #, elixir-autogen, elixir-format
 msgid "Enter retention days"
 msgstr ""
 
 #: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:74
 #: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:116
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:243
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:297
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:251
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:302
 #, elixir-autogen, elixir-format
 msgid "days"
 msgstr ""
@@ -121,7 +122,7 @@ msgid "How long to keep email tracking data before automatic cleanup (1-365 days
 msgstr ""
 
 #: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:86
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:359
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:363
 #, elixir-autogen, elixir-format
 msgid "Data Privacy Notice"
 msgstr ""
@@ -449,7 +450,7 @@ msgstr ""
 msgid "Attachments"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:276
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:320
 #, elixir-autogen, elixir-format
 msgid "Auto-saves when you click outside the input field"
 msgstr ""
@@ -580,22 +581,23 @@ msgstr ""
 msgid "Comprehensive email performance metrics and insights"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:273
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:282
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:295
 #, elixir-autogen, elixir-format
 msgid "Compress Email Bodies After"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:310
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:315
 #, elixir-autogen, elixir-format
 msgid "Compress Now"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:318
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:324
 #, elixir-autogen, elixir-format
 msgid "Compress old email bodies to save storage space (7-365 days). Changes are saved automatically."
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:307
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:312
 #, elixir-autogen, elixir-format
 msgid "Compressing..."
 msgstr ""
@@ -794,7 +796,7 @@ msgstr ""
 msgid "Email actions"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:361
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:365
 #, elixir-autogen, elixir-format
 msgid "Email data will be automatically deleted after the retention period expires. This helps maintain privacy compliance and reduces storage requirements."
 msgstr ""
@@ -809,12 +811,13 @@ msgstr ""
 msgid "Email system is operational"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:200
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:210
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:217
 #, elixir-autogen, elixir-format
 msgid "Emails Sampling Rate"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:341
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:345
 #, elixir-autogen, elixir-format
 msgid "Enable S3 Archival"
 msgstr ""
@@ -829,22 +832,22 @@ msgstr ""
 msgid "Engagement Metrics"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:284
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:294
 #, elixir-autogen, elixir-format
 msgid "Enter compression days"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:321
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:349
 #, elixir-autogen, elixir-format
 msgid "Enter max messages"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:206
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:216
 #, elixir-autogen, elixir-format
 msgid "Enter sampling rate"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:350
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:375
 #, elixir-autogen, elixir-format
 msgid "Enter timeout"
 msgstr ""
@@ -998,12 +1001,12 @@ msgstr ""
 msgid "Hide Headers"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:364
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:389
 #, elixir-autogen, elixir-format
 msgid "How long messages remain invisible after being received (30-43200 seconds)"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:261
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:268
 #, elixir-autogen, elixir-format
 msgid "How long to keep emails data before automatic cleanup (1-365 days)"
 msgstr ""
@@ -1122,12 +1125,13 @@ msgstr ""
 msgid "Marketing"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:314
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:342
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:351
 #, elixir-autogen, elixir-format
 msgid "Max Messages Per Poll"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:335
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:363
 #, elixir-autogen, elixir-format
 msgid "Maximum number of messages to process in each polling cycle (1-10)"
 msgstr ""
@@ -1162,7 +1166,7 @@ msgstr ""
 msgid "Most Used"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:344
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:348
 #, elixir-autogen, elixir-format
 msgid "Move old email data to AWS S3 for long-term cold storage"
 msgstr ""
@@ -1300,7 +1304,7 @@ msgstr ""
 msgid "Opened"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:218
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:227
 #, elixir-autogen, elixir-format
 msgid "Percentage of emails to fully track for analytics (0-100%)"
 msgstr ""
@@ -1438,37 +1442,42 @@ msgstr ""
 msgid "Retry Selected"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:255
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:263
 #, elixir-autogen, elixir-format
 msgid "Run Cleanup Now"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:253
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:261
 #, elixir-autogen, elixir-format
 msgid "Running..."
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:227
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:266
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:272
 #, elixir-autogen, elixir-format
 msgid "SES Configuration Set"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:215
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:254
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:259
 #, elixir-autogen, elixir-format
 msgid "SNS Topic ARN"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:191
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:231
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:237
 #, elixir-autogen, elixir-format
 msgid "SQS Dead Letter Queue URL"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:203
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:243
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:248
 #, elixir-autogen, elixir-format
 msgid "SQS Queue ARN"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:178
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:218
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:224
 #, elixir-autogen, elixir-format
 msgid "SQS Queue URL"
 msgstr ""
@@ -1478,7 +1487,7 @@ msgstr ""
 msgid "Sample Variable Values"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:187
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:189
 #, elixir-autogen, elixir-format
 msgid "Save Email Headers"
 msgstr ""
@@ -1627,7 +1636,7 @@ msgstr ""
 msgid "Status:"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:190
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:192
 #, elixir-autogen, elixir-format
 msgid "Store email headers for debugging and analysis (increases storage usage)"
 msgstr ""
@@ -1869,7 +1878,8 @@ msgstr ""
 msgid "View related emails"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:343
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:369
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:377
 #, elixir-autogen, elixir-format
 msgid "Visibility Timeout"
 msgstr ""
@@ -1884,12 +1894,12 @@ msgstr ""
 msgid "delivery time"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:330
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:359
 #, elixir-autogen, elixir-format
 msgid "messages"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:359
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:385
 #, elixir-autogen, elixir-format
 msgid "seconds"
 msgstr ""
@@ -2097,12 +2107,12 @@ msgstr ""
 msgid "Failed to update AWS SES events tracking"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:87
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:88
 #, elixir-autogen, elixir-format
 msgid "Failed to update SQS max messages"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:117
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:118
 #, elixir-autogen, elixir-format
 msgid "Failed to update SQS visibility timeout"
 msgstr ""
@@ -2155,7 +2165,7 @@ msgstr ""
 msgid "Please enter a valid number between 0 and 100"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:93
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:94
 #, elixir-autogen, elixir-format
 msgid "Please enter a valid number between 1 and 10"
 msgstr ""
@@ -2166,7 +2176,7 @@ msgstr ""
 msgid "Please enter a valid number between 1 and 365"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:126
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:127
 #, elixir-autogen, elixir-format
 msgid "Please enter a valid number between 30 and 43200 seconds"
 msgstr ""
@@ -2191,12 +2201,12 @@ msgstr ""
 msgid "Retried %{success} of %{total} emails"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:81
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:82
 #, elixir-autogen, elixir-format
 msgid "SQS max messages updated to %{count}"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:111
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:112
 #, elixir-autogen, elixir-format
 msgid "SQS visibility timeout updated to %{seconds} seconds"
 msgstr ""
@@ -2350,7 +2360,7 @@ msgstr ""
 msgid "Available Fields"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:58
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:64
 #, elixir-autogen, elixir-format
 msgid "Choose which Integrations connection provides SES credentials"
 msgstr ""
@@ -2463,7 +2473,7 @@ msgstr ""
 msgid "Failed to update %{label} tracking"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:267
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:268
 #, elixir-autogen, elixir-format
 msgid "Failed to update SES credentials source"
 msgstr ""
@@ -2520,7 +2530,7 @@ msgstr ""
 msgid "Last poll"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.html.heex:70
+#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.html.heex:71
 #, elixir-autogen, elixir-format
 msgid "Last polled: %{time}"
 msgstr ""
@@ -2541,7 +2551,7 @@ msgstr ""
 msgid "Module"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.html.heex:72
+#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.html.heex:73
 #, elixir-autogen, elixir-format
 msgid "Never polled yet"
 msgstr ""
@@ -2551,7 +2561,7 @@ msgstr ""
 msgid "No Mailer Adapter Configured Yet"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.html.heex:92
+#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.html.heex:93
 #, elixir-autogen, elixir-format
 msgid "No accounts yet"
 msgstr ""
@@ -2618,7 +2628,7 @@ msgstr ""
 msgid "Please enter a valid number of milliseconds"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.html.heex:136
+#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.html.heex:137
 #, elixir-autogen, elixir-format
 msgid "Poll now"
 msgstr ""
@@ -2645,7 +2655,7 @@ msgstr ""
 msgid "Remove column"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.html.heex:126
+#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.html.heex:127
 #, elixir-autogen, elixir-format
 msgid "Restart"
 msgstr ""
@@ -2655,12 +2665,13 @@ msgstr ""
 msgid "Running normally."
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:56
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:62
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:80
 #, elixir-autogen, elixir-format
 msgid "SES credentials source"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:262
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:263
 #, elixir-autogen, elixir-format
 msgid "SES credentials source updated"
 msgstr ""
@@ -2706,7 +2717,7 @@ msgstr ""
 msgid "View in Settings"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:307
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:333
 #, elixir-autogen, elixir-format
 msgid "SQS Worker Tuning"
 msgstr ""
@@ -2721,53 +2732,53 @@ msgstr ""
 msgid "%{logged} logged · %{sent} sent · %{failed} failed · %{queued} queued"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:366
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:471
 #, elixir-autogen, elixir-format
 msgid "AWS infrastructure created for this account"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:400
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:505
 #, elixir-autogen, elixir-format
 msgid "AWS setup failed at step %{step}: %{reason}"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:406
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:511
 #, elixir-autogen, elixir-format
 msgid "AWS setup failed: %{reason}"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:144
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:145
 #, elixir-autogen, elixir-format
 msgid "Account added to event tracking"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:221
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:222
 #, elixir-autogen, elixir-format
 msgid "Account removed from event tracking"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:173
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:174
 #, elixir-autogen, elixir-format
 msgid "Account tracking settings saved"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.html.heex:212
+#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.html.heex:221
 #, elixir-autogen, elixir-format
 msgid "Accounts polled — %{provider}"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.html.heex:94
-#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.html.heex:100
+#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.html.heex:95
+#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.html.heex:101
 #, elixir-autogen, elixir-format
 msgid "Accounts polled: %{polled} of %{total}"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:142
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:183
 #, elixir-autogen, elixir-format
 msgid "Active sender"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:266
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:304
 #, elixir-autogen, elixir-format
 msgid "Add account"
 msgstr ""
@@ -2777,7 +2788,7 @@ msgstr ""
 msgid "App config: %{adapter}"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:76
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:83
 #, elixir-autogen, elixir-format
 msgid "Assign"
 msgstr ""
@@ -2802,12 +2813,12 @@ msgstr ""
 msgid "Blocked by sender address"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.html.heex:246
+#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.html.heex:255
 #, elixir-autogen, elixir-format
 msgid "Close"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:80
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:86
 #, elixir-autogen, elixir-format
 msgid "Credentials, region and verification live in the connection itself —"
 msgstr ""
@@ -2817,12 +2828,12 @@ msgstr ""
 msgid "Default integration"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:107
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:108
 #, elixir-autogen, elixir-format
 msgid "Each Amazon SES account polls its own SQS queue with its own credentials. Add an account here, then run Setup Infrastructure to create its queue, topic and configuration set."
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.html.heex:216
+#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.html.heex:225
 #, elixir-autogen, elixir-format
 msgid "Each account is polled on its own queue. Unchecking one leaves its events unread until it is checked again."
 msgstr ""
@@ -2832,17 +2843,17 @@ msgstr ""
 msgid "Every message"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:147
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:148
 #, elixir-autogen, elixir-format
 msgid "Failed to add account"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:215
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:216
 #, elixir-autogen, elixir-format
 msgid "Failed to remove account"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:176
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:177
 #, elixir-autogen, elixir-format
 msgid "Failed to save account settings"
 msgstr ""
@@ -2857,12 +2868,12 @@ msgstr ""
 msgid "Failed to update the send queue setting"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:138
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:144
 #, elixir-autogen, elixir-format
 msgid "Hand outgoing mail to the :emails Oban queue instead of sending it on the request. Requires `emails: N` in the host application's Oban queues; without it mail is sent immediately."
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:373
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:478
 #, elixir-autogen, elixir-format
 msgid "Infrastructure created but the settings could not be saved"
 msgstr ""
@@ -2872,22 +2883,22 @@ msgstr ""
 msgid "Logging"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:237
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:276
 #, elixir-autogen, elixir-format
 msgid "Must exist in THIS AWS account — SES publishes events only through it"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:89
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:92
 #, elixir-autogen, elixir-format
 msgid "No Amazon SES connections yet — create and verify one under Settings → Integrations, then assign it here."
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:133
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:174
 #, elixir-autogen, elixir-format
 msgid "No accounts configured for event tracking yet."
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:143
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:184
 #, elixir-autogen, elixir-format
 msgid "No enabled send profile"
 msgstr ""
@@ -2902,7 +2913,7 @@ msgstr ""
 msgid "Off (system disabled)"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:154
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:159
 #, elixir-autogen, elixir-format
 msgid "Off by default: password resets and confirmations are sent immediately, so a stuck queue cannot turn into \"I never got the email\"."
 msgstr ""
@@ -2932,17 +2943,17 @@ msgstr ""
 msgid "Outgoing emails are now sent immediately"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:104
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:105
 #, elixir-autogen, elixir-format
 msgid "Per-account event tracking"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:151
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:156
 #, elixir-autogen, elixir-format
 msgid "Queue Authentication Emails Too"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:135
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:141
 #, elixir-autogen, elixir-format
 msgid "Queue Outgoing Emails"
 msgstr ""
@@ -2957,12 +2968,12 @@ msgstr ""
 msgid "Recording"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:245
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:282
 #, elixir-autogen, elixir-format
 msgid "Save"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:134
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:135
 #, elixir-autogen, elixir-format
 msgid "Select an Amazon SES connection to add"
 msgstr ""
@@ -2972,7 +2983,7 @@ msgstr ""
 msgid "Sender"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:297
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:323
 #, elixir-autogen, elixir-format
 msgid "Sending currently uses legacy credentials stored in settings. Create a verified Amazon SES connection in Settings → Integrations and assign it above."
 msgstr ""
@@ -2987,17 +2998,17 @@ msgstr ""
 msgid "Sent immediately, never queued"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:82
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:88
 #, elixir-autogen, elixir-format
 msgid "Settings → Integrations"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:159
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:200
 #, elixir-autogen, elixir-format
 msgid "Setup Infrastructure"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:121
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:122
 #, elixir-autogen, elixir-format
 msgid "Some sending accounts have no event queue of their own"
 msgstr ""
@@ -3022,17 +3033,17 @@ msgstr ""
 msgid "The queue is on, but this application has no :emails Oban queue configured, so nothing can drain it — messages are being sent immediately instead. Add `emails: 10` to the host's Oban queues to use the queue."
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:124
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:125
 #, elixir-autogen, elixir-format
 msgid "These accounts send mail but have no SQS queue configured here, so their delivery events are not being collected: %{names}. Add each one below and run Setup Infrastructure. Until then, only the single global queue is polled."
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:382
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:487
 #, elixir-autogen, elixir-format
 msgid "This connection has no AWS credentials — add them in Settings → Integrations"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:390
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:495
 #, elixir-autogen, elixir-format
 msgid "This connection has no AWS region — set it in Settings → Integrations before creating infrastructure"
 msgstr ""
@@ -3042,7 +3053,7 @@ msgstr ""
 msgid "Today"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:168
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:209
 #, elixir-autogen, elixir-format
 msgid "Unassign"
 msgstr ""
@@ -3052,48 +3063,39 @@ msgstr ""
 msgid "What is logged"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:71
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:77
 #, elixir-autogen, elixir-format
 msgid "— not assigned —"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:261
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:298
 #, elixir-autogen, elixir-format
 msgid "— select an Amazon SES connection —"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:283
-#, elixir-autogen, elixir-format
-msgid "Delivery events from Amazon SES: collection is off"
-msgstr ""
-
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:282
-#, elixir-autogen, elixir-format
-msgid "Delivery events from Amazon SES: collection is on"
-msgstr ""
-
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:347
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:351
 #, elixir-autogen, elixir-format
 msgid "In development"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:350
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:354
 #, elixir-autogen, elixir-format
 msgid "Not available yet: nothing is uploaded to S3. Retention cleanup below already removes old records."
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.html.heex:35
 #: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.html.heex:36
+#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.html.heex:37
 #, elixir-autogen, elixir-format
 msgid "%{label} settings"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.html.heex:176
+#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.html.heex:183
 #, elixir-autogen, elixir-format
 msgid "At least %{ms}ms for this provider."
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.html.heex:154
+#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.html.heex:161
+#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.html.heex:174
 #, elixir-autogen, elixir-format
 msgid "Polling interval"
 msgstr ""
@@ -3103,12 +3105,52 @@ msgstr ""
 msgid "Settings"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.html.heex:190
+#: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.html.heex:199
 #, elixir-autogen, elixir-format
 msgid "This provider has no settings of its own."
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:286
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:164
 #, elixir-autogen, elixir-format
-msgid "— switch it with the Tracking toggle on this row"
+msgid "Create an Amazon SES connection in Settings → Integrations"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:158
+#, elixir-autogen, elixir-format
+msgid "Every sender shares this one queue. To give each Amazon SES account a queue of its own, add the account below and run Setup Infrastructure."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:353
+#, elixir-autogen, elixir-format
+msgid "Polling the legacy global queue: %{url}"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:301
+#, elixir-autogen, elixir-format
+msgid "Add an Amazon SES account to event tracking"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:361
+#, elixir-autogen, elixir-format
+msgid "One global queue is configured, but SES event tracking is off: %{url}"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:383
+#, elixir-autogen, elixir-format
+msgid "One global queue is configured, but no enabled send profile uses Amazon SES: %{url}"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:365
+#, elixir-autogen, elixir-format
+msgid "One global queue is configured; switch Tracking on in the row above to poll it: %{url}"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:357
+#, elixir-autogen, elixir-format
+msgid "One global queue is configured, but the email system is off: %{url}"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:376
+#, elixir-autogen, elixir-format
+msgid "This queue is no longer configured — reload the page to see the current setup: %{url}"
 msgstr ""

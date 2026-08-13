@@ -311,10 +311,99 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
     |> assign(:aws_ses_connections, connections)
     |> assign(:accounts_awaiting_configuration, awaiting)
     |> assign(:tracking_accounts, rows)
+    |> assign(:legacy_queue_url, legacy_queue_url())
     |> assign(
       :unassigned_connections,
       Enum.reject(connections, &MapSet.member?(assigned, &1.uuid))
     )
+  end
+
+  # Whether that queue is being polled and, when it is not, WHY — one read of
+  # the gate, decomposed into the very conditions `SQSPollingJob.should_poll?/0`
+  # ands together, in its order. Both the verdict and the sentence come from
+  # this single call: asking `should_poll?/0` first and then re-deriving the
+  # reason evaluated the same conditions twice per render (including a second
+  # SendProfile query), and left a window in which a switch flipped between the
+  # two reads could produce "not polled" with no reason to give.
+  #
+  # Read at RENDER time, never stored. The switch that decides it lives in the
+  # tracker row above this panel, whose toggle does not re-run this component's
+  # `update/2` (its assigns are seeded once, behind a guard). A cached copy
+  # would sit here claiming the queue is polled long after collection was
+  # switched off, which is the very statement this notice exists to get right.
+  @spec legacy_queue_poll_state() ::
+          :polled | :system_off | :events_off | :tracking_off | :no_queue | :no_sender
+  defp legacy_queue_poll_state do
+    cond do
+      not Emails.enabled?() -> :system_off
+      not Emails.ses_events_enabled?() -> :events_off
+      not Emails.sqs_polling_enabled?() -> :tracking_off
+      not SQSPollingJob.queue_url_configured?() -> :no_queue
+      not SQSPollingJob.ses_actively_configured?() -> :no_sender
+      true -> :polled
+    end
+  end
+
+  # The sentence for that state. Each names the switch to go and flip, rather
+  # than asking the reader to work out which of five things is off. No
+  # catch-all clause: the states above enumerate every condition of the gate,
+  # so a new one would fail to match here loudly instead of rendering a vague
+  # sentence that is quietly wrong.
+  defp poll_state_text(:polled, url) do
+    gettext("Polling the legacy global queue: %{url}", url: url)
+  end
+
+  defp poll_state_text(:system_off, url) do
+    gettext("One global queue is configured, but the email system is off: %{url}", url: url)
+  end
+
+  defp poll_state_text(:events_off, url) do
+    gettext("One global queue is configured, but SES event tracking is off: %{url}", url: url)
+  end
+
+  defp poll_state_text(:tracking_off, url) do
+    gettext(
+      "One global queue is configured; switch Tracking on in the row above to poll it: %{url}",
+      url: url
+    )
+  end
+
+  # `@legacy_queue_url` is resolved once in `update/2`, behind a guard, while
+  # the gate is read on every render — so this is the queue setting being
+  # cleared while the panel sits open. The URL is the one this panel still
+  # believes in, hence "no longer".
+  defp poll_state_text(:no_queue, url) do
+    gettext(
+      "This queue is no longer configured — reload the page to see the current setup: %{url}",
+      url: url
+    )
+  end
+
+  defp poll_state_text(:no_sender, url) do
+    gettext(
+      "One global queue is configured, but no enabled send profile uses Amazon SES: %{url}",
+      url: url
+    )
+  end
+
+  # The single pre-per-account `aws_sqs_queue_url`, or nil when this install
+  # has none. Resolved here rather than in the template because it is only
+  # ever read alongside `tracking_accounts` — an install with no per-account
+  # rows AND a global queue is the one the panel used to describe as having
+  # nothing configured while the poller was happily reading that queue.
+  #
+  # Blank-as-nil, not just nil-as-nil: `get_sqs_queue_url/0` returns whatever
+  # is stored, and a setting cleared through the UI is an empty string, not a
+  # deleted row.
+  defp legacy_queue_url do
+    case Emails.get_sqs_queue_url() do
+      url when is_binary(url) ->
+        trimmed = String.trim(url)
+        if trimmed == "", do: nil, else: trimmed
+
+      _ ->
+        nil
+    end
   end
 
   # Reload the rows AND reconcile the SES tracker — see the handlers above.
@@ -415,11 +504,6 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
           :error,
           gettext("AWS setup failed at step %{step}: %{reason}", step: step, reason: reason)
         )
-
-      {:error, reason} ->
-        socket
-        |> assign(:setting_up_account, nil)
-        |> put_flash(:error, gettext("AWS setup failed: %{reason}", reason: inspect(reason)))
     end
   end
 
@@ -437,11 +521,6 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
       secret_access_key: creds.secret_key
     )
   end
-
-  # Rendered live, not stored in an assign: the switch that decides this lives
-  # in the sibling tracking panel, whose toggles do not re-render this section.
-  # A cached copy would sit there saying "on" long after it was switched off.
-  defp collecting_events?, do: SQSPollingJob.should_poll?()
 
   # Is the send path still running on the global, pre-Integrations key pair?
   defp legacy_credentials? do

@@ -74,9 +74,14 @@ defmodule PhoenixKit.Modules.Emails.AwsIntegrations do
       iex> PhoenixKit.Modules.Emails.AwsIntegrations.resolve_credentials("uuid")
       {:ok, %{access_key: "AKIA...", secret_key: "...", region: "eu-north-1"}}
   """
+  # `region` is genuinely optional: a connection saved without one resolves to
+  # nil, and callers are expected to refuse rather than guess (a guessed region
+  # does not mislabel a call, it sends it somewhere else). Saying `String.t()`
+  # here told dialyzer the opposite, and it duly reported the caller's
+  # "no region, no infrastructure" guard as dead code.
   @spec resolve_credentials(String.t()) ::
-          {:ok, %{access_key: String.t(), secret_key: String.t(), region: String.t()}}
-          | {:error, term()}
+          {:ok, %{access_key: String.t(), secret_key: String.t(), region: String.t() | nil}}
+          | {:error, :missing_credentials}
   def resolve_credentials(integration_uuid) when is_binary(integration_uuid) do
     # Reads through `Emails.aws_ses_credentials/1`'s per-account TTL cache
     # rather than `Integrations.get_credentials/1` directly: the poller

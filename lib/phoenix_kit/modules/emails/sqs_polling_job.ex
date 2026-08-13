@@ -623,9 +623,6 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
         else
           error
         end
-
-      {:error, reason} ->
-        {:error, reason}
     end
   end
 
@@ -645,10 +642,20 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
   # a plain existence check is the point — weakening it to "some account
   # exists" would reintroduce exactly the chain-with-nowhere-to-poll bug it
   # was added for.
-  defp queue_url_configured? do
+  #
+  # Public (`@doc false`) for the settings panel, which names WHICH of the
+  # gate's conditions is the one stopping collection — same reuse rationale
+  # as `should_poll?/0` above.
+  @spec queue_url_configured?() :: boolean()
+  def queue_url_configured? do
     configured_accounts() != []
   end
 
+  @doc false
+  # Public for the settings panel: it tells the operator WHICH of the gate's
+  # conditions is the one stopping collection, and "no active sender" is one of
+  # them. Same reuse rationale as `should_poll?/0` above.
+  #
   # Sender-aware gate, mirroring the (parallel) Brevo poller design — see
   # PR #18 (BrevoPollingJob isn't on main yet, so there's nothing to
   # literally reference here). SQS credentials being *reachable* isn't
@@ -667,7 +674,8 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
   #     below.
   #   - an enabled SendProfile pointed at an `"aws_ses"` integration (the
   #     current, profile-based way to wire up a sender).
-  defp ses_actively_configured? do
+  @spec ses_actively_configured?() :: boolean()
+  def ses_actively_configured? do
     Emails.aws_configured?() or has_enabled_ses_send_profile?()
   end
 

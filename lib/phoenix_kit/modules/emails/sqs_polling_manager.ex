@@ -193,10 +193,29 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingManager do
   @doc """
   Enables SQS polling by setting the configuration and starting the first job.
 
+  Three writes — `email_ses_events`, `sqs_polling_enabled` and the first
+  Oban job — land in ONE transaction. They used to run as three bare
+  steps chained by `with`, so a failure at step two or three left
+  `email_ses_events` flipped on by a click that reported an error: the
+  operator saw "failed to enable", the install silently gained an
+  eligibility flag it never had, and nothing on the page said so.
+  `Settings.update_settings_batch/1` is the obvious tool and the wrong
+  one here — it writes `key`/`value` only, so on an install where these
+  rows do not exist yet it would create them without the `email_system`
+  module tag the settings page groups by.
+
+  Cache invalidation cuts both ways here. On a rollback it stays valid:
+  the writers only CLEAR entries, so the next read comes from the
+  rolled-back row rather than a stale cached one. On success it is not
+  enough on its own — the writers clear inside the transaction, before
+  the commit is visible, so a reader that misses the cache in that window
+  would cache the pre-commit value and keep it for the cache's whole TTL.
+  Both keys are therefore invalidated again after the commit.
+
   ## Returns
 
   - `{:ok, job}` - Successfully enabled and started first job
-  - `{:error, reason}` - Failed to enable polling
+  - `{:error, reason}` - Nothing was written; both settings keep their prior values
 
   ## Examples
 
@@ -206,16 +225,39 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingManager do
   def enable_polling do
     Logger.info("SQS Polling Manager: Enabling polling")
 
-    # `email_ses_events` is the OTHER half of this switch: `should_poll?/0`
-    # requires both, and having them in two places meant an operator could turn
-    # tracking on here and get nothing, with no hint that a checkbox in another
-    # section still said no. One switch now owns both.
-    with {:ok, _} <- Emails.set_ses_events(true),
-         {:ok, _setting} <- Emails.set_sqs_polling(true),
-         {:ok, job} <- insert_poll_job() do
-      Logger.info("SQS Polling Manager: Polling enabled and first job started")
-      {:ok, job}
-    else
+    repo = PhoenixKit.RepoHelper.repo()
+
+    result =
+      repo.transaction(fn ->
+        # `email_ses_events` is the OTHER half of this switch: `should_poll?/0`
+        # requires both, and having them in two places meant an operator could
+        # turn tracking on here and get nothing, with no hint that a checkbox in
+        # another section still said no. One switch now owns both — turning it
+        # ON. Turning it off deliberately does not clear the flag; see
+        # `disable_polling/0` and `EventTracker`'s moduledoc for why.
+        with {:ok, _} <- Emails.set_ses_events(true),
+             {:ok, _setting} <- Emails.set_sqs_polling(true),
+             {:ok, job} <- insert_poll_job() do
+          job
+        else
+          {:error, reason} -> repo.rollback(reason)
+        end
+      end)
+
+    case result do
+      {:ok, job} ->
+        # The writers invalidate inside the transaction, i.e. BEFORE the commit
+        # is visible. A reader that misses the cache in that window reads the
+        # pre-commit value from the database and caches it — and nothing would
+        # invalidate it again for the cache's whole TTL. Re-invalidating here,
+        # after the commit, closes that window; it is a delete, so it is safe
+        # to repeat.
+        PhoenixKit.Cache.invalidate(:settings, "email_ses_events")
+        PhoenixKit.Cache.invalidate(:settings, "sqs_polling_enabled")
+
+        Logger.info("SQS Polling Manager: Polling enabled and first job started")
+        {:ok, job}
+
       {:error, reason} = error ->
         Logger.error("SQS Polling Manager: Failed to enable polling", %{
           reason: inspect(reason)
@@ -227,6 +269,20 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingManager do
 
   @doc """
   Disables SQS polling by updating the configuration.
+
+  Only `sqs_polling_enabled` is cleared. `email_ses_events` — which
+  `enable_polling/0` turns on — is deliberately left alone, and the
+  asymmetry is the point: enabling asserts "SES event tracking is a
+  thing on this install", which stays true while polling is paused, and
+  the same flag also gates the SNS webhook path
+  (`Emails.Web.WebhookController`), which has nothing to do with SQS
+  polling. Clearing it here would silently switch off webhook ingestion
+  from a button labelled "stop polling". It keeps its own control in the
+  Email Tracking page (`Web.EmailTracking`, not the settings section of
+  the same name) for an operator who really does mean
+  "no SES events at all". See `EventTracker`'s moduledoc, which spells
+  out why an eligibility flag otherwise must not move with an operator
+  toggle.
 
   No explicit job cancellation: `SQSPollingJob.perform/1` checks
   `should_poll?/0` before doing any work AND before self-scheduling its

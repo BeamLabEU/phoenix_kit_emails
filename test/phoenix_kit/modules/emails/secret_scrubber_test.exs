@@ -113,22 +113,34 @@ defmodule PhoenixKit.Modules.Emails.SecretScrubberTest do
       refute SecretScrubber.scrub(body) =~ @token
     end
 
-    test "and it does so in linear time" do
+    test "and the work that costs grows linearly with the input" do
       link = " Reset: https://app.example.com/users/reset-password/#{@token}"
 
-      timed = fn n ->
+      # Reductions, not microseconds. The VM charges `re:run/3` reductions in
+      # proportion to the matching work it actually performs, so this counts
+      # the scrubber's own effort and is blind to how many other tests are
+      # fighting for a scheduler. The wall-clock version of this assertion
+      # measured the box instead of the code and flapped for it: `async: true`
+      # against a busy machine turned a 4x input into a 10x — and under real
+      # load a 90x — wall time with nothing wrong in the regex (seen: 100395µs
+      # against an 88680µs ceiling). The reduction counts for these two bodies
+      # repeat to within ~0.1% run to run, loaded or idle.
+      work = fn n ->
         body = String.duplicate("https://app.example.com/confirm/", n) <> link
-        {us, out} = :timer.tc(fn -> SecretScrubber.scrub(body) end)
+
+        # Built before the first reading on purpose: only the scrub is charged.
+        {:reductions, before} = Process.info(self(), :reductions)
+        out = SecretScrubber.scrub(body)
+        {:reductions, later} = Process.info(self(), :reductions)
+
         refute out =~ @token
-        us
+        later - before
       end
 
-      # Warm the pattern so JIT/allocation noise does not land in the baseline.
-      timed.(1_000)
-
-      # Quadratic backtracking showed up here as ~16x for 4x the input; linear
-      # matching leaves plenty of headroom under this bound even on a busy CI box.
-      assert timed.(40_000) < timed.(10_000) * 8 + 10_000
+      # Quadratic backtracking cost ~16x the work for 4x the input; linear
+      # matching lands just under 4x, so this bound catches the regression
+      # without sitting on top of the honest number.
+      assert work.(40_000) < work.(10_000) * 8
     end
   end
 
