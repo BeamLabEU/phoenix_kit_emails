@@ -67,7 +67,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTrackingTe
 
     {:ok, _} = Integrations.save_setup(integration_uuid, %{"api_key" => "test-key"})
 
-    {:ok, _profile} =
+    {:ok, profile} =
       SendProfiles.create_send_profile(%{
         name: "Brevo profile #{System.unique_integer([:positive])}",
         integration_uuid: integration_uuid,
@@ -76,7 +76,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTrackingTe
         enabled: true
       })
 
-    :ok
+    profile
   end
 
   defp row_for(rows, provider_kind), do: Enum.find(rows, &(&1.provider_kind == provider_kind))
@@ -406,15 +406,51 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTrackingTe
       assert refreshed.assigns.accounts_for == nil
     end
 
-    test "accounts_row/2 resolves the row the dialog renders from" do
+    test "the open dialog resolves to a row, and toggling keeps it open" do
       create_brevo_profile()
       {:ok, socket} = Panel.update(%{id: "panel"}, bare_socket())
 
-      row = Panel.accounts_row(socket.assigns.rows, "brevo_api")
+      {:noreply, opened} =
+        Panel.handle_event("open_accounts", %{"provider" => "brevo_api"}, socket)
 
-      assert row.provider_kind == "brevo_api"
-      assert is_list(row.accounts)
-      assert Panel.accounts_row(socket.assigns.rows, "nope") == nil
+      assert opened.assigns.accounts_row.provider_kind == "brevo_api"
+      [{uuid, _name, _polled?}] = opened.assigns.accounts_row.accounts
+
+      {:noreply, toggled} =
+        Panel.handle_event(
+          "toggle_account",
+          %{"provider" => "brevo_api", "uuid" => uuid},
+          opened
+        )
+
+      # The dialog stays open on a fresh row — the whole point of the rework.
+      assert toggled.assigns.accounts_for == "brevo_api"
+      assert toggled.assigns.accounts_row.provider_kind == "brevo_api"
+    end
+
+    test "a row that disappears under an open dialog closes it in the handler, not just in update/2" do
+      profile = create_brevo_profile()
+      {:ok, socket} = Panel.update(%{id: "panel"}, bare_socket())
+
+      {:noreply, opened} =
+        Panel.handle_event("open_accounts", %{"provider" => "brevo_api"}, socket)
+
+      [{uuid, _name, _polled?}] = opened.assigns.accounts_row.accounts
+
+      # Somebody disables the last enabled Brevo profile in the section next
+      # door; the account list this dialog renders from goes empty. The next
+      # toggle must not render against a row that is no longer there.
+      {:ok, _} = SendProfiles.update_send_profile(profile, %{enabled: false})
+
+      {:noreply, refreshed} =
+        Panel.handle_event(
+          "toggle_account",
+          %{"provider" => "brevo_api", "uuid" => uuid},
+          opened
+        )
+
+      assert refreshed.assigns.accounts_row == nil
+      assert refreshed.assigns.accounts_for == nil
     end
   end
 end

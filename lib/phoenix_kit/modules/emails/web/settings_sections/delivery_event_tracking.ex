@@ -35,14 +35,11 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTracking d
 
   @impl true
   def update(assigns, socket) do
-    rows = build_rows()
-
     socket =
       socket
       |> assign(assigns)
-      |> assign(:rows, rows)
-      |> assign_new(:accounts_for, fn -> nil end)
-      |> keep_open_only_for_existing_row(rows)
+      |> assign(:accounts_for, Map.get(socket.assigns, :accounts_for))
+      |> assign_rows()
 
     {:ok, socket}
   end
@@ -68,7 +65,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTracking d
           EventTrackerReconciler.reconcile_tracker(tracker)
 
           socket
-          |> assign(:rows, build_rows())
+          |> assign_rows()
           |> put_flash(:info, gettext("%{label} tracking updated", label: tracker.label()))
 
         false ->
@@ -93,7 +90,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTracking d
         case tracker.poll_now() do
           {:ok, _job} ->
             socket
-            |> assign(:rows, build_rows())
+            |> assign_rows()
             |> put_flash(:info, gettext("%{label} poll triggered", label: tracker.label()))
 
           {:error, _reason} ->
@@ -114,7 +111,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTracking d
       case EventTrackerReconciler.reconcile_tracker(tracker) do
         {:ok, _} ->
           socket
-          |> assign(:rows, build_rows())
+          |> assign_rows()
           |> put_flash(:info, gettext("%{label} restarted", label: tracker.label()))
 
         {:error, _reason} ->
@@ -132,7 +129,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTracking d
           case tracker.set_polling_interval(interval_ms) do
             {:ok, _setting} ->
               socket
-              |> assign(:rows, build_rows())
+              |> assign_rows()
               |> put_flash(
                 :info,
                 gettext("%{label} polling interval updated to %{ms}ms",
@@ -159,30 +156,31 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTracking d
     # Only a provider that actually exposes an account list can open the dialog:
     # a forged phx-value would otherwise render a modal over a row that has none.
     case account_row(socket.assigns.rows, provider_kind) do
-      nil -> {:noreply, socket}
-      _row -> {:noreply, assign(socket, :accounts_for, provider_kind)}
+      nil ->
+        {:noreply, socket}
+
+      _row ->
+        # Through assign_rows/1 like every other path, so the row the dialog
+        # renders from is always the freshly resolved one.
+        {:noreply, socket |> assign(:accounts_for, provider_kind) |> assign_rows()}
     end
   end
 
   def handle_event("close_accounts", _params, socket) do
-    {:noreply, assign(socket, :accounts_for, nil)}
+    {:noreply, socket |> assign(:accounts_for, nil) |> assign(:accounts_row, nil)}
   end
 
   def handle_event("toggle_account", %{"provider" => provider_kind, "uuid" => uuid}, socket) do
     with_tracker(socket, provider_kind, fn tracker ->
       case EventTracker.toggle_account_polling(tracker, uuid) do
         {:ok, _result} ->
-          assign(socket, :rows, build_rows())
+          assign_rows(socket)
 
         {:error, _reason} ->
           put_flash(socket, :error, gettext("Failed to update account polling"))
       end
     end)
   end
-
-  @doc false
-  # The row whose accounts the dialog is editing — the template reads it.
-  def accounts_row(rows, provider_kind), do: account_row(rows, provider_kind)
 
   ## --- Private ---
 
@@ -196,19 +194,26 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTracking d
     end)
   end
 
-  # A dialog must never outlive the row it edits: a tracker removed by a deploy
-  # (or a provider whose accounts went away) closes it instead of rendering over
-  # a row that is no longer there.
-  defp keep_open_only_for_existing_row(socket, rows) do
-    case socket.assigns[:accounts_for] do
-      nil ->
-        socket
+  # The ONE place rows are assigned. The open dialog is re-resolved against the
+  # fresh rows every time, and the template renders from that resolved row
+  # rather than looking it up itself: a dialog whose row disappeared (its last
+  # enabled send profile switched off in the next section, a tracker removed by
+  # a deploy) closes instead of rendering against nothing. Handlers refresh rows
+  # far more often than `update/2` runs, so guarding only there left the common
+  # path unprotected.
+  # Template helper: how many of a tracker's accounts are being polled.
+  defp polled_count(accounts) do
+    Enum.count(accounts, fn {_uuid, _name, polled?} -> polled? end)
+  end
 
-      provider_kind ->
-        if account_row(rows, provider_kind),
-          do: socket,
-          else: assign(socket, :accounts_for, nil)
-    end
+  defp assign_rows(socket) do
+    rows = build_rows()
+    row = socket.assigns[:accounts_for] && account_row(rows, socket.assigns[:accounts_for])
+
+    socket
+    |> assign(:rows, rows)
+    |> assign(:accounts_for, row && row.provider_kind)
+    |> assign(:accounts_row, row)
   end
 
   # Resolves provider_kind to its registered tracker and runs fun/1

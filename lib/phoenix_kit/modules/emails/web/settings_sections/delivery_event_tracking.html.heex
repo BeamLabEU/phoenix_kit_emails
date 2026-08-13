@@ -88,14 +88,26 @@
                   type="button"
                   class="btn btn-xs btn-outline font-mono"
                   disabled={row.accounts == []}
+                  title={
+                    if row.accounts == [],
+                      do: gettext("No accounts yet"),
+                      else:
+                        gettext("Accounts polled: %{polled} of %{total}",
+                          polled: polled_count(row.accounts),
+                          total: length(row.accounts)
+                        )
+                  }
+                  aria-label={
+                    gettext("Accounts polled: %{polled} of %{total}",
+                      polled: polled_count(row.accounts),
+                      total: length(row.accounts)
+                    )
+                  }
                   phx-click="open_accounts"
                   phx-value-provider={row.provider_kind}
                   phx-target={@myself}
                 >
-                  {gettext("%{polled}/%{total}",
-                    polled: Enum.count(row.accounts, fn {_uuid, _name, polled?} -> polled? end),
-                    total: length(row.accounts)
-                  )}
+                  {polled_count(row.accounts)}/{length(row.accounts)}
                 </button>
               <% else %>
                 <span class="text-base-content/40">—</span>
@@ -137,14 +149,14 @@
   rows themselves stay the single source of truth, so a toggle refreshes the
   list under the open dialog without closing it. --%>
   <.modal
-    :if={@accounts_for}
+    :if={@accounts_row}
     show={true}
-    id="tracker-accounts-modal"
+    id={"#{@id}-accounts-modal"}
     on_close="close_accounts"
     max_width="lg"
   >
     <:title>
-      {gettext("Accounts polled — %{provider}", provider: accounts_row(@rows, @accounts_for).label)}
+      {gettext("Accounts polled — %{provider}", provider: @accounts_row.label)}
     </:title>
 
     <p class="text-sm text-base-content/70 mb-3">
@@ -155,7 +167,7 @@
 
     <ul class="divide-y divide-base-200">
       <li
-        :for={{uuid, name, polled?} <- accounts_row(@rows, @accounts_for).accounts}
+        :for={{uuid, name, polled?} <- @accounts_row.accounts}
         class="py-2"
       >
         <label class="label cursor-pointer justify-start gap-3 p-0">
@@ -164,12 +176,12 @@
             class="checkbox checkbox-sm"
             checked={polled?}
             phx-click="toggle_account"
-            phx-value-provider={@accounts_for}
+            phx-value-provider={@accounts_row.provider_kind}
             phx-value-uuid={uuid}
             phx-target={@myself}
           />
           <span class="flex flex-col min-w-0">
-            <span class="text-sm font-medium truncate">{name}</span>
+            <span class="text-sm font-medium text-base-content truncate">{name}</span>
             <span class="text-xs text-base-content/60 font-mono truncate">{uuid}</span>
           </span>
         </label>
