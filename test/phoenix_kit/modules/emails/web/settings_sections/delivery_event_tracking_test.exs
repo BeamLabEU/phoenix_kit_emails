@@ -567,6 +567,32 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTrackingTe
       refute html =~ "Inherited settings"
     end
 
+    test "the expanded row's forms are daisyUI 5, not v4 classes that style nothing" do
+      {:ok, %{uuid: tracked}} = Integrations.add_connection("aws_ses", "tracked")
+      {:ok, _} = Emails.set_aws_tracking(tracked, %{})
+
+      {:ok, socket} = Panel.update(%{id: "panel"}, bare_socket())
+
+      {:noreply, opened} =
+        Panel.handle_event("toggle_expand", %{"provider" => "aws_ses"}, socket)
+
+      html = render_panel(opened.assigns.expanded)
+
+      # `form-control`, `label-text` and `label-text-alt` have no rule at all in
+      # the shipped daisyUI 5 bundle, so markup carrying them is unstyled, not
+      # merely old-fashioned. One render covers both templates: the SES panel
+      # is nested inside this one.
+      refute html =~ "form-control"
+      refute html =~ "label-text"
+
+      assert html =~ "fieldset-legend"
+      # `.fieldset` is a grid, so the interval editor has to say it wants to
+      # hug its 8rem input instead of spanning the column.
+      assert html =~ "join w-fit"
+      assert html =~ "Polling interval"
+      assert html =~ "SQS Queue URL"
+    end
+
     test "expanded Brevo: a note where a settings component would be" do
       {:ok, socket} = Panel.update(%{id: "panel"}, bare_socket())
 
