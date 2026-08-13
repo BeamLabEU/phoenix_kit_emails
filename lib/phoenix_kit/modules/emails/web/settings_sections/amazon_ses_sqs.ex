@@ -348,6 +348,9 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
           url: url
         )
 
+      # Defensive default. Every condition `should_poll?/0` checks is named
+      # above, so reaching this means the gate grew a fifth one — better a
+      # vague sentence than a crash or a confident lie.
       :unknown ->
         gettext("One global queue is configured, but collection is off: %{url}", url: url)
     end

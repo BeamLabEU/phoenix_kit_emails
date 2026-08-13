@@ -134,6 +134,24 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqsTest do
       assert html =~ "switch Tracking on in the row above"
     end
 
+    test "two senders sharing the global queue are polled, and warned about" do
+      {:ok, _} = Emails.enable_system()
+      {:ok, _} = Emails.set_ses_events(true)
+      {:ok, _} = Emails.set_sqs_polling(true)
+      create_ses_connection_with_queue()
+      create_ses_connection_with_queue()
+
+      html = render_section()
+
+      # Both senders share one queue — the poller does read it (so the notice
+      # says "polling"), and the warning above it names the accounts that have
+      # no queue of their own. Neither statement is the vague "collection is
+      # off" this notice replaced.
+      assert html =~ "Polling the legacy global queue"
+      assert html =~ "Some sending accounts have no event queue of their own"
+      refute html =~ "collection is off"
+    end
+
     test "with everything on but no SES sender it says exactly that" do
       {:ok, _} = Emails.enable_system()
       {:ok, _} = Emails.set_ses_events(true)
