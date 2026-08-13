@@ -284,19 +284,23 @@
     </form>
   </div>
 
-  <%!-- AWS SES Events --%>
-  <div class="form-control">
-    <.checkbox
-      name="amazon_ses[ses_events]"
-      checked={@email_ses_events}
-      phx-click="toggle_email_ses_events"
-      phx-target={@myself}
-      label={gettext("AWS SES Events Options")}
-    >
-      <:description>
-        {gettext("Track delivery, bounce, and complaint events from Amazon SES")}
-      </:description>
-    </.checkbox>
+  <%!-- Event collection is switched on ONE place — the Amazon SES row in
+  Delivery event tracking, which now owns both settings this gate needs.
+  Showing the state here (read-only) keeps the answer where an operator looks
+  for it without giving them a second switch for the same lamp. --%>
+  <div class="text-sm flex items-center gap-2">
+    <.icon
+      name={if @email_ses_events, do: "hero-check-circle", else: "hero-minus-circle"}
+      class={["w-4 h-4", if(@email_ses_events, do: "text-success", else: "text-base-content/40")]}
+    />
+    <span>
+      {if @email_ses_events,
+        do: gettext("Delivery events from Amazon SES: collection is on"),
+        else: gettext("Delivery events from Amazon SES: collection is off")}
+    </span>
+    <span class="text-base-content/60">
+      {gettext("— switch it in Delivery event tracking above")}
+    </span>
   </div>
 
   <%!-- Legacy manual credentials: no longer editable here. They keep working
@@ -312,113 +316,40 @@
   </div>
 
   <form id="aws-settings-form" phx-submit="save_aws_settings" phx-target={@myself}>
-    <%!-- Advanced AWS Settings (collapse) — visible whenever AWS
-         Configuration renders, not just when "AWS SES Events Options" is
-         on, since "Setup AWS Infrastructure" (below) can populate these
-         regardless of that toggle. --%>
-    <div class="collapse collapse-arrow bg-base-200 mt-4">
-      <input type="checkbox" />
-      <div class="collapse-title text-sm font-medium">
-        <span class="flex items-center gap-2">
-          <.icon name="hero-cog-6-tooth" class="w-5 h-5" /> {gettext("Advanced AWS Settings")}
-        </span>
-      </div>
-      <div class="collapse-content text-sm space-y-4">
-        <p class="text-base-content/70 mb-4">
-          {gettext(
-            "These settings are automatically configured when you run \"Setup AWS Infrastructure\". Manual changes may break the integration."
-          )}
-        </p>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <%!-- SES Configuration Set --%>
-          <div class="form-control">
-            <label class="label">
-              <span class="label-text font-medium">{gettext("SES Configuration Set")}</span>
-            </label>
-            <input
-              name="aws_settings[ses_configuration_set]"
-              type="text"
-              placeholder="phoenixkit-emails"
-              value={@aws_settings.ses_configuration_set}
-              class="input input-bordered focus:input-primary"
-            />
-            <label class="label">
-              <span class="label-text-alt">{gettext("SES configuration set name")}</span>
-            </label>
-          </div>
-
-          <%!-- SNS Topic ARN --%>
-          <div class="form-control md:col-span-2">
-            <label class="label">
-              <span class="label-text font-medium">{gettext("SNS Topic ARN")}</span>
-            </label>
-            <input
-              name="aws_settings[sns_topic_arn]"
-              type="text"
-              placeholder="arn:aws:sns:eu-north-1:123456789012:email-events"
-              value={@aws_settings.sns_topic_arn}
-              class="input input-bordered focus:input-primary"
-            />
-            <label class="label">
-              <span class="label-text-alt">{gettext("SNS topic for email events")}</span>
-            </label>
-          </div>
-
-          <%!-- SQS Queue URL --%>
-          <div class="form-control md:col-span-2">
-            <label class="label">
-              <span class="label-text font-medium">{gettext("SQS Queue URL")}</span>
-            </label>
-            <input
-              name="aws_settings[sqs_queue_url]"
-              type="url"
-              placeholder="https://sqs.eu-north-1.amazonaws.com/123456789012/email-events"
-              value={@aws_settings.sqs_queue_url}
-              class="input input-bordered focus:input-primary"
-            />
-            <label class="label">
-              <span class="label-text-alt">{gettext("Main queue for email events")}</span>
-            </label>
-          </div>
-
-          <%!-- SQS Queue ARN --%>
-          <div class="form-control md:col-span-1">
-            <label class="label">
-              <span class="label-text font-medium">{gettext("SQS Queue ARN")}</span>
-            </label>
-            <input
-              name="aws_settings[sqs_queue_arn]"
-              type="text"
-              placeholder="arn:aws:sqs:eu-north-1:123456789012:email-events"
-              value={@aws_settings.sqs_queue_arn}
-              class="input input-bordered focus:input-primary"
-            />
-            <label class="label">
-              <span class="label-text-alt">{gettext("SQS queue ARN for permissions")}</span>
-            </label>
-          </div>
-
-          <%!-- SQS DLQ URL --%>
-          <div class="form-control md:col-span-1">
-            <label class="label">
-              <span class="label-text font-medium">
-                {gettext("SQS Dead Letter Queue URL")}
-              </span>
-            </label>
-            <input
-              name="aws_settings[sqs_dlq_url]"
-              type="url"
-              placeholder="https://sqs.eu-north-1.amazonaws.com/123456789012/email-events-dlq"
-              value={@aws_settings.sqs_dlq_url}
-              class="input input-bordered focus:input-primary"
-            />
-            <label class="label">
-              <span class="label-text-alt">{gettext("Dead letter queue for failed messages")}</span>
-            </label>
-          </div>
-        </div>
-      </div>
+    <%!-- The five global aws_* pipeline settings used to be edited here. They
+    are the SAME fields the per-account rows above carry — and two of them
+    (SNS topic ARN, queue ARN) are read by nothing at all. They survive only as
+    the fallback for an install that has not moved to per-account tracking yet,
+    so they are shown, not offered for editing: the account rows above are the
+    one place to change them. --%>
+    <div :if={@aws_settings.sqs_queue_url != "" or @aws_settings.ses_configuration_set != ""} class="mt-4">
+      <.accordion id="legacy-aws-settings" title={gettext("Inherited settings (legacy)")}>
+        <:content>
+          <p class="text-sm text-base-content/70 mb-3">
+            {gettext(
+              "Used only by an account that has no tracking row of its own. Give that account its own queue above and these stop applying."
+            )}
+          </p>
+          <dl class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+            <div>
+              <dt class="text-base-content/60">{gettext("SES Configuration Set")}</dt>
+              <dd class="font-mono break-all">{@aws_settings.ses_configuration_set}</dd>
+            </div>
+            <div>
+              <dt class="text-base-content/60">{gettext("SQS Queue URL")}</dt>
+              <dd class="font-mono break-all">{@aws_settings.sqs_queue_url}</dd>
+            </div>
+            <div>
+              <dt class="text-base-content/60">{gettext("SQS DLQ URL")}</dt>
+              <dd class="font-mono break-all">{@aws_settings.sqs_dlq_url}</dd>
+            </div>
+            <div>
+              <dt class="text-base-content/60">{gettext("Region")}</dt>
+              <dd class="font-mono break-all">{@aws_settings.region}</dd>
+            </div>
+          </dl>
+        </:content>
+      </.accordion>
     </div>
 
     <%!-- SQS Worker Tuning (collapse) — the master polling toggle and the

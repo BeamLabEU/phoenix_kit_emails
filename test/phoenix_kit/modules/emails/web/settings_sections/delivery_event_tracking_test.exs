@@ -453,4 +453,20 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTrackingTe
       assert refreshed.assigns.accounts_for == nil
     end
   end
+
+  describe "one switch owns both SES event settings" do
+    test "turning tracking on also turns on the ses-events precondition" do
+      create_ses_profile()
+      {:ok, _} = Emails.set_ses_events(false)
+      {:ok, socket} = Panel.update(%{id: "panel"}, bare_socket())
+
+      {:noreply, _socket} =
+        Panel.handle_event("toggle_tracking", %{"provider" => "aws_ses"}, socket)
+
+      # Both halves of `should_poll?/0` are on — the old UI let an operator
+      # enable one and silently collect nothing.
+      assert Emails.sqs_polling_enabled?()
+      assert Emails.ses_events_enabled?()
+    end
+  end
 end

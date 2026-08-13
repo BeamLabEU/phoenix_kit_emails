@@ -163,20 +163,21 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
   def handle_event("save_aws_settings", %{"aws_settings" => aws_params}, socket) do
     socket = assign(socket, :saving, true)
 
-    # Pipeline fields only — credentials and region belong to the assigned
-    # Integrations connection (legacy aws_* settings stay untouched as the
-    # fallback until an assignment happens).
-    settings_to_update = %{
-      "aws_sqs_queue_url" => aws_params["sqs_queue_url"] || "",
-      "aws_sqs_dlq_url" => aws_params["sqs_dlq_url"] || "",
-      "aws_sqs_queue_arn" => aws_params["sqs_queue_arn"] || "",
-      "aws_sns_topic_arn" => aws_params["sns_topic_arn"] || "",
-      "aws_ses_configuration_set" =>
-        if(aws_params["ses_configuration_set"] in [nil, ""],
-          do: "phoenixkit-tracking",
-          else: aws_params["ses_configuration_set"]
-        )
-    }
+    # The global pipeline fields are no longer edited here — the per-account
+    # rows own them, and this form kept only the worker tuning. A missing key
+    # therefore means "the form does not carry it", NOT "clear it": writing the
+    # absent params back as "" would have wiped the legacy fallback of every
+    # install that still relies on it, from a form that no longer shows it.
+    settings_to_update =
+      %{
+        "aws_sqs_queue_url" => aws_params["sqs_queue_url"],
+        "aws_sqs_dlq_url" => aws_params["sqs_dlq_url"],
+        "aws_sqs_queue_arn" => aws_params["sqs_queue_arn"],
+        "aws_sns_topic_arn" => aws_params["sns_topic_arn"],
+        "aws_ses_configuration_set" => aws_params["ses_configuration_set"]
+      }
+      |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+      |> Map.new()
 
     case Settings.update_settings_batch(settings_to_update) do
       {:ok, _results} ->

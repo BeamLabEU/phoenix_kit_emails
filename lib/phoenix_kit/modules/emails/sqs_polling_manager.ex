@@ -193,7 +193,12 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingManager do
   def enable_polling do
     Logger.info("SQS Polling Manager: Enabling polling")
 
-    with {:ok, _setting} <- Emails.set_sqs_polling(true),
+    # `email_ses_events` is the OTHER half of this switch: `should_poll?/0`
+    # requires both, and having them in two places meant an operator could turn
+    # tracking on here and get nothing, with no hint that a checkbox in another
+    # section still said no. One switch now owns both.
+    with {:ok, _} <- Emails.set_ses_events(true),
+         {:ok, _setting} <- Emails.set_sqs_polling(true),
          {:ok, job} <- insert_poll_job() do
       Logger.info("SQS Polling Manager: Polling enabled and first job started")
       {:ok, job}

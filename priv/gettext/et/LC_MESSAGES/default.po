@@ -84,7 +84,6 @@ msgid "AWS SES Events Tracking"
 msgstr "AWS SES sündmuste jälgimine"
 
 #: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:38
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:297
 #, elixir-autogen, elixir-format
 msgid "Track delivery, bounce, and complaint events from Amazon SES"
 msgstr "Jälgige Amazon SES-i kohaletoimetamise, tagasilükkamiste ja kaebuste sündmusi"
@@ -122,7 +121,7 @@ msgid "How long to keep email tracking data before automatic cleanup (1-365 days
 msgstr "Kui kaua säilitada e-kirjade jälgimisandmeid enne automaatset puhastamist (1-365 päeva)"
 
 #: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:86
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:373
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:359
 #, elixir-autogen, elixir-format
 msgid "Data Privacy Notice"
 msgstr "Andmekaitse teade"
@@ -293,11 +292,6 @@ msgstr "7 päeva"
 msgid "90 Days"
 msgstr "90 päeva"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:294
-#, elixir-autogen, elixir-format
-msgid "AWS SES Events Options"
-msgstr "AWS SES sündmuste valikud"
-
 #: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:76
 #, elixir-autogen, elixir-format
 msgid "Abuse"
@@ -386,11 +380,6 @@ msgstr "Lisatud"
 msgid "Admin"
 msgstr "Administraator"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:323
-#, elixir-autogen, elixir-format
-msgid "Advanced AWS Settings"
-msgstr "Täiendavad AWS seaded"
-
 #: lib/phoenix_kit/modules/emails/web/emails.html.heex:79
 #: lib/phoenix_kit/modules/emails/web/templates.html.heex:64
 #, elixir-autogen, elixir-format
@@ -449,21 +438,11 @@ msgstr "Arhiveeri"
 msgid "Archive Template"
 msgstr "Arhiveeri mall"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:363
-#, elixir-autogen, elixir-format
-msgid "Archive to S3 Now"
-msgstr "Arhiveeri S3-sse kohe"
-
 #: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:205
 #: lib/phoenix_kit/modules/emails/web/templates.html.heex:74
 #, elixir-autogen, elixir-format
 msgid "Archived"
 msgstr "Arhiveeritud"
-
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:360
-#, elixir-autogen, elixir-format
-msgid "Archiving..."
-msgstr "Arhiveerimine..."
 
 #: lib/phoenix_kit/modules/emails/web/details.html.heex:155
 #, elixir-autogen, elixir-format
@@ -621,11 +600,6 @@ msgstr "Tihenda vanade kirjade sisu salvestusruumi säästmiseks (7–365 päeva
 msgid "Compressing..."
 msgstr "Tihendamine..."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:511
-#, elixir-autogen, elixir-format
-msgid "Configuration Changes Detected"
-msgstr "Konfiguratsiooni muudatused tuvastatud"
-
 #: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:166
 #: lib/phoenix_kit/modules/emails/web/queue.html.heex:153
 #, elixir-autogen, elixir-format
@@ -693,11 +667,6 @@ msgstr "Kohanda veerge"
 #, elixir-autogen, elixir-format
 msgid "Days of data retention"
 msgstr "Andmete säilitamise päevad"
-
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:417
-#, elixir-autogen, elixir-format
-msgid "Dead letter queue for failed messages"
-msgstr "Surnud kirjade järjekord ebaõnnestunud sõnumitele"
 
 #: lib/phoenix_kit/modules/emails/web/emails.html.heex:74
 #: lib/phoenix_kit/modules/emails/web/emails.html.heex:409
@@ -825,7 +794,7 @@ msgstr "E-kirjade mallid"
 msgid "Email actions"
 msgstr "Kirja toimingud"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:375
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:361
 #, elixir-autogen, elixir-format
 msgid "Email data will be automatically deleted after the retention period expires. This helps maintain privacy compliance and reduces storage requirements."
 msgstr "E-kirjade jälgimisandmed kustutatakse automaatselt pärast säilitusperioodi lõppu. See aitab säilitada privaatsuse vastavust ja vähendada salvestusruumi vajadust."
@@ -845,12 +814,12 @@ msgstr "E-posti süsteem töötab"
 msgid "Emails Sampling Rate"
 msgstr "E-kirjade valimi määr"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:336
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:341
 #, elixir-autogen, elixir-format
 msgid "Enable S3 Archival"
 msgstr "Luba S3 arhiveerimine"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:499
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:430
 #, elixir-autogen, elixir-format
 msgid "Enable compression to reduce storage requirements"
 msgstr "Luba tihendamine salvestusvajaduste vähendamiseks"
@@ -870,7 +839,7 @@ msgstr "Kaasamise analüütika"
 msgid "Enter compression days"
 msgstr "Sisestage tihendamise päevad"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:445
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:376
 #, elixir-autogen, elixir-format
 msgid "Enter max messages"
 msgstr "Sisestage sõnumite maksimum"
@@ -880,7 +849,7 @@ msgstr "Sisestage sõnumite maksimum"
 msgid "Enter sampling rate"
 msgstr "Sisestage valimi määr"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:471
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:402
 #, elixir-autogen, elixir-format
 msgid "Enter timeout"
 msgstr "Sisestage aegumine"
@@ -1034,7 +1003,7 @@ msgstr "Peida täielik sisu"
 msgid "Hide Headers"
 msgstr "Peida päised"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:483
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:414
 #, elixir-autogen, elixir-format
 msgid "How long messages remain invisible after being received (30-43200 seconds)"
 msgstr "Kui kaua jäävad sõnumid pärast vastuvõtmist nähtamatuks (30–43200 sekundit)"
@@ -1136,11 +1105,6 @@ msgstr "Mallide laadimine..."
 msgid "Loading..."
 msgstr "Laadimine..."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:381
-#, elixir-autogen, elixir-format
-msgid "Main queue for email events"
-msgstr "Peamine järjekord e-posti sündmuste jaoks"
-
 #: lib/phoenix_kit/modules/emails/web/templates.ex:59
 #, elixir-autogen, elixir-format
 msgid "Manage and organize your email templates"
@@ -1156,11 +1120,6 @@ msgstr "Halda blokeeritud e-posti aadresse"
 msgid "Manual Block"
 msgstr "Käsitsi blokeering"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:349
-#, elixir-autogen, elixir-format
-msgid "Manually trigger S3 archival for emails older than retention period"
-msgstr "Käivita käsitsi S3 arhiveerimine kirjade jaoks, mis on vanemad kui säilitusaeg"
-
 #: lib/phoenix_kit/modules/emails/web/emails.html.heex:82
 #: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:118
 #: lib/phoenix_kit/modules/emails/web/templates.html.heex:67
@@ -1168,12 +1127,12 @@ msgstr "Käivita käsitsi S3 arhiveerimine kirjade jaoks, mis on vanemad kui sä
 msgid "Marketing"
 msgstr "Turundus"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:439
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:370
 #, elixir-autogen, elixir-format
 msgid "Max Messages Per Poll"
 msgstr "Sõnumeid maksimaalselt küsitluse kohta"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:457
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:388
 #, elixir-autogen, elixir-format
 msgid "Maximum number of messages to process in each polling cycle (1-10)"
 msgstr "Maksimaalne sõnumite arv ühe küsitluse tsükli kohta (1–10)"
@@ -1203,7 +1162,7 @@ msgstr "Moodul, mis selle kirja saadab"
 msgid "Monitor and track all outgoing emails"
 msgstr "Jälgi ja kontrolli kõiki väljaminevaid kirju"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:498
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:429
 #, elixir-autogen, elixir-format
 msgid "Monitor queue depth and adjust max messages accordingly"
 msgstr "Jälgige järjekorra sügavust ja kohandage sõnumite maksimumi"
@@ -1213,7 +1172,7 @@ msgstr "Jälgige järjekorra sügavust ja kohandage sõnumite maksimumi"
 msgid "Most Used"
 msgstr "Enim kasutatud"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:339
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:344
 #, elixir-autogen, elixir-format
 msgid "Move old email data to AWS S3 for long-term cold storage"
 msgstr "Liiguta vanad e-kirja andmed AWS S3-sse pikaajaliseks külmsalvestuseks"
@@ -1356,7 +1315,7 @@ msgstr "Avatud"
 msgid "Percentage of emails to fully track for analytics (0-100%)"
 msgstr "Analüütika jaoks täielikult jälgitavate kirjade osakaal (0–100%)"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:494
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:425
 #, elixir-autogen, elixir-format
 msgid "Performance Tips"
 msgstr "Jõudluse nõuanded"
@@ -1505,56 +1464,38 @@ msgid "Running..."
 msgstr "Käib..."
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:227
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:337
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:335
 #, elixir-autogen, elixir-format
 msgid "SES Configuration Set"
 msgstr "SES konfiguratsioonikomplekt"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:347
-#, elixir-autogen, elixir-format
-msgid "SES configuration set name"
-msgstr "SES konfiguratsioonikomplekti nimi"
-
 #: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:215
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:354
 #, elixir-autogen, elixir-format
 msgid "SNS Topic ARN"
 msgstr "SNS teema ARN"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:364
-#, elixir-autogen, elixir-format
-msgid "SNS topic for email events"
-msgstr "SNS teema e-posti sündmuste jaoks"
-
 #: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:191
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:406
 #, elixir-autogen, elixir-format
 msgid "SQS Dead Letter Queue URL"
 msgstr "SQS surnud kirjade järjekorra URL"
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:203
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:388
 #, elixir-autogen, elixir-format
 msgid "SQS Queue ARN"
 msgstr "SQS järjekorra ARN"
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:178
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:371
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:339
 #, elixir-autogen, elixir-format
 msgid "SQS Queue URL"
 msgstr "SQS järjekorra URL"
-
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:398
-#, elixir-autogen, elixir-format
-msgid "SQS queue ARN for permissions"
-msgstr "SQS järjekorra ARN õiguste jaoks"
 
 #: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:609
 #, elixir-autogen, elixir-format
 msgid "Sample Variable Values"
 msgstr "Muutujate näidisväärtused"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:532
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:449
 #, elixir-autogen, elixir-format
 msgid "Save AWS Settings"
 msgstr "Salvesta AWS seaded"
@@ -1569,7 +1510,7 @@ msgstr "Salvesta e-kirjade päised"
 msgid "Save as Draft"
 msgstr "Salvesta mustandina"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:530
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:447
 #: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:462
 #, elixir-autogen, elixir-format
 msgid "Saving..."
@@ -1648,20 +1589,10 @@ msgstr "Täna saadetud"
 msgid "Sent:"
 msgstr "Saadetud:"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:497
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:428
 #, elixir-autogen, elixir-format
 msgid "Set visibility timeout to match processing time"
 msgstr "Määrake nähtavuse aegumine vastavalt töötlemisajale"
-
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:549
-#, elixir-autogen, elixir-format
-msgid "Setting up..."
-msgstr "Seadistamine..."
-
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:552
-#, elixir-autogen, elixir-format
-msgid "Setup AWS Infrastructure"
-msgstr "Seadista AWS taristu"
 
 #: lib/phoenix_kit/modules/emails/web/details.html.heex:229
 #, elixir-autogen, elixir-format
@@ -1816,11 +1747,6 @@ msgstr "Tekstisisu"
 msgid "The email with ID %{uuid} could not be found."
 msgstr "ID-ga %{uuid} kirja ei leitud."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:328
-#, elixir-autogen, elixir-format
-msgid "These settings are automatically configured when you run \"Setup AWS Infrastructure\". Manual changes may break the integration."
-msgstr "Need seaded täidetakse automaatselt käivitades „Seadista AWS infrastruktuur“. Käsitsi muutmine võib integratsiooni katki teha."
-
 #: lib/phoenix_kit/modules/emails/web/emails.html.heex:638
 #, elixir-autogen, elixir-format
 msgid "This test email will:"
@@ -1929,7 +1855,7 @@ msgstr "Uuenda malli"
 msgid "Usage"
 msgstr "Kasutus"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:496
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:427
 #, elixir-autogen, elixir-format
 msgid "Use longer polling intervals (5-10 seconds) to reduce API calls"
 msgstr "Kasutage pikemaid küsitlusintervalle (5–10 sekundit) API kõnede vähendamiseks"
@@ -1976,15 +1902,10 @@ msgstr "Kampaania kirjad"
 msgid "View related emails"
 msgstr "Seotud kirjad"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:465
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:396
 #, elixir-autogen, elixir-format
 msgid "Visibility Timeout"
 msgstr "Nähtavuse aegumine"
-
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:513
-#, elixir-autogen, elixir-format
-msgid "You've modified your AWS credentials. Click \"Save AWS Settings\" first, then use \"Setup AWS Infrastructure\" to create the required resources."
-msgstr "Olete AWS mandaate muutnud. Klõpsake esmalt „Salvesta AWS seaded“, seejärel kasutage „Seadista AWS infrastruktuur“ vajalike ressursside loomiseks."
 
 #: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:441
 #, elixir-autogen, elixir-format
@@ -1996,12 +1917,12 @@ msgstr "Teie blokeerimise loend on tühi"
 msgid "delivery time"
 msgstr "kohaletoimetamise aeg"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:453
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:384
 #, elixir-autogen, elixir-format
 msgid "messages"
 msgstr "sõnumeid"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:479
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:410
 #, elixir-autogen, elixir-format
 msgid "seconds"
 msgstr "sekundit"
@@ -2037,18 +1958,18 @@ msgid "Use <code>%{var}</code> syntax in subject or body to add dynamic variable
 msgstr "Kasutage süntaksit <code>%{var}</code> teemas või kirja sisus dünaamiliste muutujate lisamiseks."
 
 #: lib/phoenix_kit/modules/emails/web/email_tracking.ex:107
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:88
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:87
 #, elixir-autogen, elixir-format
 msgid "AWS SES events tracking disabled"
 msgstr "AWS SES sündmuste jälgimine keelatud"
 
 #: lib/phoenix_kit/modules/emails/web/email_tracking.ex:106
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:87
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:86
 #, elixir-autogen, elixir-format
 msgid "AWS SES events tracking enabled"
 msgstr "AWS SES sündmuste jälgimine lubatud"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:311
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:190
 #, elixir-autogen, elixir-format
 msgid "AWS settings saved successfully"
 msgstr "AWS sätted edukalt salvestatud"
@@ -2210,7 +2131,7 @@ msgstr "Puhastuse käivitamine ebaõnnestus. Üksikasjade jaoks vaadake logisid.
 msgid "Failed to run compression. Please check logs for details."
 msgstr "Tihendamise käivitamine ebaõnnestus. Üksikasjade jaoks vaadake logisid."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:319
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:198
 #, elixir-autogen, elixir-format
 msgid "Failed to save AWS settings"
 msgstr "AWS sätete salvestamine ebaõnnestus"
@@ -2222,7 +2143,7 @@ msgid "Failed to send test email: %{reason}"
 msgstr "Testkirja saatmine ebaõnnestus: %{reason}"
 
 #: lib/phoenix_kit/modules/emails/web/email_tracking.ex:114
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:95
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:94
 #, elixir-autogen, elixir-format
 msgid "Failed to update AWS SES events tracking"
 msgstr "AWS SES sündmuste jälgimise uuendamine ebaõnnestus"
@@ -2232,12 +2153,12 @@ msgstr "AWS SES sündmuste jälgimise uuendamine ebaõnnestus"
 msgid "Failed to update S3 archival setting"
 msgstr "S3 arhiveerimise sätte uuendamine ebaõnnestus"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:118
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:117
 #, elixir-autogen, elixir-format
 msgid "Failed to update SQS max messages"
 msgstr "SQS sõnumite maksimumi uuendamine ebaõnnestus"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:148
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:147
 #, elixir-autogen, elixir-format
 msgid "Failed to update SQS visibility timeout"
 msgstr "SQS nähtavuse aegumise uuendamine ebaõnnestus"
@@ -2295,7 +2216,7 @@ msgstr "Praegu ei ole arhiveerimiseks kirju."
 msgid "Please enter a valid number between 0 and 100"
 msgstr "Sisestage õige number vahemikus 0 kuni 100"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:124
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:123
 #, elixir-autogen, elixir-format
 msgid "Please enter a valid number between 1 and 10"
 msgstr "Sisestage õige number vahemikus 1 kuni 10"
@@ -2306,7 +2227,7 @@ msgstr "Sisestage õige number vahemikus 1 kuni 10"
 msgid "Please enter a valid number between 1 and 365"
 msgstr "Sisestage õige number vahemikus 1 kuni 365"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:157
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:156
 #, elixir-autogen, elixir-format
 msgid "Please enter a valid number between 30 and 43200 seconds"
 msgstr "Sisestage õige number vahemikus 30 kuni 43200 sekundit"
@@ -2371,12 +2292,12 @@ msgstr "S3 ämbrit ei ole seadistatud. Määrake säte 'email_s3_bucket'."
 msgid "S3 is not configured. Please configure AWS S3 bucket settings first."
 msgstr "S3 ei ole seadistatud. Seadistage kõigepealt AWS S3 ämbri sätted."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:112
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:111
 #, elixir-autogen, elixir-format
 msgid "SQS max messages updated to %{count}"
 msgstr "SQS sõnumite maksimum uuendati %{count}-ni"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:142
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:141
 #, elixir-autogen, elixir-format
 msgid "SQS visibility timeout updated to %{seconds} seconds"
 msgstr "SQS nähtavuse aegumine uuendati %{seconds} sekundini"
@@ -2648,7 +2569,7 @@ msgstr "%{label} pollimise käivitamine ebaõnnestus"
 msgid "Failed to update %{label} tracking"
 msgstr "%{label} jälgimise uuendamine ebaõnnestus"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:472
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:351
 #, elixir-autogen, elixir-format
 msgid "Failed to update SES credentials source"
 msgstr "SES mandaatide allika uuendamine ebaõnnestus"
@@ -2850,7 +2771,7 @@ msgstr "Töötab normaalselt."
 msgid "SES credentials source"
 msgstr "SES mandaatide allikas"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:467
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:346
 #, elixir-autogen, elixir-format
 msgid "SES credentials source updated"
 msgstr "SES mandaatide allikas uuendatud"
@@ -2896,7 +2817,7 @@ msgstr "Jälgimine on väljas."
 msgid "View in Settings"
 msgstr "Vaadake seadistustes"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:432
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:363
 #, elixir-autogen, elixir-format
 msgid "SQS Worker Tuning"
 msgstr "SQS töötaja häälestus"
@@ -2911,32 +2832,32 @@ msgstr "Ühenda sobiv integratsioon ja veendu, et pakkujaspetsiifiline sündmust
 msgid "%{logged} logged · %{sent} sent · %{failed} failed · %{queued} queued"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:571
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:450
 #, elixir-autogen, elixir-format
 msgid "AWS infrastructure created for this account"
 msgstr "Selle konto jaoks loodi AWS-i taristu"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:605
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:484
 #, elixir-autogen, elixir-format
 msgid "AWS setup failed at step %{step}: %{reason}"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:611
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:490
 #, elixir-autogen, elixir-format
 msgid "AWS setup failed: %{reason}"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:349
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:228
 #, elixir-autogen, elixir-format
 msgid "Account added to event tracking"
 msgstr "Konto lisati sündmuste jälgimisse"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:426
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:305
 #, elixir-autogen, elixir-format
 msgid "Account removed from event tracking"
 msgstr "Konto eemaldati sündmuste jälgimisest"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:378
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:257
 #, elixir-autogen, elixir-format
 msgid "Account tracking settings saved"
 msgstr "Konto jälgimise seaded salvestatud"
@@ -3022,17 +2943,17 @@ msgstr "Iga konto küsitletakse oma järjekorras. Linnukese eemaldamisel jääva
 msgid "Every message"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:352
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:231
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Failed to add account"
 msgstr "Kirja andmete laadimine ebaõnnestus"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:420
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:299
 #, elixir-autogen, elixir-format
 msgid "Failed to remove account"
 msgstr "Konto eemaldamine ebaõnnestus"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:381
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:260
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Failed to save account settings"
 msgstr "AWS sätete salvestamine ebaõnnestus"
@@ -3052,7 +2973,7 @@ msgstr "Kirja päiste salvestamise sätte uuendamine ebaõnnestus"
 msgid "Hand outgoing mail to the :emails Oban queue instead of sending it on the request. Requires `emails: N` in the host application's Oban queues; without it mail is sent immediately."
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:578
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:457
 #, elixir-autogen, elixir-format
 msgid "Infrastructure created but the settings could not be saved"
 msgstr ""
@@ -3153,6 +3074,7 @@ msgid "Recording"
 msgstr ""
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:244
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:347
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Region"
 msgstr "AWS piirkond"
@@ -3162,7 +3084,7 @@ msgstr "AWS piirkond"
 msgid "Save"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:339
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:218
 #, elixir-autogen, elixir-format
 msgid "Select an Amazon SES connection to add"
 msgstr ""
@@ -3172,7 +3094,7 @@ msgstr ""
 msgid "Sender"
 msgstr "Saatja piirangud"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:309
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:313
 #, elixir-autogen, elixir-format
 msgid "Sending currently uses legacy credentials stored in settings. Create a verified Amazon SES connection in Settings → Integrations and assign it above."
 msgstr ""
@@ -3227,12 +3149,12 @@ msgstr ""
 msgid "These accounts send mail but have no SQS queue configured here, so their delivery events are not being collected: %{names}. Add each one below and run Setup Infrastructure. Until then, only the single global queue is polled."
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:587
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:466
 #, elixir-autogen, elixir-format
 msgid "This connection has no AWS credentials — add them in Settings → Integrations"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:595
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:474
 #, elixir-autogen, elixir-format
 msgid "This connection has no AWS region — set it in Settings → Integrations before creating infrastructure"
 msgstr ""
@@ -3261,3 +3183,43 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "— select an Amazon SES connection —"
 msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:299
+#, elixir-autogen, elixir-format
+msgid "Delivery events from Amazon SES: collection is off"
+msgstr "Amazon SES-i kohaletoimetamise sündmused: kogumine on väljas"
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:298
+#, elixir-autogen, elixir-format
+msgid "Delivery events from Amazon SES: collection is on"
+msgstr "Amazon SES-i kohaletoimetamise sündmused: kogumine on sees"
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:347
+#, elixir-autogen, elixir-format
+msgid "In development"
+msgstr "Arenduses"
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:326
+#, elixir-autogen, elixir-format
+msgid "Inherited settings (legacy)"
+msgstr "Päritud seaded (legacy)"
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:350
+#, elixir-autogen, elixir-format
+msgid "Not available yet: nothing is uploaded to S3. Retention cleanup below already removes old records."
+msgstr "Pole veel saadaval: S3-sse ei laadita midagi. Vanade kirjete eemaldamisega tegeleb juba allpool olev puhastus."
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:343
+#, elixir-autogen, elixir-format, fuzzy
+msgid "SQS DLQ URL"
+msgstr "SQS järjekorra URL"
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:329
+#, elixir-autogen, elixir-format
+msgid "Used only by an account that has no tracking row of its own. Give that account its own queue above and these stop applying."
+msgstr "Kasutab ainult konto, millel puudub oma jälgimisrida. Anna sellele kontole ülal oma järjekord ja neid enam ei rakendata."
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:302
+#, elixir-autogen, elixir-format
+msgid "— switch it in Delivery event tracking above"
+msgstr "— lülita ülal tabelis „Kohaletoimetamise sündmused“"
