@@ -312,6 +312,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
     |> assign(:accounts_awaiting_configuration, awaiting)
     |> assign(:tracking_accounts, rows)
     |> assign(:legacy_queue_url, legacy_queue_url())
+    |> assign(:legacy_queue_polled?, SQSPollingJob.should_poll?())
     |> assign(
       :unassigned_connections,
       Enum.reject(connections, &MapSet.member?(assigned, &1.uuid))

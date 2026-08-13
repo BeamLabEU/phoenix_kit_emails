@@ -835,7 +835,7 @@ msgstr "Аналитика вовлечённости"
 msgid "Enter compression days"
 msgstr "Введите количество дней для сжатия"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:342
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:350
 #, elixir-autogen, elixir-format
 msgid "Enter max messages"
 msgstr "Введите максимум сообщений"
@@ -845,7 +845,7 @@ msgstr "Введите максимум сообщений"
 msgid "Enter sampling rate"
 msgstr "Введите коэффициент выборки"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:368
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:376
 #, elixir-autogen, elixir-format
 msgid "Enter timeout"
 msgstr "Введите тайм-аут"
@@ -999,7 +999,7 @@ msgstr "Скрыть полное тело"
 msgid "Hide Headers"
 msgstr "Скрыть заголовки"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:382
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:390
 #, elixir-autogen, elixir-format
 msgid "How long messages remain invisible after being received (30-43200 seconds)"
 msgstr "Как долго сообщения остаются невидимыми после получения (30–43200 секунд)"
@@ -1123,13 +1123,13 @@ msgstr "Ручная блокировка"
 msgid "Marketing"
 msgstr "Маркетинг"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:335
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:344
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:343
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:352
 #, elixir-autogen, elixir-format
 msgid "Max Messages Per Poll"
 msgstr "Максимум сообщений за опрос"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:356
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:364
 #, elixir-autogen, elixir-format
 msgid "Maximum number of messages to process in each polling cycle (1-10)"
 msgstr "Максимум сообщений для обработки за один цикл опроса (1–10)"
@@ -1450,32 +1450,32 @@ msgstr "Запустить очистку"
 msgid "Running..."
 msgstr "Выполняется..."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:260
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:266
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:268
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:274
 #, elixir-autogen, elixir-format
 msgid "SES Configuration Set"
 msgstr "Набор конфигурации SES"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:248
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:253
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:256
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:261
 #, elixir-autogen, elixir-format
 msgid "SNS Topic ARN"
 msgstr "ARN темы SNS"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:225
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:231
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:233
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:239
 #, elixir-autogen, elixir-format
 msgid "SQS Dead Letter Queue URL"
 msgstr "URL очереди невыполненных сообщений SQS"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:237
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:242
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:245
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:250
 #, elixir-autogen, elixir-format
 msgid "SQS Queue ARN"
 msgstr "ARN очереди SQS"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:212
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:218
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:220
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:226
 #, elixir-autogen, elixir-format
 msgid "SQS Queue URL"
 msgstr "URL очереди SQS"
@@ -1876,8 +1876,8 @@ msgstr "Письма кампании"
 msgid "View related emails"
 msgstr "Связанные письма"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:362
 #: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:370
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:378
 #, elixir-autogen, elixir-format
 msgid "Visibility Timeout"
 msgstr "Тайм-аут видимости"
@@ -1892,12 +1892,12 @@ msgstr "Ваш блок-лист пуст"
 msgid "delivery time"
 msgstr "время доставки"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:352
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:360
 #, elixir-autogen, elixir-format
 msgid "messages"
 msgstr "сообщений"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:378
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:386
 #, elixir-autogen, elixir-format
 msgid "seconds"
 msgstr "секунд"
@@ -2715,7 +2715,7 @@ msgstr "Отслеживание выключено."
 msgid "View in Settings"
 msgstr "Посмотреть в настройках"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:326
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:334
 #, elixir-autogen, elixir-format
 msgid "SQS Worker Tuning"
 msgstr "Настройка воркера SQS"
@@ -2730,17 +2730,17 @@ msgstr "Подключите подходящую интеграцию и убе
 msgid "%{logged} logged · %{sent} sent · %{failed} failed · %{queued} queued"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:403
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:404
 #, elixir-autogen, elixir-format
 msgid "AWS infrastructure created for this account"
 msgstr "Инфраструктура AWS создана для этого аккаунта"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:437
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:438
 #, elixir-autogen, elixir-format
 msgid "AWS setup failed at step %{step}: %{reason}"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:443
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:444
 #, elixir-autogen, elixir-format
 msgid "AWS setup failed: %{reason}"
 msgstr ""
@@ -2771,12 +2771,12 @@ msgstr "Опрашиваемые аккаунты — %{provider}"
 msgid "Accounts polled: %{polled} of %{total}"
 msgstr "Опрашивается аккаунтов: %{polled} из %{total}"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:177
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:185
 #, elixir-autogen, elixir-format
 msgid "Active sender"
 msgstr "Активный отправитель"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:297
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:305
 #, elixir-autogen, elixir-format
 msgid "Add account"
 msgstr "Добавить аккаунт"
@@ -2871,7 +2871,7 @@ msgstr "Не удалось обновить настройку очереди �
 msgid "Hand outgoing mail to the :emails Oban queue instead of sending it on the request. Requires `emails: N` in the host application's Oban queues; without it mail is sent immediately."
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:410
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:411
 #, elixir-autogen, elixir-format
 msgid "Infrastructure created but the settings could not be saved"
 msgstr ""
@@ -2881,7 +2881,7 @@ msgstr ""
 msgid "Logging"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:270
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:278
 #, elixir-autogen, elixir-format
 msgid "Must exist in THIS AWS account — SES publishes events only through it"
 msgstr "Должен существовать именно в ЭТОМ аккаунте AWS — SES публикует события только через него"
@@ -2891,12 +2891,12 @@ msgstr "Должен существовать именно в ЭТОМ акка�
 msgid "No Amazon SES connections yet — create and verify one under Settings → Integrations, then assign it here."
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:168
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:176
 #, elixir-autogen, elixir-format
 msgid "No accounts configured for event tracking yet."
 msgstr "Ни один аккаунт ещё не настроен на сбор событий."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:178
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:186
 #, elixir-autogen, elixir-format
 msgid "No enabled send profile"
 msgstr ""
@@ -2966,7 +2966,7 @@ msgstr ""
 msgid "Recording"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:276
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:284
 #, elixir-autogen, elixir-format
 msgid "Save"
 msgstr ""
@@ -2981,7 +2981,7 @@ msgstr ""
 msgid "Sender"
 msgstr "Отправитель"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:316
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:324
 #, elixir-autogen, elixir-format
 msgid "Sending currently uses legacy credentials stored in settings. Create a verified Amazon SES connection in Settings → Integrations and assign it above."
 msgstr ""
@@ -3001,7 +3001,7 @@ msgstr ""
 msgid "Settings → Integrations"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:194
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:202
 #, elixir-autogen, elixir-format
 msgid "Setup Infrastructure"
 msgstr "Создать инфраструктуру"
@@ -3036,12 +3036,12 @@ msgstr ""
 msgid "These accounts send mail but have no SQS queue configured here, so their delivery events are not being collected: %{names}. Add each one below and run Setup Infrastructure. Until then, only the single global queue is polled."
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:419
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:420
 #, elixir-autogen, elixir-format
 msgid "This connection has no AWS credentials — add them in Settings → Integrations"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:427
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:428
 #, elixir-autogen, elixir-format
 msgid "This connection has no AWS region — set it in Settings → Integrations before creating infrastructure"
 msgstr ""
@@ -3051,7 +3051,7 @@ msgstr ""
 msgid "Today"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:203
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:211
 #, elixir-autogen, elixir-format
 msgid "Unassign"
 msgstr ""
@@ -3066,7 +3066,7 @@ msgstr ""
 msgid "— not assigned —"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:292
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:300
 #, elixir-autogen, elixir-format
 msgid "— select an Amazon SES connection —"
 msgstr ""
@@ -3108,12 +3108,12 @@ msgstr "Настройки"
 msgid "This provider has no settings of its own."
 msgstr "У этого провайдера нет собственных настроек."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:158
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:166
 #, elixir-autogen, elixir-format
 msgid "Create an Amazon SES connection in Settings → Integrations"
 msgstr "Создать подключение Amazon SES в Settings → Integrations"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:152
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:160
 #, elixir-autogen, elixir-format
 msgid "Every sender shares this one queue. To give each Amazon SES account a queue of its own, add the account below and run Setup Infrastructure."
 msgstr ""
@@ -3121,7 +3121,12 @@ msgstr ""
 "Amazon SES была своя, добавьте аккаунт ниже и нажмите «Создать "
 "инфраструктуру»."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:146
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:150
 #, elixir-autogen, elixir-format
 msgid "Polling the legacy global queue: %{url}"
 msgstr "Опрашивается прежняя общая очередь: %{url}"
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:152
+#, elixir-autogen, elixir-format
+msgid "One global queue is configured, but collection is off: %{url}"
+msgstr "Настроена одна общая очередь, но сбор выключен: %{url}"

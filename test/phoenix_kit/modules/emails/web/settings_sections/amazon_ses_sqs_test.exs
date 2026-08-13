@@ -85,7 +85,8 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqsTest do
     end
 
     test "an install still on the global queue is told so, instead of 'no accounts yet'" do
-      {:ok, _} = Emails.set_sqs_queue_url("https://sqs.eu-north-1.amazonaws.com/1/q")
+      create_ses_connection_with_queue()
+      {:ok, _} = Emails.set_sqs_polling(true)
 
       html = render_section()
 
@@ -106,6 +107,18 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqsTest do
       html = render_section()
 
       assert html =~ "No accounts configured for event tracking yet"
+      refute html =~ "Polling the legacy global queue"
+    end
+
+    test "with collection off the same queue is not described as being polled" do
+      {:ok, _} = Emails.set_sqs_queue_url("https://sqs.eu-north-1.amazonaws.com/1/q")
+      {:ok, _} = Emails.set_sqs_polling(false)
+
+      html = render_section()
+
+      # Saying "polling" while collection is switched off would be the same
+      # kind of lie the notice was added to remove.
+      assert html =~ "collection is off"
       refute html =~ "Polling the legacy global queue"
     end
 
