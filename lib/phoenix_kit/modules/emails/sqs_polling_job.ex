@@ -623,9 +623,6 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
         else
           error
         end
-
-      {:error, reason} ->
-        {:error, reason}
     end
   end
 

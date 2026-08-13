@@ -504,11 +504,6 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
           :error,
           gettext("AWS setup failed at step %{step}: %{reason}", step: step, reason: reason)
         )
-
-      {:error, reason} ->
-        socket
-        |> assign(:setting_up_account, nil)
-        |> put_flash(:error, gettext("AWS setup failed: %{reason}", reason: inspect(reason)))
     end
   end
 
