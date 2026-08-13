@@ -45,7 +45,6 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTracking do
         |> assign(:email_archive_to_s3, email_config.archive_to_s3)
         |> assign(:running_cleanup, false)
         |> assign(:running_compression, false)
-        |> assign(:running_archival, false)
         |> assign(:updating_compress_days, false)
       end
 
@@ -393,109 +392,6 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTracking do
           )
 
         {:noreply, socket}
-    end
-  end
-
-  def handle_event("run_s3_archival_now", _params, socket) do
-    if socket.assigns.email_archive_to_s3 do
-      socket = assign(socket, :running_archival, true)
-
-      retention_days = socket.assigns.email_retention_days
-
-      task = Task.async(fn -> Emails.archive_to_s3(retention_days) end)
-
-      case Task.yield(task, 120_000) || Task.shutdown(task) do
-        {:ok, {:ok, archived_count: count}} ->
-          socket =
-            socket
-            |> assign(:running_archival, false)
-            |> put_flash(
-              :info,
-              "✅ " <>
-                gettext(
-                  "S3 archival completed successfully! Archived %{count} email logs to S3.",
-                  count: count
-                )
-            )
-
-          {:noreply, socket}
-
-        {:ok, {:ok, :skipped}} ->
-          socket =
-            socket
-            |> assign(:running_archival, false)
-            |> put_flash(:info, "ℹ️ " <> gettext("No emails to archive at this time."))
-
-          {:noreply, socket}
-
-        {:ok, {:error, :s3_not_configured}} ->
-          socket =
-            socket
-            |> assign(:running_archival, false)
-            |> put_flash(
-              :error,
-              "❌ " <>
-                gettext("S3 is not configured. Please configure AWS S3 bucket settings first.")
-            )
-
-          {:noreply, socket}
-
-        {:ok, {:error, :no_bucket_configured}} ->
-          socket =
-            socket
-            |> assign(:running_archival, false)
-            |> put_flash(
-              :error,
-              "❌ " <> gettext("S3 bucket not configured. Please set 'email_s3_bucket' setting.")
-            )
-
-          {:noreply, socket}
-
-        {:ok, {:error, reason}} ->
-          socket =
-            socket
-            |> assign(:running_archival, false)
-            |> put_flash(
-              :error,
-              "❌ " <> gettext("S3 archival failed: %{reason}", reason: inspect(reason))
-            )
-
-          {:noreply, socket}
-
-        nil ->
-          socket =
-            socket
-            |> assign(:running_archival, false)
-            |> put_flash(
-              :error,
-              "⚠️ " <>
-                gettext(
-                  "S3 archival timed out. Large archives may take longer. Check logs for progress."
-                )
-            )
-
-          {:noreply, socket}
-
-        _error ->
-          socket =
-            socket
-            |> assign(:running_archival, false)
-            |> put_flash(
-              :error,
-              "❌ " <> gettext("Failed to run S3 archival. Please check logs for details.")
-            )
-
-          {:noreply, socket}
-      end
-    else
-      socket =
-        put_flash(
-          socket,
-          :error,
-          "❌ " <> gettext("S3 archival is disabled. Please enable it first.")
-        )
-
-      {:noreply, socket}
     end
   end
 end

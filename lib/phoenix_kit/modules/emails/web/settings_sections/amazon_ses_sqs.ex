@@ -13,7 +13,6 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
   use Gettext, backend: PhoenixKit.Modules.Emails.Gettext
 
   alias PhoenixKit.AWS.InfrastructureSetup
-  alias PhoenixKit.Config.AWS
   alias PhoenixKit.Integrations
   alias PhoenixKit.Modules.Emails
   alias PhoenixKit.Modules.Emails.AwsIntegrations
@@ -60,42 +59,13 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
           Settings.get_setting("emails_aws_integration_uuid", "")
         )
         |> assign_tracking_accounts()
-        |> assign(:saving, false)
         |> assign(:setting_up_account, nil)
-        |> assign(:verifying_credentials, false)
-        |> assign(:credential_verification_status, :pending)
-        |> assign(:credential_verification_message, "")
-        |> assign(:aws_permissions, %{})
       end
 
     {:ok, socket}
   end
 
   @impl true
-  def handle_event("toggle_email_ses_events", _params, socket) do
-    new_ses_events = !socket.assigns.email_ses_events
-
-    case Emails.set_ses_events(new_ses_events) do
-      {:ok, _setting} ->
-        socket =
-          socket
-          |> assign(:email_ses_events, new_ses_events)
-          |> put_flash(
-            :info,
-            if(new_ses_events,
-              do: gettext("AWS SES events tracking enabled"),
-              else: gettext("AWS SES events tracking disabled")
-            )
-          )
-
-        {:noreply, socket}
-
-      {:error, _changeset} ->
-        socket = put_flash(socket, :error, gettext("Failed to update AWS SES events tracking"))
-        {:noreply, socket}
-    end
-  end
-
   def handle_event("update_max_messages", params, socket) do
     value = Map.get(params, "max_messages") || Map.get(params, "value")
 
@@ -159,60 +129,6 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
         {:noreply, socket}
     end
   end
-
-  def handle_event("save_aws_settings", %{"aws_settings" => aws_params}, socket) do
-    socket = assign(socket, :saving, true)
-
-    # The global pipeline fields are no longer edited here — the per-account
-    # rows own them, and this form kept only the worker tuning. A missing key
-    # therefore means "the form does not carry it", NOT "clear it": writing the
-    # absent params back as "" would have wiped the legacy fallback of every
-    # install that still relies on it, from a form that no longer shows it.
-    settings_to_update =
-      %{
-        "aws_sqs_queue_url" => aws_params["sqs_queue_url"],
-        "aws_sqs_dlq_url" => aws_params["sqs_dlq_url"],
-        "aws_sqs_queue_arn" => aws_params["sqs_queue_arn"],
-        "aws_sns_topic_arn" => aws_params["sns_topic_arn"],
-        "aws_ses_configuration_set" => aws_params["ses_configuration_set"]
-      }
-      |> Enum.reject(fn {_key, value} -> is_nil(value) end)
-      |> Map.new()
-
-    case Settings.update_settings_batch(settings_to_update) do
-      {:ok, _results} ->
-        new_aws_settings = merge_aws_settings(socket.assigns.aws_settings, aws_params)
-
-        socket =
-          socket
-          |> assign(:aws_settings, new_aws_settings)
-          |> assign(:saving, false)
-          |> put_flash(:info, gettext("AWS settings saved successfully"))
-
-        {:noreply, socket}
-
-      {:error, _failed_operation, _failed_value, _changes} ->
-        socket =
-          socket
-          |> assign(:saving, false)
-          |> put_flash(:error, gettext("Failed to save AWS settings"))
-
-        {:noreply, socket}
-    end
-  end
-
-  ## --- Per-account event tracking ---
-  #
-  # One row per SES account, each with its own queue/DLQ/topic/configuration
-  # set (`aws_tracking:<integration_uuid>`). An account "has a row" exactly
-  # when that setting exists, so assigning writes an empty one and
-  # unassigning deletes it — which is also what makes the row list stable
-  # while an operator is still filling the fields in.
-  #
-  # Every write reconciles the SES tracker: a queue URL appearing or
-  # disappearing changes `SQSPollingManager.eligible?/0`, and
-  # `enable_polling/0` inserts a chain without consulting it (the same
-  # reasoning `DeliveryEventTracking`'s toggle handler documents).
 
   def handle_event("assign_tracking_account", %{"uuid" => ""}, socket) do
     {:noreply, put_flash(socket, :error, gettext("Select an Amazon SES connection to add"))}
@@ -506,6 +422,23 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
     )
   end
 
+  # Rendered live, not stored in an assign: the switch that decides this lives
+  # in the sibling tracking panel, whose toggles do not re-render this section.
+  # A cached copy would sit there saying "on" long after it was switched off.
+  defp collecting_events?, do: SQSPollingJob.should_poll?()
+
+  # The legacy note prints four values; show it whenever ANY of them is set,
+  # not just the two that used to gate it.
+  defp legacy_settings_present?(aws_settings) do
+    [
+      aws_settings.sqs_queue_url,
+      aws_settings.sqs_dlq_url,
+      aws_settings.ses_configuration_set,
+      aws_settings.region
+    ]
+    |> Enum.any?(fn value -> is_binary(value) and String.trim(value) != "" end)
+  end
+
   defp project_name do
     Settings.get_setting("project_title", "myapp")
     |> String.downcase()
@@ -519,19 +452,5 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
       adapter: Swoosh.Adapters.AmazonSES,
       region: "eu-north-1"
     """
-  end
-
-  # MERGES the pipeline fields; it does not rebuild the map. The form no
-  # longer carries access_key_id/secret_access_key/region (credentials moved to
-  # Integrations), so rebuilding from `aws_params` blanked them in the assign —
-  # which hid the "sending on legacy credentials" warning and left "Setup AWS
-  # Infrastructure" permanently disabled until a page reload, because both are
-  # rendered off these values.
-  @pipeline_fields ~w(sqs_queue_url sqs_dlq_url sqs_queue_arn sns_topic_arn ses_configuration_set)a
-
-  defp merge_aws_settings(current, aws_params) do
-    Enum.reduce(@pipeline_fields, current, fn field, acc ->
-      Map.put(acc, field, aws_params[Atom.to_string(field)] || "")
-    end)
   end
 end

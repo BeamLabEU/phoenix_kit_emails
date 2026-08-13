@@ -290,11 +290,13 @@
   for it without giving them a second switch for the same lamp. --%>
   <div class="text-sm flex items-center gap-2">
     <.icon
-      name={if @email_ses_events, do: "hero-check-circle", else: "hero-minus-circle"}
-      class={["w-4 h-4", if(@email_ses_events, do: "text-success", else: "text-base-content/40")]}
+      name={if collecting_events?(), do: "hero-check-circle", else: "hero-minus-circle"}
+      class={
+        "w-4 h-4 " <> if(collecting_events?(), do: "text-success", else: "text-base-content/40")
+      }
     />
     <span>
-      {if @email_ses_events,
+      {if collecting_events?(),
         do: gettext("Delivery events from Amazon SES: collection is on"),
         else: gettext("Delivery events from Amazon SES: collection is off")}
     </span>
@@ -315,15 +317,15 @@
     )}
   </div>
 
-  <form id="aws-settings-form" phx-submit="save_aws_settings" phx-target={@myself}>
     <%!-- The five global aws_* pipeline settings used to be edited here. They
     are the SAME fields the per-account rows above carry — and two of them
     (SNS topic ARN, queue ARN) are read by nothing at all. They survive only as
     the fallback for an install that has not moved to per-account tracking yet,
     so they are shown, not offered for editing: the account rows above are the
     one place to change them. --%>
-    <div :if={@aws_settings.sqs_queue_url != "" or @aws_settings.ses_configuration_set != ""} class="mt-4">
-      <.accordion id="legacy-aws-settings" title={gettext("Inherited settings (legacy)")}>
+    <div :if={legacy_settings_present?(@aws_settings)} class="mt-4">
+      <.accordion id="legacy-aws-settings">
+        <:title>{gettext("Inherited settings (legacy)")}</:title>
         <:content>
           <p class="text-sm text-base-content/70 mb-3">
             {gettext(
@@ -434,22 +436,4 @@
       </div>
     </div>
 
-    <%!-- Saving the pipeline fields is the only global action left here. AWS
-    resources are created per account, from that account's own credentials —
-    see "Per-account event tracking" above. --%>
-    <div class="mt-6">
-      <button
-        type="submit"
-        class={["btn btn-primary w-full sm:w-auto", if(@saving, do: "loading", else: "")]}
-        disabled={@saving}
-      >
-        <%= if @saving do %>
-          {gettext("Saving...")}
-        <% else %>
-          <.icon name="hero-check" class="w-4 h-4 mr-2" /> {gettext("Save AWS Settings")}
-        <% end %>
-      </button>
-    </div>
-
-  </form>
 </div>

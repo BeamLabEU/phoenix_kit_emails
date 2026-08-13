@@ -10,7 +10,10 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqsTest do
 
   use PhoenixKitEmails.DataCase, async: true
 
+  import Phoenix.LiveViewTest
+
   alias PhoenixKit.Integrations
+  alias PhoenixKit.Modules.Emails
   alias PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs, as: SesSection
   alias PhoenixKit.Settings
 
@@ -47,5 +50,43 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqsTest do
       assert socket.assigns.selected_aws_integration_uuid == ""
       assert Settings.get_setting("emails_aws_integration_uuid") == nil
     end
+  end
+
+  describe "the section renders" do
+    test "with no AWS pipeline settings at all" do
+      html = render_section()
+
+      assert html =~ "Per-account event tracking"
+      refute html =~ "Inherited settings"
+    end
+
+    test "with legacy settings present — the state that used to crash the page" do
+      # The legacy note is only rendered when these are set, so a component test
+      # on a clean database never reached it: the accordion was called with a
+      # `title` attribute where a slot is required, and the whole settings page
+      # went down for exactly the installs the note is written for.
+      {:ok, _} = Emails.set_sqs_queue_url("https://sqs.eu-north-1.amazonaws.com/1/q")
+      {:ok, _} = Emails.set_ses_configuration_set("legacy-set")
+
+      html = render_section()
+
+      assert html =~ "Inherited settings"
+      assert html =~ "legacy-set"
+    end
+
+    test "the events status line follows what actually gates collection" do
+      {:ok, _} = Emails.set_ses_events(true)
+      {:ok, _} = Emails.set_sqs_polling(false)
+
+      html = render_section()
+
+      # `email_ses_events` alone used to drive this line, so it claimed
+      # collection was on while the tracker was off.
+      assert html =~ "collection is off"
+    end
+  end
+
+  defp render_section do
+    render_component(SesSection, %{id: "aws"}, endpoint: PhoenixKitEmails.Test.StubEndpoint)
   end
 end
