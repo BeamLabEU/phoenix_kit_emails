@@ -144,12 +144,12 @@
       <.icon name="hero-information-circle" class="w-5 h-5 shrink-0" />
       <div>
         <p class="font-semibold break-all">
-          <%!-- Say which of the two it is. Claiming "polling" while collection
-               is switched off would be the same kind of lie this block was
-               added to remove. --%>
-          {if legacy_queue_polled?(),
-            do: gettext("Polling the legacy global queue: %{url}", url: @legacy_queue_url),
-            else: not_polled_text(@legacy_queue_url)}
+          <%!-- Say which of the states it is. Claiming "polling" while
+               collection is switched off would be the same kind of lie this
+               block was added to remove — and one read of the gate decides
+               both the verdict and the sentence, so the two can never
+               disagree. --%>
+          {poll_state_text(legacy_queue_poll_state(), @legacy_queue_url)}
         </p>
         <%!-- Two whole sentences and a self-contained link label, rather than
              one sentence broken around an inline link: a translator cannot

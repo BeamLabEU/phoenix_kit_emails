@@ -318,55 +318,72 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
     )
   end
 
-  # Whether that queue is actually being polled — read at RENDER time, never
-  # stored. The switch that decides it lives in the tracker row above this
-  # panel, whose toggle does not re-run this component's `update/2` (its
-  # assigns are seeded once, behind a guard). A cached copy would sit here
-  # claiming the queue is polled long after collection was switched off, which
-  # is the very statement this notice exists to get right.
-  defp legacy_queue_polled?, do: SQSPollingJob.should_poll?()
-
-  # The sentence for that reason. Each names the switch to go and flip, rather
-  # than asking the reader to work out which of four things is off.
-  defp not_polled_text(url) do
-    case not_polled_reason() do
-      :system_off ->
-        gettext("One global queue is configured, but email tracking is off: %{url}", url: url)
-
-      :events_off ->
-        gettext("One global queue is configured, but SES event tracking is off: %{url}", url: url)
-
-      :tracking_off ->
-        gettext(
-          "One global queue is configured; switch Tracking on in the row above to poll it: %{url}",
-          url: url
-        )
-
-      :no_sender ->
-        gettext(
-          "One global queue is configured, but no enabled send profile uses Amazon SES: %{url}",
-          url: url
-        )
-
-      # Defensive default. Every condition `should_poll?/0` checks is named
-      # above, so reaching this means the gate grew a fifth one — better a
-      # vague sentence than a crash or a confident lie.
-      :unknown ->
-        gettext("One global queue is configured, but collection is off: %{url}", url: url)
-    end
-  end
-
-  # WHY it is not being polled, in the operator's terms. "Off" on its own
-  # collapses four different situations into one word and leaves the reader to
-  # go looking; each of these names the switch to go and flip.
-  defp not_polled_reason do
+  # Whether that queue is being polled and, when it is not, WHY — one read of
+  # the gate, decomposed into the very conditions `SQSPollingJob.should_poll?/0`
+  # ands together, in its order. Both the verdict and the sentence come from
+  # this single call: asking `should_poll?/0` first and then re-deriving the
+  # reason evaluated the same conditions twice per render (including a second
+  # SendProfile query), and left a window in which a switch flipped between the
+  # two reads could produce "not polled" with no reason to give.
+  #
+  # Read at RENDER time, never stored. The switch that decides it lives in the
+  # tracker row above this panel, whose toggle does not re-run this component's
+  # `update/2` (its assigns are seeded once, behind a guard). A cached copy
+  # would sit here claiming the queue is polled long after collection was
+  # switched off, which is the very statement this notice exists to get right.
+  @spec legacy_queue_poll_state() ::
+          :polled | :system_off | :events_off | :tracking_off | :no_queue | :no_sender
+  defp legacy_queue_poll_state do
     cond do
       not Emails.enabled?() -> :system_off
       not Emails.ses_events_enabled?() -> :events_off
       not Emails.sqs_polling_enabled?() -> :tracking_off
+      not SQSPollingJob.queue_url_configured?() -> :no_queue
       not SQSPollingJob.ses_actively_configured?() -> :no_sender
-      true -> :unknown
+      true -> :polled
     end
+  end
+
+  # The sentence for that state. Each names the switch to go and flip, rather
+  # than asking the reader to work out which of five things is off. No
+  # catch-all clause: the states above enumerate every condition of the gate,
+  # so a new one would fail to match here loudly instead of rendering a vague
+  # sentence that is quietly wrong.
+  defp poll_state_text(:polled, url) do
+    gettext("Polling the legacy global queue: %{url}", url: url)
+  end
+
+  defp poll_state_text(:system_off, url) do
+    gettext("One global queue is configured, but the email system is off: %{url}", url: url)
+  end
+
+  defp poll_state_text(:events_off, url) do
+    gettext("One global queue is configured, but SES event tracking is off: %{url}", url: url)
+  end
+
+  defp poll_state_text(:tracking_off, url) do
+    gettext(
+      "One global queue is configured; switch Tracking on in the row above to poll it: %{url}",
+      url: url
+    )
+  end
+
+  # `@legacy_queue_url` is resolved once in `update/2`, behind a guard, while
+  # the gate is read on every render — so this is the queue setting being
+  # cleared while the panel sits open. The URL is the one this panel still
+  # believes in, hence "no longer".
+  defp poll_state_text(:no_queue, url) do
+    gettext(
+      "This queue is no longer configured — reload the page to see the current setup: %{url}",
+      url: url
+    )
+  end
+
+  defp poll_state_text(:no_sender, url) do
+    gettext(
+      "One global queue is configured, but no enabled send profile uses Amazon SES: %{url}",
+      url: url
+    )
   end
 
   # The single pre-per-account `aws_sqs_queue_url`, or nil when this install
