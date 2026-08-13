@@ -2853,9 +2853,9 @@ msgid "Failed to update the authentication mail setting"
 msgstr ""
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:103
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Failed to update the send queue setting"
-msgstr "Kirja päiste salvestamise sätte uuendamine ebaõnnestus"
+msgstr "Saatmisjärjekorra sätte uuendamine ebaõnnestus"
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:138
 #, elixir-autogen, elixir-format
@@ -2968,9 +2968,9 @@ msgid "Select an Amazon SES connection to add"
 msgstr ""
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:73
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Sender"
-msgstr "Saatja piirangud"
+msgstr "Saatja"
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:297
 #, elixir-autogen, elixir-format
@@ -3013,7 +3013,7 @@ msgid "System off — nothing is written"
 msgstr ""
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:10
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "System status"
 msgstr "Süsteemi olek"
 
