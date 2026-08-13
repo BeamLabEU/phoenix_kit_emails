@@ -667,7 +667,11 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
   #     below.
   #   - an enabled SendProfile pointed at an `"aws_ses"` integration (the
   #     current, profile-based way to wire up a sender).
-  defp ses_actively_configured? do
+  @doc false
+  # Public for the settings panel: it tells the operator WHICH of the gate's
+  # conditions is the one stopping collection, and "no active sender" is one of
+  # them. Same reuse rationale as `should_poll?/0` above.
+  def ses_actively_configured? do
     Emails.aws_configured?() or has_enabled_ses_send_profile?()
   end
 

@@ -326,6 +326,46 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
   # is the very statement this notice exists to get right.
   defp legacy_queue_polled?, do: SQSPollingJob.should_poll?()
 
+  # The sentence for that reason. Each names the switch to go and flip, rather
+  # than asking the reader to work out which of four things is off.
+  defp not_polled_text(url) do
+    case not_polled_reason() do
+      :system_off ->
+        gettext("One global queue is configured, but email tracking is off: %{url}", url: url)
+
+      :events_off ->
+        gettext("One global queue is configured, but SES event tracking is off: %{url}", url: url)
+
+      :tracking_off ->
+        gettext(
+          "One global queue is configured; switch Tracking on in the row above to poll it: %{url}",
+          url: url
+        )
+
+      :no_sender ->
+        gettext(
+          "One global queue is configured, but no enabled send profile uses Amazon SES: %{url}",
+          url: url
+        )
+
+      :unknown ->
+        gettext("One global queue is configured, but collection is off: %{url}", url: url)
+    end
+  end
+
+  # WHY it is not being polled, in the operator's terms. "Off" on its own
+  # collapses four different situations into one word and leaves the reader to
+  # go looking; each of these names the switch to go and flip.
+  defp not_polled_reason do
+    cond do
+      not Emails.enabled?() -> :system_off
+      not Emails.ses_events_enabled?() -> :events_off
+      not Emails.sqs_polling_enabled?() -> :tracking_off
+      not SQSPollingJob.ses_actively_configured?() -> :no_sender
+      true -> :unknown
+    end
+  end
+
   # The single pre-per-account `aws_sqs_queue_url`, or nil when this install
   # has none. Resolved here rather than in the template because it is only
   # ever read alongside `tracking_accounts` — an install with no per-account

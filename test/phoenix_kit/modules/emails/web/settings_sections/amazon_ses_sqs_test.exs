@@ -110,16 +110,39 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqsTest do
       refute html =~ "Polling the legacy global queue"
     end
 
-    test "with collection off the same queue is not described as being polled" do
+    test "with the system off the notice names that, not a generic 'off'" do
       {:ok, _} = Emails.set_sqs_queue_url("https://sqs.eu-north-1.amazonaws.com/1/q")
       {:ok, _} = Emails.set_sqs_polling(false)
 
       html = render_section()
 
       # Saying "polling" while collection is switched off would be the same
-      # kind of lie the notice was added to remove.
-      assert html =~ "collection is off"
+      # kind of lie the notice was added to remove — and a bare "off" would
+      # leave the reader to work out which of four switches it is.
+      assert html =~ "email tracking is off"
       refute html =~ "Polling the legacy global queue"
+    end
+
+    test "with the system on but tracking off it points at the Tracking toggle" do
+      {:ok, _} = Emails.enable_system()
+      {:ok, _} = Emails.set_ses_events(true)
+      {:ok, _} = Emails.set_sqs_queue_url("https://sqs.eu-north-1.amazonaws.com/1/q")
+      {:ok, _} = Emails.set_sqs_polling(false)
+
+      html = render_section()
+
+      assert html =~ "switch Tracking on in the row above"
+    end
+
+    test "with everything on but no SES sender it says exactly that" do
+      {:ok, _} = Emails.enable_system()
+      {:ok, _} = Emails.set_ses_events(true)
+      {:ok, _} = Emails.set_sqs_queue_url("https://sqs.eu-north-1.amazonaws.com/1/q")
+      {:ok, _} = Emails.set_sqs_polling(true)
+
+      html = render_section()
+
+      assert html =~ "no enabled send profile uses Amazon SES"
     end
 
     test "a blank global queue setting is not a queue" do

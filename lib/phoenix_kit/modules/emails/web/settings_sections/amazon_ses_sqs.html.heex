@@ -149,10 +149,7 @@
                added to remove. --%>
           {if legacy_queue_polled?(),
             do: gettext("Polling the legacy global queue: %{url}", url: @legacy_queue_url),
-            else:
-              gettext("One global queue is configured, but collection is off: %{url}",
-                url: @legacy_queue_url
-              )}
+            else: not_polled_text(@legacy_queue_url)}
         </p>
         <%!-- Two whole sentences and a self-contained link label, rather than
              one sentence broken around an inline link: a translator cannot
