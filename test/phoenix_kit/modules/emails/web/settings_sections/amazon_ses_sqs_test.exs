@@ -66,18 +66,54 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqsTest do
       refute html =~ "Save AWS Settings"
     end
 
-    test "with legacy settings present — the state that used to crash the page" do
-      # The legacy note is only rendered when these are set, so a component test
-      # on a clean database never reached it: the accordion was called with a
-      # `title` attribute where a slot is required, and the whole settings page
-      # went down for exactly the installs the note is written for.
+    test "the global aws_* values are not shown even when they are set" do
+      # They used to be rendered read-only in an "Inherited settings (legacy)"
+      # accordion. The code fallback still reads them — poller and interceptor
+      # are untouched — but an operator has no business seeing, let alone
+      # reasoning about, a value only reachable from a per-account row.
       {:ok, _} = Emails.set_sqs_queue_url("https://sqs.eu-north-1.amazonaws.com/1/q")
       {:ok, _} = Emails.set_ses_configuration_set("legacy-set")
 
       html = render_section()
 
-      assert html =~ "Inherited settings"
-      assert html =~ "legacy-set"
+      refute html =~ "Inherited settings"
+      refute html =~ "legacy-set"
+      refute html =~ "sqs.eu-north-1.amazonaws.com/1/q"
+
+      # Still reads the globals under the hood — this is a UI removal only.
+      assert Emails.get_sqs_queue_url() == "https://sqs.eu-north-1.amazonaws.com/1/q"
+    end
+
+    test "one tracked account, one still on offer" do
+      {:ok, %{uuid: tracked}} = Integrations.add_connection("aws_ses", "tracked")
+      {:ok, _} = Integrations.add_connection("aws_ses", "spare")
+      {:ok, _} = Emails.set_aws_tracking(tracked, %{})
+
+      html = render_section()
+
+      assert html =~ "tracked"
+      assert html =~ "Setup Infrastructure"
+      assert html =~ "Unassign"
+      # The picker for the connection that has no tracking row yet. Its label
+      # rendered as "Accounts" until the fuzzy translation behind it was
+      # fixed — `gettext.extract --merge` had matched it to the table column
+      # of that name, and nothing rendered this button in a test.
+      assert html =~ "Add account"
+    end
+
+    test "the SQS worker tuning knobs moved here, without the Performance Tips filler" do
+      html = render_section()
+
+      assert html =~ "SQS Worker Tuning"
+      assert html =~ "Max Messages Per Poll"
+      assert html =~ "Visibility Timeout"
+      refute html =~ "Performance Tips"
+    end
+
+    test "warns while sending still runs on the global legacy credentials" do
+      {:ok, _} = Settings.update_setting("aws_access_key_id", "AKIALEGACY")
+
+      assert render_section() =~ "legacy credentials"
     end
 
     test "the events status line follows what actually gates collection" do

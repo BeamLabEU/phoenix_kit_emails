@@ -116,6 +116,19 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingManager do
   # job before the Pruner removes it — the reason BrevoPollingManager needs
   # its own durable timestamp does not apply here.
 
+  # Everything SES-specific — credentials source, per-account queues, Setup
+  # Infrastructure, SQS worker tuning — renders inside this tracker's own
+  # expanded row in the Delivery event tracking panel. It used to be a third,
+  # sibling section on the same settings page, which read as a peer of the
+  # tracker table while actually being a detail of one of its rows.
+  #
+  # A module reference, not an alias: the component belongs to the Web layer
+  # and aliasing it here would suggest this manager depends on the admin UI
+  # to work. It does not — this callback is the panel asking the tracker
+  # "who renders you", and nothing else in this module touches it.
+  @impl PhoenixKit.Modules.Emails.EventTracker
+  def settings_component, do: PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs
+
   # Number of accounts with somewhere to poll — the admin panel's "N active
   # integrations" Integration-column count. Counts `configured_accounts/0`
   # rather than active integrations so it keeps mirroring eligible?/0 (an

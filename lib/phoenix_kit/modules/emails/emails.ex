@@ -1046,6 +1046,12 @@ defmodule PhoenixKit.Modules.Emails do
   # (`/admin/settings/email-sending`) instead of routing its own settings
   # tab — see `PhoenixKit.Module.email_settings_sections/0`. Sender identity
   # (from_name/from_email) is core's own concern now; not duplicated here.
+  #
+  # "Amazon SES & SQS" used to be a third section here. It is not a peer of
+  # the tracker table — it is what one of that table's rows expands into, and
+  # is reached through `SQSPollingManager.settings_component/0` now (see
+  # `Web.SettingsSections.DeliveryEventTracking`). The component itself is
+  # unchanged in kind, only in where it is mounted.
   @impl PhoenixKit.Module
   def email_settings_sections do
     [
@@ -1060,12 +1066,6 @@ defmodule PhoenixKit.Modules.Emails do
         title: gettext("Delivery Event Tracking"),
         permission: "emails",
         component: PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTracking
-      },
-      %{
-        id: :emails_aws_ses_sqs,
-        title: gettext("Amazon SES & SQS"),
-        permission: "emails",
-        component: PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs
       }
     ]
   end

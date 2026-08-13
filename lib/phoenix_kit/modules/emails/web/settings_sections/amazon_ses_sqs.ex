@@ -1,12 +1,19 @@
 defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
   @moduledoc """
-  "Amazon SES & SQS" section on the core Email Sending settings page
-  (`/admin/settings/email-sending`).
+  The Amazon SES half of the "Delivery event tracking" panel: everything
+  SES-specific behind the expanded `aws_ses` row — which Integrations
+  connection supplies SES/SQS credentials, the per-account queues, one-click
+  infrastructure setup, and the SQS worker's tuning knobs.
 
-  Covers the module's SES-specific concerns: which Integrations connection
-  (or legacy manual credentials) supplies SES/SQS credentials, event
-  tracking, one-click infrastructure setup, and the SQS polling worker.
-  Contributed via `PhoenixKit.Modules.Emails.email_settings_sections/0`.
+  Reached through `SQSPollingManager.settings_component/0`, not through
+  `PhoenixKit.Modules.Emails.email_settings_sections/0`. It used to be a
+  third section on the settings page, listed as a peer of the tracker table
+  while actually being the detail of one of its rows: it repeated that
+  table's "is collection on" answer, and nothing on the page said which
+  row it belonged to.
+
+  Loads everything it renders in `update/2` and takes no assigns but `id`,
+  which is what lets the panel render it without knowing anything about SES.
   """
 
   use PhoenixKitWeb, :live_component
@@ -29,28 +36,23 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
     socket = assign(socket, assigns)
 
     socket =
-      if Map.has_key?(socket.assigns, :aws_settings) do
+      if Map.has_key?(socket.assigns, :tracking_accounts) do
         socket
       else
         email_config = Emails.get_config()
-
-        aws_settings = %{
-          access_key_id: Settings.get_setting("aws_access_key_id", ""),
-          secret_access_key: Settings.get_setting("aws_secret_access_key", ""),
-          region: Settings.get_setting("aws_region", ""),
-          sqs_queue_url: Settings.get_setting("aws_sqs_queue_url", ""),
-          sqs_dlq_url: Settings.get_setting("aws_sqs_dlq_url", ""),
-          sqs_queue_arn: Settings.get_setting("aws_sqs_queue_arn", ""),
-          sns_topic_arn: Settings.get_setting("aws_sns_topic_arn", ""),
-          ses_configuration_set: Settings.get_setting("aws_ses_configuration_set", "")
-        }
 
         socket
         |> assign(:mailer_status, Utils.mailer_adapter_status())
         |> assign(:aws_configured, Emails.aws_configured?())
         |> assign(:sqs_max_messages_per_poll, email_config.sqs_max_messages_per_poll)
         |> assign(:sqs_visibility_timeout, email_config.sqs_visibility_timeout)
-        |> assign(:aws_settings, aws_settings)
+        # The only global `aws_*` setting still read by this panel, and only
+        # to warn that sending is running on it. The rest are no longer shown
+        # or editable here: they are the SAME fields the per-account rows
+        # carry, and the account rows are the one place to change them. The
+        # CODE fallback is untouched — poller and interceptor still read the
+        # globals for an install that has not moved to per-account tracking.
+        |> assign(:legacy_credentials?, legacy_credentials?())
         |> assign(:aws_ses_connections, Integrations.list_connections("aws_ses"))
         |> assign(
           :selected_aws_integration_uuid,
@@ -425,16 +427,12 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
   # A cached copy would sit there saying "on" long after it was switched off.
   defp collecting_events?, do: SQSPollingJob.should_poll?()
 
-  # The legacy note prints four values; show it whenever ANY of them is set,
-  # not just the two that used to gate it.
-  defp legacy_settings_present?(aws_settings) do
-    [
-      aws_settings.sqs_queue_url,
-      aws_settings.sqs_dlq_url,
-      aws_settings.ses_configuration_set,
-      aws_settings.region
-    ]
-    |> Enum.any?(fn value -> is_binary(value) and String.trim(value) != "" end)
+  # Is the send path still running on the global, pre-Integrations key pair?
+  defp legacy_credentials? do
+    case Settings.get_setting("aws_access_key_id", "") do
+      value when is_binary(value) -> String.trim(value) != ""
+      _ -> false
+    end
   end
 
   defp project_name do

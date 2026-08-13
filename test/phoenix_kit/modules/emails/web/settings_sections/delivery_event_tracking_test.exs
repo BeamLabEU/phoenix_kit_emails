@@ -10,6 +10,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTrackingTe
   use PhoenixKitEmails.DataCase, async: false
 
   import Ecto.Query
+  import Phoenix.LiveViewTest
 
   alias PhoenixKit.Email.SendProfiles
   alias PhoenixKit.Integrations
@@ -18,6 +19,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTrackingTe
   alias PhoenixKit.Modules.Emails.BrevoPollingManager
   alias PhoenixKit.Modules.Emails.SQSPollingJob
   alias PhoenixKit.Modules.Emails.SQSPollingManager
+  alias PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs, as: SesSection
   alias PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTracking, as: Panel
   alias PhoenixKitEmails.Test.Repo
 
@@ -80,6 +82,15 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTrackingTe
   end
 
   defp row_for(rows, provider_kind), do: Enum.find(rows, &(&1.provider_kind == provider_kind))
+
+  # This package ships no Endpoint, so `render_component/3` is the only way to
+  # get real HTML out of a section — including the nested live_component an
+  # expanded row mounts, which no socket-level assertion can reach.
+  defp render_panel(expanded \\ MapSet.new()) do
+    render_component(Panel, %{id: "panel", expanded: expanded},
+      endpoint: PhoenixKitEmails.Test.StubEndpoint
+    )
+  end
 
   describe "update/2 — the registry-driven rows" do
     test "one row per registered tracker, :off by default (nothing enabled)" do
@@ -451,6 +462,148 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTrackingTe
 
       assert refreshed.assigns.accounts_row == nil
       assert refreshed.assigns.accounts_for == nil
+    end
+  end
+
+  describe "the expandable row" do
+    test "starts collapsed, expands, and collapses again" do
+      {:ok, socket} = Panel.update(%{id: "panel"}, bare_socket())
+      assert MapSet.size(socket.assigns.expanded) == 0
+
+      {:noreply, opened} =
+        Panel.handle_event("toggle_expand", %{"provider" => "aws_ses"}, socket)
+
+      assert MapSet.member?(opened.assigns.expanded, "aws_ses")
+      # Only the row that was clicked.
+      refute MapSet.member?(opened.assigns.expanded, "brevo_api")
+
+      {:noreply, closed} =
+        Panel.handle_event("toggle_expand", %{"provider" => "aws_ses"}, opened)
+
+      refute MapSet.member?(closed.assigns.expanded, "aws_ses")
+    end
+
+    test "a forged provider never expands anything" do
+      {:ok, socket} = Panel.update(%{id: "panel"}, bare_socket())
+
+      {:noreply, untouched} =
+        Panel.handle_event("toggle_expand", %{"provider" => "not_a_tracker"}, socket)
+
+      assert MapSet.size(untouched.assigns.expanded) == 0
+    end
+
+    # The reason this is an assign and not `<details>`/a daisyUI collapse: the
+    # row must survive every rebuild of the data under it.
+    test "an expanded row survives a data refresh" do
+      create_ses_profile()
+      {:ok, socket} = Panel.update(%{id: "panel"}, bare_socket())
+
+      {:noreply, opened} =
+        Panel.handle_event("toggle_expand", %{"provider" => "aws_ses"}, socket)
+
+      {:noreply, after_toggle} =
+        Panel.handle_event("toggle_tracking", %{"provider" => "aws_ses"}, opened)
+
+      assert MapSet.member?(after_toggle.assigns.expanded, "aws_ses")
+
+      {:ok, refreshed} = Panel.update(%{id: "panel"}, after_toggle)
+      assert MapSet.member?(refreshed.assigns.expanded, "aws_ses")
+    end
+
+    test "an expanded provider that no longer has a row is dropped" do
+      {:ok, socket} = Panel.update(%{id: "panel"}, bare_socket())
+      socket = Phoenix.Component.assign(socket, :expanded, MapSet.new(["gone_provider"]))
+
+      {:ok, refreshed} = Panel.update(%{id: "panel"}, socket)
+
+      assert MapSet.size(refreshed.assigns.expanded) == 0
+    end
+
+    test "each row carries the settings component its tracker names" do
+      {:ok, socket} = Panel.update(%{id: "panel"}, bare_socket())
+
+      assert row_for(socket.assigns.rows, "aws_ses").settings_component == SesSection
+      assert row_for(socket.assigns.rows, "brevo_api").settings_component == nil
+    end
+  end
+
+  describe "the rendered panel" do
+    test "collapsed: no provider settings, and no Interval column" do
+      html = render_panel()
+
+      refute html =~ "Per-account event tracking"
+      refute html =~ "SQS Worker Tuning"
+      # The interval moved into the expanded row; the column it used to own is
+      # gone, header included.
+      refute html =~ ">Interval<"
+    end
+
+    test "expanded SES: the whole former \"Amazon SES & SQS\" section renders inline" do
+      # One account already tracked (so its row and Setup Infrastructure
+      # render) and one still unassigned (so the "Add account" picker does).
+      {:ok, %{uuid: tracked}} = Integrations.add_connection("aws_ses", "tracked")
+      {:ok, _} = Integrations.add_connection("aws_ses", "spare")
+      {:ok, _} = Emails.set_aws_tracking(tracked, %{})
+
+      {:ok, socket} = Panel.update(%{id: "panel"}, bare_socket())
+
+      {:noreply, opened} =
+        Panel.handle_event("toggle_expand", %{"provider" => "aws_ses"}, socket)
+
+      html = render_panel(opened.assigns.expanded)
+
+      # The nested live_component actually renders — the whole point of
+      # settings_component/0, and the thing a socket-level assertion cannot see.
+      assert html =~ "SES credentials source"
+      assert html =~ "Per-account event tracking"
+      assert html =~ "Setup Infrastructure"
+      assert html =~ "Unassign"
+      assert html =~ "Add account"
+      assert html =~ "SQS Worker Tuning"
+      # Generic, panel-owned, next to the SQS knobs.
+      assert html =~ "Polling interval"
+      # Deleted for good.
+      refute html =~ "Performance Tips"
+      refute html =~ "Inherited settings"
+    end
+
+    test "expanded Brevo: a note where a settings component would be" do
+      {:ok, socket} = Panel.update(%{id: "panel"}, bare_socket())
+
+      {:noreply, opened} =
+        Panel.handle_event("toggle_expand", %{"provider" => "brevo_api"}, socket)
+
+      html = render_panel(opened.assigns.expanded)
+
+      assert html =~ "no settings of its own"
+      assert html =~ "Polling interval"
+      refute html =~ "Per-account event tracking"
+    end
+  end
+
+  describe "the SQS tuning knobs in their new home" do
+    test "max messages per poll saves from the expanded row" do
+      assert {:noreply, socket} =
+               SesSection.handle_event(
+                 "update_max_messages",
+                 %{"max_messages" => "7"},
+                 bare_socket()
+               )
+
+      assert Emails.get_config().sqs_max_messages_per_poll == 7
+      assert socket.assigns.flash["error"] == nil
+    end
+
+    test "visibility timeout saves from the expanded row" do
+      assert {:noreply, socket} =
+               SesSection.handle_event(
+                 "update_visibility_timeout",
+                 %{"timeout" => "600"},
+                 bare_socket()
+               )
+
+      assert Emails.get_config().sqs_visibility_timeout == 600
+      assert socket.assigns.flash["error"] == nil
     end
   end
 

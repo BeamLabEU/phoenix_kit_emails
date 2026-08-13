@@ -63,6 +63,44 @@ large.
   baseline, which still creates them — a deliberate transitional duplication.
   See `dev_docs/reports/2026-08-12-emails-table-adoption.md`.
 
+### Changed
+
+- **The Email Sending settings page no longer has an "Amazon SES & SQS"
+  section.** It was listed as a peer of "Delivery Event Tracking" while
+  actually being the detail of one of that table's rows: it repeated the
+  table's "is collection on" answer, and nothing on the page said which row it
+  belonged to. Every tracker row now expands to its own settings, and the SES
+  row expands to exactly what that section used to hold — credentials source,
+  per-account queues, Setup Infrastructure, Add account, the warnings. Nothing
+  was removed; it moved one level in.
+
+  Trackers name their own settings component through a new optional
+  `EventTracker.settings_component/0` callback, so a provider that has none
+  (Brevo today) renders a note instead, and a future Mailgun needs no panel
+  code either way.
+
+- **The polling interval moved out of the tracker table into the expanded
+  row**, next to the SQS worker tuning knobs (max messages per poll,
+  visibility timeout) that moved there with it. A value set once and then
+  never looked at no longer holds a permanent column. The "Performance Tips"
+  block is gone.
+
+- **The global `aws_*` pipeline settings are no longer shown or editable.**
+  The read-only "Inherited settings (legacy)" accordion listed the SAME fields
+  the per-account rows carry (two of which — SNS topic ARN, queue ARN — are
+  read by nothing at all), inviting operators to reason about values only the
+  account rows can change. **The code fallback is untouched:** the poller and
+  the tracking interceptor still read `aws_sqs_queue_url`, `aws_region` and
+  friends for an install that has not moved to per-account tracking. Only the
+  UI is gone — the warning that sending is still running on legacy credentials
+  stays.
+
+### Fixed
+
+- The "Add account" button in the SES settings rendered as **"Accounts"** in
+  every locale — `mix gettext.extract --merge` had fuzzy-matched it to the
+  table column of that name, and no test rendered the button.
+
 ### Known limitation
 
 Core does not yet pass the sending integration's uuid to the tracking

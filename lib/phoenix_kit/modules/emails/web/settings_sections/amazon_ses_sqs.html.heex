@@ -267,10 +267,10 @@
     </form>
   </div>
 
-  <%!-- Event collection is switched on ONE place — the Amazon SES row in
-  Delivery event tracking, which now owns both settings this gate needs.
-  Showing the state here (read-only) keeps the answer where an operator looks
-  for it without giving them a second switch for the same lamp. --%>
+  <%!-- Event collection is switched on ONE place — the Amazon SES row this
+  block is expanded from, which owns both settings the gate needs. Showing the
+  state here (read-only) keeps the answer next to the queues it is about
+  without giving the operator a second switch for the same lamp. --%>
   <% collecting? = collecting_events?() %>
   <div class="text-sm flex items-center gap-2">
     <.icon
@@ -283,14 +283,14 @@
         else: gettext("Delivery events from Amazon SES: collection is off")}
     </span>
     <span class="text-base-content/60">
-      {gettext("— switch it in Delivery event tracking above")}
+      {gettext("— switch it with the Tracking toggle on this row")}
     </span>
   </div>
 
   <%!-- Legacy manual credentials: no longer editable here. They keep working
        as a fallback until a connection is assigned, then become dead weight. --%>
   <div
-    :if={@selected_aws_integration_uuid == "" and @aws_settings.access_key_id != ""}
+    :if={@selected_aws_integration_uuid == "" and @legacy_credentials?}
     class="alert alert-warning text-sm"
   >
     <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
@@ -299,123 +299,72 @@
     )}
   </div>
 
-    <%!-- The five global aws_* pipeline settings used to be edited here. They
-    are the SAME fields the per-account rows above carry — and two of them
-    (SNS topic ARN, queue ARN) are read by nothing at all. They survive only as
-    the fallback for an install that has not moved to per-account tracking yet,
-    so they are shown, not offered for editing: the account rows above are the
-    one place to change them. --%>
-    <div :if={legacy_settings_present?(@aws_settings)} class="mt-4">
-      <.accordion id="legacy-aws-settings">
-        <:title>{gettext("Inherited settings (legacy)")}</:title>
-        <:content>
-          <p class="text-sm text-base-content/70 mb-3">
-            {gettext(
-              "Used only by an account that has no tracking row of its own. Give that account its own queue above and these stop applying."
-            )}
-          </p>
-          <dl class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-            <div>
-              <dt class="text-base-content/60">{gettext("SES Configuration Set")}</dt>
-              <dd class="font-mono break-all">{@aws_settings.ses_configuration_set}</dd>
-            </div>
-            <div>
-              <dt class="text-base-content/60">{gettext("SQS Queue URL")}</dt>
-              <dd class="font-mono break-all">{@aws_settings.sqs_queue_url}</dd>
-            </div>
-            <div>
-              <dt class="text-base-content/60">{gettext("SQS DLQ URL")}</dt>
-              <dd class="font-mono break-all">{@aws_settings.sqs_dlq_url}</dd>
-            </div>
-            <div>
-              <dt class="text-base-content/60">{gettext("Region")}</dt>
-              <dd class="font-mono break-all">{@aws_settings.region}</dd>
-            </div>
-          </dl>
-        </:content>
-      </.accordion>
-    </div>
+  <%!-- SQS worker tuning. The master polling toggle and the polling interval
+       live in the tracker row this block is expanded from; these two are the
+       SQS-specific knobs that row has no generic control for. --%>
+  <div class="rounded-box border border-base-300 p-4 space-y-4">
+    <h3 class="font-semibold flex items-center gap-2">
+      <.icon name="hero-cog-6-tooth" class="w-5 h-5" /> {gettext("SQS Worker Tuning")}
+    </h3>
 
-    <%!-- SQS Worker Tuning (collapse) — the master polling toggle and the
-         polling interval now live in the "Delivery Event Tracking" panel
-         (task #56 P2); this collapse keeps only the SQS-specific tuning
-         knobs that panel has no generic column for. --%>
-    <div class="collapse collapse-arrow bg-base-200 mt-4">
-      <input type="checkbox" />
-      <div class="collapse-title text-sm font-medium">
-        <span class="flex items-center gap-2">
-          <.icon name="hero-cog-6-tooth" class="w-5 h-5" /> {gettext("SQS Worker Tuning")}
-        </span>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <%!-- SQS Max Messages Per Poll --%>
+      <div class="form-control">
+        <label class="label" for={"#{@id}-max-messages"}>
+          <span class="label-text font-medium">{gettext("Max Messages Per Poll")}</span>
+        </label>
+        <div class="join">
+          <input
+            id={"#{@id}-max-messages"}
+            name="max_messages"
+            type="number"
+            placeholder={gettext("Enter max messages")}
+            class="input input-bordered input-sm join-item w-32"
+            value={@sqs_max_messages_per_poll}
+            min="1"
+            max="10"
+            phx-blur="update_max_messages"
+            phx-target={@myself}
+          />
+          <span class="join-item bg-base-300 px-3 text-sm flex items-center">
+            {gettext("messages")}
+          </span>
+        </div>
+        <label class="label">
+          <span class="label-text-alt text-base-content/70">
+            {gettext("Maximum number of messages to process in each polling cycle (1-10)")}
+          </span>
+        </label>
       </div>
-      <div class="collapse-content text-sm space-y-4">
-        <%!-- SQS Max Messages Per Poll --%>
-        <div class="form-control">
-          <label class="label">
-            <span class="label-text font-medium">{gettext("Max Messages Per Poll")}</span>
-          </label>
-          <div class="input-group">
-            <input
-              name="max_messages"
-              type="number"
-              placeholder={gettext("Enter max messages")}
-              class="input input-bordered w-full max-w-xs"
-              value={@sqs_max_messages_per_poll}
-              min="1"
-              max="10"
-              phx-blur="update_max_messages"
-              phx-target={@myself}
-            />
-            <span class="bg-base-200 px-4 py-3 text-sm">{gettext("messages")}</span>
-          </div>
-          <label class="label">
-            <span class="label-text-alt text-base-content/70">
-              {gettext("Maximum number of messages to process in each polling cycle (1-10)")}
-            </span>
-          </label>
-        </div>
 
-        <%!-- SQS Visibility Timeout --%>
-        <div class="form-control">
-          <label class="label">
-            <span class="label-text font-medium">{gettext("Visibility Timeout")}</span>
-          </label>
-          <div class="input-group">
-            <input
-              name="timeout"
-              type="number"
-              placeholder={gettext("Enter timeout")}
-              class="input input-bordered w-full max-w-xs"
-              value={@sqs_visibility_timeout}
-              min="30"
-              max="43200"
-              phx-blur="update_visibility_timeout"
-              phx-target={@myself}
-            />
-            <span class="bg-base-200 px-4 py-3 text-sm">{gettext("seconds")}</span>
-          </div>
-          <label class="label">
-            <span class="label-text-alt text-base-content/70">
-              {gettext(
-                "How long messages remain invisible after being received (30-43200 seconds)"
-              )}
-            </span>
-          </label>
+      <%!-- SQS Visibility Timeout --%>
+      <div class="form-control">
+        <label class="label" for={"#{@id}-visibility-timeout"}>
+          <span class="label-text font-medium">{gettext("Visibility Timeout")}</span>
+        </label>
+        <div class="join">
+          <input
+            id={"#{@id}-visibility-timeout"}
+            name="timeout"
+            type="number"
+            placeholder={gettext("Enter timeout")}
+            class="input input-bordered input-sm join-item w-32"
+            value={@sqs_visibility_timeout}
+            min="30"
+            max="43200"
+            phx-blur="update_visibility_timeout"
+            phx-target={@myself}
+          />
+          <span class="join-item bg-base-300 px-3 text-sm flex items-center">
+            {gettext("seconds")}
+          </span>
         </div>
-
-        <%!-- Performance Optimization Tips --%>
-        <div class="alert alert-info">
-          <.icon name="hero-light-bulb" class="w-4 h-4 shrink-0" />
-          <div>
-            <h4 class="font-semibold mb-2">{gettext("Performance Tips")}</h4>
-            <ul class="text-sm space-y-1">
-              <li>• {gettext("Use longer polling intervals (5-10 seconds) to reduce API calls")}</li>
-              <li>• {gettext("Set visibility timeout to match processing time")}</li>
-              <li>• {gettext("Monitor queue depth and adjust max messages accordingly")}</li>
-              <li>• {gettext("Enable compression to reduce storage requirements")}</li>
-            </ul>
-          </div>
-        </div>
+        <label class="label">
+          <span class="label-text-alt text-base-content/70">
+            {gettext("How long messages remain invisible after being received (30-43200 seconds)")}
+          </span>
+        </label>
       </div>
     </div>
-
+  </div>
 </div>

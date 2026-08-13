@@ -12,6 +12,24 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTracking d
   those modules' moduledocs for what stayed behind (transport/identity
   config, not polling).
 
+  ## The expandable row
+
+  Every row expands to its own settings: the polling interval (generic —
+  every tracker has one) plus whatever the tracker names through
+  `EventTracker.settings_component/1`. SES points that at
+  `SettingsSections.AmazonSesSqs`, which used to be a third, sibling
+  section on this page — a peer of this table while actually being the
+  detail of one of its rows, duplicating its "is collection on" answer
+  and offering no clue which row it belonged to.
+
+  Expansion is an assign (`@expanded`, a MapSet of provider_kinds), not a
+  `<details>` or a daisyUI `collapse` checkbox: LiveView's morphdom patch
+  resets the DOM-only open state of both, so any row would snap shut on
+  the next poll-count refresh. Like the accounts dialog, the set is
+  re-resolved against fresh rows in `assign_rows/1` — the ONE place rows
+  are built — so a provider that disappeared (a tracker dropped by a
+  deploy) cannot leave an expanded row rendering against nothing.
+
   ## "Poll now" vs `poll_cycle/1`
 
   `EventTracker.poll_cycle/1`'s own moduledoc anticipated this button
@@ -35,10 +53,16 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTracking d
 
   @impl true
   def update(assigns, socket) do
+    # Merged FIRST, and only then defaulted: reading `socket.assigns` inside
+    # the same pipe would read the pre-merge socket (the pipe's argument is
+    # evaluated against the outer binding), silently discarding anything the
+    # parent passed in for these two keys.
+    socket = assign(socket, assigns)
+
     socket =
       socket
-      |> assign(assigns)
       |> assign(:accounts_for, Map.get(socket.assigns, :accounts_for))
+      |> assign(:expanded, Map.get(socket.assigns, :expanded) || MapSet.new())
       |> assign_rows()
 
     {:ok, socket}
@@ -182,6 +206,26 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTracking d
     end)
   end
 
+  # Only a provider_kind that has a row can be expanded — a forged
+  # phx-value would otherwise leave a dead entry in @expanded that
+  # assign_rows/1 has to prune on every refresh for no reason. Rows are
+  # rebuilt afterwards so the freshly expanded row renders against current
+  # data rather than whatever the last refresh left behind.
+  def handle_event("toggle_expand", %{"provider" => provider_kind}, socket) do
+    if Enum.any?(socket.assigns.rows, &(&1.provider_kind == provider_kind)) do
+      expanded = socket.assigns.expanded
+
+      expanded =
+        if MapSet.member?(expanded, provider_kind),
+          do: MapSet.delete(expanded, provider_kind),
+          else: MapSet.put(expanded, provider_kind)
+
+      {:noreply, socket |> assign(:expanded, expanded) |> assign_rows()}
+    else
+      {:noreply, socket}
+    end
+  end
+
   ## --- Private ---
 
   # A row that both exists and exposes an account list (`accounts` is nil for
@@ -209,11 +253,18 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTracking d
   defp assign_rows(socket) do
     rows = build_rows()
     row = socket.assigns[:accounts_for] && account_row(rows, socket.assigns[:accounts_for])
+    kinds = MapSet.new(rows, & &1.provider_kind)
 
     socket
     |> assign(:rows, rows)
     |> assign(:accounts_for, row && row.provider_kind)
     |> assign(:accounts_row, row)
+    # Same re-resolution as the dialog above: an expanded provider that no
+    # longer has a row is dropped rather than carried as a stale key.
+    |> assign(
+      :expanded,
+      MapSet.intersection(socket.assigns[:expanded] || MapSet.new(), kinds)
+    )
   end
 
   # Resolves provider_kind to its registered tracker and runs fun/1
@@ -271,7 +322,8 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTracking d
       pending_jobs: EventTracker.pending_jobs_count(tracker),
       interval_ms: tracker.interval_ms(),
       min_interval_ms: tracker.min_interval_ms(),
-      accounts: EventTracker.accounts(tracker)
+      accounts: EventTracker.accounts(tracker),
+      settings_component: EventTracker.settings_component(tracker)
     }
   end
 
