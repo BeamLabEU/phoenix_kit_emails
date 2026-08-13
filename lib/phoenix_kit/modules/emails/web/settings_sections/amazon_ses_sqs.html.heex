@@ -59,7 +59,7 @@
       </span>
     </label>
     <form
-      id="aws-integration-picker-form"
+      id={"#{@id}-integration-picker"}
       phx-submit="assign_aws_integration"
       phx-target={@myself}
       class="flex items-end gap-3"
@@ -249,7 +249,7 @@
 
     <form
       :if={@unassigned_connections != []}
-      id="aws-tracking-assign-form"
+      id={"#{@id}-tracking-assign"}
       phx-submit="assign_tracking_account"
       phx-target={@myself}
       class="flex items-end gap-3"

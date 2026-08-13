@@ -16,6 +16,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqsTest do
   alias PhoenixKit.Integrations
   alias PhoenixKit.Modules.Emails
   alias PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs, as: SesSection
+  alias PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTracking
   alias PhoenixKit.Settings
 
   # Minimal socket that supports assign/3 and put_flash/3 without a live
@@ -162,5 +163,31 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqsTest do
 
   defp render_section do
     render_component(SesSection, %{id: "aws"}, endpoint: PhoenixKitEmails.Test.StubEndpoint)
+  end
+
+  describe "the panel tells its row when it changed something" do
+    test "a tracking change sends the parent an update" do
+      uuid = create_ses_connection_with_queue()
+
+      socket =
+        bare_socket()
+        |> Phoenix.Component.assign(:parent_id, "delivery-panel")
+        |> Phoenix.Component.assign(:tracking_accounts, [])
+        |> Phoenix.Component.assign(:setting_up_account, nil)
+        |> Phoenix.Component.assign(
+          :aws_ses_connections,
+          Integrations.list_connections("aws_ses", owner: :any)
+        )
+        |> Phoenix.Component.assign(:selected_aws_integration_uuid, "")
+
+      {:noreply, _socket} =
+        SesSection.handle_event("assign_tracking_account", %{"uuid" => uuid}, socket)
+
+      # send_update/2 posts to the calling process, which in a unit test is us:
+      # the row above the panel learns about the new account instead of waiting
+      # for something else to redraw it.
+      assert_received {:phoenix, :send_update,
+                       {{DeliveryEventTracking, "delivery-panel"}, %{id: "delivery-panel"}}}
+    end
   end
 end

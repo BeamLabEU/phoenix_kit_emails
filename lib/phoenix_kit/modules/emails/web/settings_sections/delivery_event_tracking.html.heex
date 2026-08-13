@@ -181,11 +181,14 @@
 
                 <%!-- Provider-specific, when the tracker names a component
                 (`EventTracker.settings_component/1`). It loads its own state
-                in `update/2`, so there is nothing to pass down but an id. --%>
+                in `update/2`; the only thing handed down is this panel's id,
+                so the child can tell it when it changed something the row
+                above displays. --%>
                 <.live_component
                   :if={row.settings_component}
                   module={row.settings_component}
                   id={"#{@id}-settings-#{row.provider_kind}"}
+                  parent_id={@id}
                 />
                 <p :if={is_nil(row.settings_component)} class="text-sm text-base-content/60">
                   {gettext("This provider has no settings of its own.")}

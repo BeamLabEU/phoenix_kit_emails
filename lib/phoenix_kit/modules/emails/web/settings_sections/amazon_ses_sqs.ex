@@ -27,6 +27,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
   alias PhoenixKit.Modules.Emails.SQSPollingJob
   alias PhoenixKit.Modules.Emails.SQSPollingManager
   alias PhoenixKit.Modules.Emails.Utils
+  alias PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTracking
   alias PhoenixKit.Settings
 
   @dialyzer {:nowarn_function, handle_event: 3}
@@ -323,9 +324,24 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
     EventTrackerReconciler.reconcile_tracker(SQSPollingManager)
     Emails.invalidate_aws_credentials_cache()
 
+    # Everything reached through here changes what the tracker ROW above this
+    # panel says — the account count, and whether the tracker is eligible at
+    # all. A child's event does not re-run the parent's update/2, so adding the
+    # first account left the row one pixel higher still reporting "no
+    # integration" until something else redrew it. The panel is a detail of
+    # that row; it has to tell the row when it changed.
+    notify_parent(socket)
+
     socket
     |> assign_tracking_accounts()
     |> assign(:setting_up_account, nil)
+  end
+
+  defp notify_parent(socket) do
+    case socket.assigns[:parent_id] do
+      nil -> :ok
+      parent_id -> send_update(DeliveryEventTracking, id: parent_id)
+    end
   end
 
   # Scoped `owner: :any`, matching how the poller and the send-path attribution

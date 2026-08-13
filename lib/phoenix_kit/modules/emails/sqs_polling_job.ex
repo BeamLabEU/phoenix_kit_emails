@@ -510,7 +510,7 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
         Logger.warning(
           "SQS Polling Job: #{length(uuids)} active SES account(s) have no queue of their own " <>
             "(#{Enum.join(uuids, ", ")}) — falling back to the single global queue. Configure " <>
-            "each account under Settings -> Email Sending -> Amazon SES & SQS."
+            "each account under Settings -> Email Sending -> Delivery Event Tracking -> expand the Amazon SES row."
         )
     end
   end
