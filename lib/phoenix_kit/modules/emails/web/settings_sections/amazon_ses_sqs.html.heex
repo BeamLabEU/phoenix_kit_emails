@@ -323,7 +323,8 @@
     so they are shown, not offered for editing: the account rows above are the
     one place to change them. --%>
     <div :if={legacy_settings_present?(@aws_settings)} class="mt-4">
-      <.accordion id="legacy-aws-settings" title={gettext("Inherited settings (legacy)")}>
+      <.accordion id="legacy-aws-settings">
+        <:title>{gettext("Inherited settings (legacy)")}</:title>
         <:content>
           <p class="text-sm text-base-content/70 mb-3">
             {gettext(

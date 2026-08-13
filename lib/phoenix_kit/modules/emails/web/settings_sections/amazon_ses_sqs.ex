@@ -47,9 +47,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
 
         socket
         |> assign(:mailer_status, Utils.mailer_adapter_status())
-        |> assign(:current_provider, Emails.current_provider())
         |> assign(:aws_configured, Emails.aws_configured?())
-        |> assign(:email_ses_events, email_config.ses_events)
         |> assign(:sqs_max_messages_per_poll, email_config.sqs_max_messages_per_poll)
         |> assign(:sqs_visibility_timeout, email_config.sqs_visibility_timeout)
         |> assign(:aws_settings, aws_settings)

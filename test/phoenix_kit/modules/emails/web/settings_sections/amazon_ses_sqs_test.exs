@@ -12,6 +12,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqsTest do
 
   import Phoenix.LiveViewTest
 
+  alias PhoenixKit.Email.SendProfiles
   alias PhoenixKit.Integrations
   alias PhoenixKit.Modules.Emails
   alias PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs, as: SesSection
@@ -58,6 +59,11 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqsTest do
 
       assert html =~ "Per-account event tracking"
       refute html =~ "Inherited settings"
+
+      # The global save form submitted params its only handler clause did not
+      # match, so every click killed the LiveView. Pin its absence.
+      refute html =~ "aws-settings-form"
+      refute html =~ "Save AWS Settings"
     end
 
     test "with legacy settings present — the state that used to crash the page" do
@@ -84,6 +90,38 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqsTest do
       # collection was on while the tracker was off.
       assert html =~ "collection is off"
     end
+
+    test "and says so the other way round when collection really is running" do
+      create_ses_connection_with_queue()
+      {:ok, _} = Emails.set_ses_events(true)
+      {:ok, _} = Emails.set_sqs_polling(true)
+
+      html = render_section()
+
+      assert html =~ "collection is on"
+    end
+  end
+
+  # Everything `should_poll?/0` needs on the SES side: a connection, an enabled
+  # send profile pointing at it, and a queue to poll.
+  defp create_ses_connection_with_queue do
+    {:ok, _} = Emails.enable_system()
+    {:ok, %{uuid: uuid}} = Integrations.add_connection("aws_ses", "collecting")
+
+    {:ok, _} =
+      Integrations.save_setup(uuid, %{"access_key" => "AKIATEST", "secret_key" => "secret"})
+
+    {:ok, _} =
+      SendProfiles.create_send_profile(%{
+        name: "SES collecting",
+        integration_uuid: uuid,
+        provider_kind: "aws_ses",
+        from_email: "sender@example.com",
+        enabled: true
+      })
+
+    {:ok, _} = Emails.set_sqs_queue_url("https://sqs.eu-north-1.amazonaws.com/1/q")
+    uuid
   end
 
   defp render_section do

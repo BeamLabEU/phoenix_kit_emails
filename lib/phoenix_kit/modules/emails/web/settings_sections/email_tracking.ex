@@ -259,30 +259,6 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTracking do
     end
   end
 
-  def handle_event("toggle_s3_archival", _params, socket) do
-    new_s3_archival = !socket.assigns.email_archive_to_s3
-
-    case Emails.set_s3_archival(new_s3_archival) do
-      {:ok, _setting} ->
-        socket =
-          socket
-          |> assign(:email_archive_to_s3, new_s3_archival)
-          |> put_flash(
-            :info,
-            if(new_s3_archival,
-              do: gettext("S3 archival enabled"),
-              else: gettext("S3 archival disabled")
-            )
-          )
-
-        {:noreply, socket}
-
-      {:error, _changeset} ->
-        socket = put_flash(socket, :error, gettext("Failed to update S3 archival setting"))
-        {:noreply, socket}
-    end
-  end
-
   def handle_event("run_cleanup_now", _params, socket) do
     socket = assign(socket, :running_cleanup, true)
 
