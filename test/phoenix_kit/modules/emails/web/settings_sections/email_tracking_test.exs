@@ -119,12 +119,37 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTrackingTest do
       assert html =~ ~s|aria-label="Compress Email Bodies After"|
     end
 
-    test "unit suffixes are joined, not glued to a dead input-group" do
+    test "unit suffixes use the input/label idiom, not a half-styled join" do
+      {:ok, _} = Emails.set_save_body(true)
       html = render_section()
 
-      assert html =~ "join-item"
-      # `.fieldset` is a grid: without `w-fit` the join stretches the column.
-      assert html =~ "join w-fit"
+      # daisyUI 5 draws the suffix through `.label:is(.input > *, .select > *)`:
+      # the LABEL carries `.input` (one border, correct radii, a divider) and
+      # the unit is a `.label` span inside it. A `.join` around a bare `.input`
+      # left the suffix square and borderless — the input-group of v4 in all
+      # but name.
+      refute html =~ "join-item"
+
+      for unit <- ["%", "days"] do
+        assert Regex.match?(
+                 ~r|<label[^>]*\bclass="[^"]*\binput\b[^"]*"[^>]*>.*?<span class="label">\s*#{Regex.escape(unit)}\s*</span>|s,
+                 html
+               ),
+               "expected an .input label wrapping the #{unit} suffix"
+      end
+
+      # `.fieldset` is a grid: a width-less flex child stretches the column
+      # instead of hugging its input. Read out of the class list rather than
+      # matched as a string — the order the classes are written in is not the
+      # thing under test.
+      input_labels =
+        ~r|<label[^>]*\bclass="([^"]*)"|
+        |> Regex.scan(html)
+        |> Enum.map(fn [_, classes] -> String.split(classes) end)
+        |> Enum.filter(&("input" in &1))
+
+      assert length(input_labels) == 3
+      assert Enum.all?(input_labels, &("w-32" in &1))
     end
   end
 

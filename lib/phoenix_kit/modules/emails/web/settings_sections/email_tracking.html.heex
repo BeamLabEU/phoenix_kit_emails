@@ -195,20 +195,25 @@
 
   <div class="divider"></div>
 
-  <%!-- Sampling Rate. `w-fit` on the join is load-bearing: `.fieldset` is a
-       grid, so a bare inline-flex child stretches the whole column instead of
-       hugging its input. And the legend names the GROUP, not the field, so
-       each input carries an `aria-label` with the same text. --%>
+  <%!-- Sampling Rate. daisyUI 5's own unit-suffix idiom: `.input` on a LABEL
+       wrapping the field and a `.label` span (rule
+       `.label:is(.input > *, .select > *)`), so the pair draws one border with
+       the right radii and a divider, and the unit inherits the field's font
+       size. A `.join` around a bare `.input` gets the input's corners cut but
+       leaves the suffix square and borderless — half a control.
+       `w-32` is load-bearing: `.fieldset` is a grid, so a width-less flex
+       child stretches the whole column instead of hugging its input. And the
+       legend names the GROUP, not the field, so each input carries an
+       `aria-label` with the same text. --%>
   <fieldset class="fieldset">
     <legend class="fieldset-legend text-lg font-semibold">
       {gettext("Emails Sampling Rate")}
     </legend>
-    <div class="join w-fit">
+    <label class="input w-32">
       <input
         name="sampling_rate"
         type="number"
         placeholder={gettext("Enter sampling rate")}
-        class="input join-item w-32"
         aria-label={gettext("Emails Sampling Rate")}
         value={@email_sampling_rate}
         min="0"
@@ -216,8 +221,8 @@
         phx-blur="update_email_sampling_rate"
         phx-target={@myself}
       />
-      <span class="join-item bg-base-200 px-4 text-sm flex items-center">%</span>
-    </div>
+      <span class="label">%</span>
+    </label>
     <p class="text-xs text-base-content/70">
       {gettext("Percentage of emails to fully track for analytics (0-100%)")}
     </p>
@@ -231,12 +236,11 @@
       {gettext("Email Retention Period")}
     </legend>
     <div class="flex gap-2 items-center">
-      <div class="join w-fit">
+      <label class="input w-32">
         <input
           name="retention_days"
           type="number"
           placeholder={gettext("Enter retention days")}
-          class="input join-item w-32"
           aria-label={gettext("Email Retention Period")}
           value={@email_retention_days}
           min="1"
@@ -244,8 +248,8 @@
           phx-blur="update_email_retention"
           phx-target={@myself}
         />
-        <span class="join-item bg-base-200 px-4 text-sm flex items-center">{gettext("days")}</span>
-      </div>
+        <span class="label">{gettext("days")}</span>
+      </label>
       <button
         type="button"
         phx-click="run_cleanup_now"
@@ -270,24 +274,24 @@
   <%= if @email_save_body do %>
     <%!-- Compress Body After Days --%>
     <fieldset class="fieldset">
+      <%!-- The hint used to sit inside the <legend>, where it became part of
+           the group's accessible name ("Compress Email Bodies After
+           Auto-saves when you click outside the input field"). Below the
+           field instead, like the SES section next door. --%>
       <legend class="fieldset-legend text-lg font-semibold">
         {gettext("Compress Email Bodies After")}
-        <span class="font-normal text-sm text-base-content/70">
-          {gettext("Auto-saves when you click outside the input field")}
-        </span>
       </legend>
       <div class="flex gap-2 items-center">
-        <div class="join w-fit">
+        <label class={[
+          "input w-32",
+          "transition-colors duration-200",
+          "focus-within:input-primary",
+          if(@updating_compress_days, do: "input-warning loading", else: "")
+        ]}>
           <input
             name="compress_days"
             type="number"
             placeholder={gettext("Enter compression days")}
-            class={[
-              "input join-item w-32",
-              "transition-colors duration-200",
-              "focus:input-primary",
-              if(@updating_compress_days, do: "input-warning loading", else: "")
-            ]}
             aria-label={gettext("Compress Email Bodies After")}
             value={@email_compress_body}
             min="7"
@@ -295,10 +299,8 @@
             phx-blur="update_compress_days"
             phx-target={@myself}
           />
-          <span class="join-item bg-base-200 px-4 text-sm flex items-center">
-            {gettext("days")}
-          </span>
-        </div>
+          <span class="label">{gettext("days")}</span>
+        </label>
         <button
           type="button"
           phx-click="run_compression_now"
@@ -314,6 +316,9 @@
           <% end %>
         </button>
       </div>
+      <p class="text-xs text-base-content/70">
+        {gettext("Auto-saves when you click outside the input field")}
+      </p>
       <p class="text-xs text-base-content/70 flex items-center gap-1">
         <.icon name="hero-information-circle" class="w-3 h-3" />
         {gettext(
