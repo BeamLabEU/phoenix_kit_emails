@@ -418,8 +418,10 @@ defmodule PhoenixKit.Modules.Emails.AwsMultiaccountTest do
       assert config[:region] == "eu-north-1"
     end
 
-    test "a per-account tracking region overrides even the queue URL" do
-      # The operator said so explicitly; that beats inference.
+    test "a stored tracking region does NOT override the queue URL" do
+      # It used to. That is how an account signs for one region while its queue
+      # lives in another — a hand-typed third copy of a value the queue URL
+      # already states. The URL wins; the stored value is ignored.
       uuid = create_connection(region: "us-east-1")
       create_profile(uuid)
 
@@ -430,7 +432,16 @@ defmodule PhoenixKit.Modules.Emails.AwsMultiaccountTest do
         })
 
       assert [%{aws_config: config}] = Emails.search_targets()
-      assert config[:region] == "eu-central-1"
+      assert config[:region] == "eu-north-1"
+    end
+
+    test "with no queue URL to read, the connection's own region is used" do
+      uuid = create_connection(region: "us-east-1")
+      create_profile(uuid)
+      {:ok, _} = Emails.set_sqs_queue_url("https://sqs.example.invalid/1/q")
+
+      assert [%{aws_config: config}] = Emails.search_targets()
+      assert config[:region] == "us-east-1"
     end
   end
 
