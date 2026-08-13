@@ -25,6 +25,38 @@ defmodule PhoenixKit.Modules.Emails.EventTracker do
   the polling toggle. Getting this split right is what lets the admin
   panel (P2) distinguish "Idle — no integration" (eligible? false) from
   "Off" (enabled? false) as genuinely different states.
+
+  ### The one sanctioned exception: SES turning `email_ses_events` ON
+
+  The split above says an eligibility flag must not move with the
+  operator's toggle. `SQSPollingManager.enable_polling/0` moves one
+  anyway: it writes `email_ses_events` to `true` alongside
+  `sqs_polling_enabled`. That is a deliberate exception, not a leak of
+  the old conflation, and it is one-directional.
+
+  The reason is a dead end an operator could not see out of. Both flags
+  are needed before SES events arrive, but they live in two different
+  settings sections; an install where `email_ses_events` had been
+  switched off answered a freshly flipped Tracking toggle with "Idle —
+  no integration" and no hint that the missing piece was a checkbox on
+  another page. Enabling states an intent about the *install* ("SES
+  event tracking is a thing here"), which the eligibility flag is
+  exactly the right place to record — so enabling asserts it rather
+  than demanding the operator find it.
+
+  `disable_polling/0` does NOT clear the flag, and must not start. Three
+  reasons: "stop polling for now" is a statement about the operator, not
+  about the install, so the eligibility answer is unchanged; the same
+  flag gates the SNS webhook path (`Emails.Web.WebhookController`),
+  which does not poll anything and would go silent for no stated reason;
+  and clearing it would erase the difference between an install that
+  never tracked SES and one that paused. The flag keeps its own toggle
+  in the Email tracking settings section for an operator who does mean
+  "no SES events at all".
+
+  The narrow shape of the exception is what keeps `state/1` honest: an
+  eligibility flag may be asserted by an operator action that logically
+  implies it, never retracted by one that does not.
   """
 
   @typedoc "A tracker module implementing this behaviour."

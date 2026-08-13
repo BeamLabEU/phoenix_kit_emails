@@ -57,10 +57,34 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingManagerTest do
     assert Emails.sqs_polling_enabled?()
   end
 
+  test "enable_polling/0 asserts the SES-events eligibility flag too" do
+    {:ok, _} = Emails.set_ses_events(false)
+
+    assert {:ok, %Oban.Job{}} = SQSPollingManager.enable_polling()
+
+    # Both halves of should_poll?/0 in one click: the flag lives in another
+    # settings section, and an operator flipping Tracking on had no way to
+    # see that a checkbox over there was still holding it shut.
+    assert Emails.ses_events_enabled?()
+    assert Emails.sqs_polling_enabled?()
+  end
+
   test "disable_polling/0 clears the setting" do
     {:ok, _job} = SQSPollingManager.enable_polling()
     assert :ok = SQSPollingManager.disable_polling()
     refute Emails.sqs_polling_enabled?()
+  end
+
+  test "disable_polling/0 leaves the SES-events eligibility flag alone" do
+    {:ok, _job} = SQSPollingManager.enable_polling()
+    assert Emails.ses_events_enabled?()
+
+    assert :ok = SQSPollingManager.disable_polling()
+
+    # Asymmetric on purpose (see disable_polling/0's doc and EventTracker's
+    # moduledoc): the same flag gates the SNS webhook path, so "stop polling"
+    # must not switch off event ingestion that never polled anything.
+    assert Emails.ses_events_enabled?()
   end
 
   test "set_polling_interval/1 rejects anything below 1000ms" do
