@@ -437,22 +437,6 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
     |> Enum.any?(fn value -> is_binary(value) and String.trim(value) != "" end)
   end
 
-  # The one region an account works in, shown read-only: the queue URL names
-  # where the queue is, and the connection carries the region its credentials
-  # belong to. The stored tracking region is not consulted — it existed only to
-  # be typed differently from both.
-  defp account_region(account) do
-    SQSPollingJob.region_from_queue_url(account.tracking[:queue_url]) ||
-      connection_region(account.uuid)
-  end
-
-  defp connection_region(uuid) do
-    case AwsIntegrations.resolve_credentials(uuid) do
-      {:ok, %{region: region}} when is_binary(region) and region != "" -> region
-      _ -> nil
-    end
-  end
-
   defp project_name do
     Settings.get_setting("project_title", "myapp")
     |> String.downcase()

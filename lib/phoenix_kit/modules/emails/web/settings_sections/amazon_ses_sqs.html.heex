@@ -239,23 +239,6 @@
             </label>
           </div>
 
-          <%!-- No region field: the queue URL names the region the queue is in,
-          and the connection carries the region its credentials belong to.
-          A third, hand-typed copy is how an account ends up signing for one
-          region while its queue lives in another. --%>
-          <div class="form-control">
-            <label class="label">
-              <span class="label-text font-medium">{gettext("Region")}</span>
-            </label>
-            <div class="input input-bordered flex items-center bg-base-100/60 font-mono text-sm">
-              {account_region(account) || gettext("— from the connection —")}
-            </div>
-            <label class="label">
-              <span class="label-text-alt">
-                {gettext("Taken from the queue URL, or from the connection itself")}
-              </span>
-            </label>
-          </div>
         </div>
 
         <div class="mt-3">
