@@ -41,6 +41,18 @@ defmodule PhoenixKit.Modules.Emails.ArchiveWorkerTest do
     log
   end
 
+  describe "uniqueness" do
+    test "a run that outlives the hour is not joined by the next tick" do
+      unique = Keyword.get(ArchiveWorker.__opts__(), :unique)
+
+      assert unique[:period] == :infinity,
+             "period: 3600 expires against inserted_at, so a backlog run " <>
+               "crossing the hour would be joined by the next cron tick"
+
+      assert unique[:states] == :incomplete
+    end
+  end
+
   describe "a tick with the feature off" do
     test "does nothing and does not fail" do
       {:ok, _} = Emails.set_s3_archival(false)

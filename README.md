@@ -145,6 +145,8 @@ Settings are managed through the PhoenixKit Settings API and can be configured v
 | `aws_ses_configuration_set` | string | — | AWS SES configuration set name |
 | `email_compress_body` | integer | — | Compress body after N days |
 | `email_archive_to_s3` | boolean | `false` | Enable S3 archival |
+| `email_s3_bucket` | string | — | S3 bucket archives are written to |
+| `email_s3_integration` | string | — | Integrations UUID that signs uploads (unset = ExAws chain) |
 | `email_sampling_rate` | integer | — | Percentage of emails to fully log |
 | `email_create_placeholder_logs` | boolean | `false` | Create placeholder logs for orphaned events |
 
@@ -166,6 +168,7 @@ lib/
     emails.ex                            # Context + PhoenixKit.Module behaviour
     application_integration.ex           # Application-level integration
     archiver.ex                          # S3 archival logic
+    archive_worker.ex                    # Hourly Oban cron that calls the archiver
     email_log_data.ex                    # Email log data struct
     event.ex                             # Delivery/bounce/complaint event schema
     interceptor.ex                       # Email interceptor for logging

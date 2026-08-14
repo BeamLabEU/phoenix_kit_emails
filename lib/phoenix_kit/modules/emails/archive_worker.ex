@@ -56,8 +56,12 @@ defmodule PhoenixKit.Modules.Emails.ArchiveWorker do
     # both would select the same not-yet-stamped rows and upload them twice.
     # `:incomplete` rather than a hand-listed set — it also covers `:retryable`
     # and `:suspended`, which a hand-written list silently omits (Oban warns
-    # about exactly this).
-    unique: [period: 3600, states: :incomplete]
+    # about exactly this). `period: :infinity` rather than 3600: uniqueness
+    # expires against `inserted_at`, so a one-hour window would let the next
+    # cron tick in the moment a backlog run crossed the hour — the exact
+    # overlap this option exists to prevent. Completed/discarded jobs are
+    # not `:incomplete`, so the following hour still inserts normally.
+    unique: [period: :infinity, states: :incomplete]
 
   require Logger
 

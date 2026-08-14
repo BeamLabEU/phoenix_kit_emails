@@ -127,6 +127,15 @@ defmodule PhoenixKit.Modules.Emails.ArchiverTest do
              "a blank setting passed the `if bucket do` guard and the upload " <>
                "was attempted against a bucket named \"\""
     end
+
+    test "a blank :bucket opt is not a bucket either" do
+      {:ok, _} = Emails.set_s3_archival(true)
+      {:ok, _} = Emails.set_s3_bucket("")
+
+      assert {:error, :no_bucket_configured} = Archiver.archive_to_s3(90, bucket: "  "),
+             "\"\" is truthy, so `Keyword.get(opts, :bucket) || fallback` kept the " <>
+               "blank override and `if bucket do` then treated it as a name"
+    end
   end
 
   describe "what actually goes into the object" do
@@ -267,9 +276,10 @@ defmodule PhoenixKit.Modules.Emails.ArchiverTest do
 
   describe "the object key" do
     test "is a browsable date hierarchy with no characters that need escaping" do
-      key = Archiver.object_path(~U[2026-08-14 09:07:03Z])
+      key =
+        Archiver.object_key("email-logs/", ~U[2026-08-14 09:07:03Z], :json, "ab12cd34")
 
-      assert key == "2026/08/14/090703"
+      assert key == "email-logs/2026/08/14/090703-ab12cd34.json"
 
       refute key =~ ":",
              "an ISO-8601 timestamp in the key puts colons in every object name — " <>

@@ -192,7 +192,7 @@ defmodule PhoenixKit.Modules.Emails.Archiver do
   """
   def archive_to_s3(days_old, opts \\ []) do
     if s3_archival_enabled?() do
-      bucket = Keyword.get(opts, :bucket) || get_s3_bucket()
+      bucket = present_string(Keyword.get(opts, :bucket)) || get_s3_bucket()
       prefix = Keyword.get(opts, :prefix, "email-logs/")
       batch_size = Keyword.get(opts, :batch_size, 500)
       format = Keyword.get(opts, :format, :json)
@@ -309,17 +309,20 @@ defmodule PhoenixKit.Modules.Emails.Archiver do
   defp get_s3_bucket, do: setting_or_nil("email_s3_bucket")
 
   defp setting_or_nil(key) do
-    case Settings.get_setting(key) do
-      value when is_binary(value) ->
-        case String.trim(value) do
-          "" -> nil
-          trimmed -> trimmed
-        end
+    present_string(Settings.get_setting(key))
+  end
 
-      _ ->
-        nil
+  # Empty string is truthy in Elixir, so `if bucket do` and `||` both treat
+  # `""` as a real bucket. An explicit `bucket: ""` opt used to skip the
+  # settings fallback and then pass the same blank guard.
+  defp present_string(value) when is_binary(value) do
+    case String.trim(value) do
+      "" -> nil
+      trimmed -> trimmed
     end
   end
+
+  defp present_string(_), do: nil
 
   ## --- Query Builders ---
 
@@ -515,7 +518,7 @@ defmodule PhoenixKit.Modules.Emails.Archiver do
     batch_id = :crypto.strong_rand_bytes(8) |> Base.encode16(case: :lower)
 
     archive_data = prepare_archive_data(logs, format, include_events)
-    s3_key = "#{prefix}#{DateTime.to_iso8601(now)}/batch-#{batch_id}.#{format}"
+    s3_key = object_key(prefix, now, format, batch_id)
 
     case upload_to_s3(bucket, s3_key, archive_data, format) do
       {:ok, _message} ->
@@ -645,9 +648,21 @@ defmodule PhoenixKit.Modules.Emails.Archiver do
   # and quoting in every shell that touches them, and they would have been in
   # the name of every archive ever written. A date hierarchy also makes the
   # bucket browsable and lets a lifecycle rule target a prefix by age.
+  #
+  # `object_path/1` is the date half; `object_key/4` is the name actually
+  # uploaded. They were split so the hierarchy could be asserted without a
+  # network — and then the upload path kept calling `DateTime.to_iso8601/1`.
+  # Both are public `@doc false` so a test can pin the full name, not just
+  # the unused helper.
   @doc false
   def object_path(%DateTime{} = at) do
     "#{at.year}/#{pad(at.month)}/#{pad(at.day)}/#{pad(at.hour)}#{pad(at.minute)}#{pad(at.second)}"
+  end
+
+  @doc false
+  def object_key(prefix, %DateTime{} = at, format, batch_id)
+      when is_binary(prefix) and is_binary(batch_id) do
+    "#{prefix}#{object_path(at)}-#{batch_id}.#{format}"
   end
 
   defp pad(number), do: number |> Integer.to_string() |> String.pad_leading(2, "0")

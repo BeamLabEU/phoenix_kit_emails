@@ -561,10 +561,10 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
   Applies every chain version up to `:version` in `opts` (default:
   `current_version/0`). Idempotent.
 
-  The `:version` opt is what core's generated migration passes through; V1 is
-  the only version today, so it can only mean "all of it" or "none of it", but
-  ignoring it would have become a silent surprise at V2 — a host pinning
-  `version: 1` would have got V2's DDL anyway.
+  The `:version` opt is what core's generated migration passes through.
+  `@owned_columns` and `@owned_indexes` are tagged with the version that
+  introduced them, so a host pinning `version: 1` gets V1's objects and a
+  `pke_schema:1` marker — not V2's columns under a V1 stamp.
   """
   def up(opts \\ []) do
     target = target_version(opts)

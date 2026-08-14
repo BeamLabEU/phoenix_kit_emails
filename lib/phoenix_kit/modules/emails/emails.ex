@@ -27,6 +27,8 @@ defmodule PhoenixKit.Modules.Emails do
   - `aws_ses_configuration_set` - AWS SES configuration set name
   - `email_compress_body` - Compress body after N days
   - `email_archive_to_s3` - Enable S3 archival
+  - `email_s3_bucket` - S3 bucket archives are written to
+  - `email_s3_integration` - Integrations connection that signs uploads (unset = ExAws chain)
   - `email_sampling_rate` - Percentage of emails to fully log
   - `email_create_placeholder_logs` - Create placeholder logs for orphaned events (default: false)
 
