@@ -1465,13 +1465,17 @@ defmodule PhoenixKit.Modules.Emails do
   end
 
   @doc """
-  Sets the S3 bucket archives are written to. An empty string clears it.
+  Sets the S3 bucket archives are written to. A blank string clears it.
 
   The bucket had a reader and no writer, so archival could never be pointed
   anywhere: enabling it always failed with `:no_bucket_configured`.
+
+  Clearing DELETES the row rather than storing `""` — the settings changeset
+  rejects an empty value outright ("must provide either value or value_json"),
+  so a blank write would otherwise fail instead of unsetting.
   """
   def set_s3_bucket(bucket) when is_binary(bucket) do
-    Settings.update_setting_with_module("email_s3_bucket", String.trim(bucket), "email_system")
+    put_or_clear_setting("email_s3_bucket", bucket)
   end
 
   @doc """
@@ -1496,11 +1500,25 @@ defmodule PhoenixKit.Modules.Emails do
   which falls back to the environment, an instance profile, or a task role.
   """
   def set_s3_integration(uuid) when is_binary(uuid) do
-    Settings.update_setting_with_module(
-      "email_s3_integration",
-      String.trim(uuid),
-      "email_system"
-    )
+    put_or_clear_setting("email_s3_integration", uuid)
+  end
+
+  # Clearing a setting that was never stored is not an error — the caller asked
+  # for "unset" and unset is what it gets. `delete_setting/1` reports
+  # `{:error, :not_found}` for that case, which would make a first-time clear
+  # look like a failed write.
+  defp put_or_clear_setting(key, value) do
+    case String.trim(value) do
+      "" ->
+        case Settings.delete_setting(key) do
+          {:error, :not_found} -> {:ok, :cleared}
+          {:ok, _} -> {:ok, :cleared}
+          other -> other
+        end
+
+      trimmed ->
+        Settings.update_setting_with_module(key, trimmed, "email_system")
+    end
   end
 
   ## --- AWS SQS Configuration ---

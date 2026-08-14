@@ -493,7 +493,14 @@ defmodule PhoenixKit.Modules.Emails.Archiver do
   #
   # One query for the whole batch rather than one per log — the per-log version
   # was 500 round trips per batch.
-  defp prepare_archive_data(logs, :json, include_events) do
+  @doc false
+  # Public only so the encoding can be asserted without a network. Everything
+  # from here to `ExAws.request/2` is pure, and it is where the two silent
+  # data bugs lived (events dropped by the encoder, a body mislabelled as
+  # gzip) -- exactly the part a test can pin.
+  def prepare_archive_data(logs, format, include_events)
+
+  def prepare_archive_data(logs, :json, include_events) do
     events_by_log = if include_events, do: events_for(logs), else: %{}
 
     records =
@@ -509,7 +516,7 @@ defmodule PhoenixKit.Modules.Emails.Archiver do
     })
   end
 
-  defp prepare_archive_data(logs, :csv, _include_events) do
+  def prepare_archive_data(logs, :csv, _include_events) do
     # CSV format implementation
     header = "uuid,message_id,to,from,subject,status,sent_at,delivered_at\n"
 
@@ -581,8 +588,9 @@ defmodule PhoenixKit.Modules.Emails.Archiver do
       {:error, "S3 upload exception: #{Exception.message(error)}"}
   end
 
-  defp content_type(:csv), do: "text/csv"
-  defp content_type(_), do: "application/json"
+  @doc false
+  def content_type(:csv), do: "text/csv"
+  def content_type(_), do: "application/json"
 
   # Credentials for the upload. AWS keys moved to `PhoenixKit.Integrations`,
   # so the ambient `config :ex_aws` this used to rely on is empty on any
@@ -593,8 +601,9 @@ defmodule PhoenixKit.Modules.Emails.Archiver do
   # resolution chain (environment, instance profile, ECS task role), which is
   # how a deployment that never used Integrations for AWS is meant to work.
   # Only an explicitly chosen connection overrides it.
+  @doc false
   @spec s3_request_config() :: keyword()
-  defp s3_request_config do
+  def s3_request_config do
     with uuid when is_binary(uuid) <- setting_or_nil("email_s3_integration"),
          {:ok, creds} <- AwsIntegrations.resolve_credentials(uuid) do
       [access_key_id: creds.access_key, secret_access_key: creds.secret_key]
