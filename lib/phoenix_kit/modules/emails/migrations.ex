@@ -56,6 +56,25 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
   reports an unknown column as an `:info`-level "extra column, not in the
   manifest" finding, never a failure — checked, and accepted.
 
+  ## What V2 is
+
+  Two nullable columns on `phoenix_kit_email_logs`, `archived_at`
+  (timestamptz) and `s3_key` (text), plus a partial index on the pair.
+  They are what turns S3 archival from a fire-and-forget upload into a
+  resumable one: before them the only record that a row had been shipped to
+  cold storage was the row's own deletion, so an archival run could not be
+  re-run without duplicating objects, and a run configured NOT to delete
+  left no trace at all.
+
+  Nullable and without a default on purpose — "never archived" is the
+  absence of a timestamp, and every pre-existing row genuinely was never
+  archived. The index is `WHERE archived_at IS NOT NULL`, because the
+  question the job asks is "which of these did I already ship", and on a
+  healthy install the answer set is the small one.
+
+  Same deviation status as `integration_uuid`: unknown to core's manifest,
+  reported at `:info`, never a failure.
+
   ## Which tables, and which one is NOT here
 
   Adopted: `phoenix_kit_email_logs`, `phoenix_kit_email_events`,
@@ -215,7 +234,7 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
 
   use Ecto.Migration
 
-  @current_version 1
+  @current_version 2
   @marker_prefix "pke_schema:"
   @version_table "phoenix_kit_email_logs"
 
@@ -440,12 +459,28 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
 
   # The one genuine shape change in V1 — see the moduledoc's "What V1 is".
   @owned_columns [
-    {"phoenix_kit_email_logs", "\"integration_uuid\" uuid"}
+    {"phoenix_kit_email_logs", "\"integration_uuid\" uuid"},
+    # V2. Both nullable, and deliberately without a default: "not archived"
+    # is the absence of a timestamp, not a sentinel, and every row that
+    # predates the columns genuinely was never archived. `s3_key` is the
+    # object the batch landed in — kept so an archived row can be traced back
+    # to its file without reading the whole bucket, and so a second pass can
+    # tell "already uploaded" from "never seen", which is what makes the
+    # archival job safe to re-run.
+    {"phoenix_kit_email_logs", "\"archived_at\" timestamp with time zone"},
+    {"phoenix_kit_email_logs", "\"s3_key\" text"}
   ]
 
   @owned_indexes [
     "CREATE INDEX IF NOT EXISTS phoenix_kit_email_logs_integration_uuid_idx " <>
-      "ON #{@schema_token}.phoenix_kit_email_logs USING btree (integration_uuid)"
+      "ON #{@schema_token}.phoenix_kit_email_logs USING btree (integration_uuid)",
+    # V2. Partial: the archival job's question is "which of these did I
+    # already ship", and on a healthy install the archived set is the small
+    # one, so indexing the NULLs would be paying for the majority to answer
+    # about the minority.
+    "CREATE INDEX IF NOT EXISTS phoenix_kit_email_logs_archived_at_idx " <>
+      "ON #{@schema_token}.phoenix_kit_email_logs USING btree (archived_at) " <>
+      "WHERE archived_at IS NOT NULL"
   ]
 
   @doc "The chain version this code needs."

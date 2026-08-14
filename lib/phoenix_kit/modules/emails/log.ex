@@ -211,6 +211,14 @@ defmodule PhoenixKit.Modules.Emails.Log do
     # `PhoenixKit.Modules.Emails.Interceptor`), so an unstamped row must stay
     # a valid row. Added by `PhoenixKit.Modules.Emails.Migrations` V1.
     field(:integration_uuid, UUIDv7)
+    # When this row was shipped to cold storage, and the object it landed in.
+    # Both nil until an archival run succeeds — "never archived" is the
+    # absence of a timestamp, not a sentinel. Added by
+    # `PhoenixKit.Modules.Emails.Migrations` V2; they are what lets a run be
+    # re-run without re-uploading, and what keeps a trace when the run is
+    # configured to leave the rows in place.
+    field(:archived_at, :utc_datetime)
+    field(:s3_key, :string)
     field(:user_uuid, UUIDv7)
 
     # Associations
@@ -271,6 +279,8 @@ defmodule PhoenixKit.Modules.Emails.Log do
       :message_tags,
       :provider,
       :integration_uuid,
+      :archived_at,
+      :s3_key,
       :user_uuid
     ])
     |> validate_required([:message_id, :to, :from, :provider])
@@ -1050,10 +1060,36 @@ defmodule PhoenixKit.Modules.Emails.Log do
 
     from(l in __MODULE__,
       where: l.sent_at < ^cutoff_date,
+      # Already-shipped rows are not candidates. Without this an archival run
+      # that is configured to KEEP its rows re-uploads the same messages on
+      # every pass, growing the bucket without bound.
+      where: is_nil(l.archived_at),
       preload: [:events],
       order_by: [asc: l.sent_at]
     )
     |> repo().all()
+  end
+
+  @doc """
+  Stamps a batch of logs as archived to `s3_key`.
+
+  Returns `{updated_count, nil}`. Only ever stamps rows that are still
+  unstamped, so a retry that overlaps a partially-recorded run cannot
+  overwrite the key of an object already written.
+  """
+  @spec mark_archived([String.t()], String.t(), DateTime.t() | nil) :: {non_neg_integer(), nil}
+  def mark_archived(log_uuids, s3_key, archived_at \\ nil)
+
+  def mark_archived([], _s3_key, _archived_at), do: {0, nil}
+
+  def mark_archived(log_uuids, s3_key, archived_at) when is_list(log_uuids) do
+    archived_at = archived_at || UtilsDate.utc_now()
+
+    from(l in __MODULE__,
+      where: l.uuid in ^log_uuids,
+      where: is_nil(l.archived_at)
+    )
+    |> repo().update_all(set: [archived_at: archived_at, s3_key: s3_key])
   end
 
   ## --- Private Helper Functions ---

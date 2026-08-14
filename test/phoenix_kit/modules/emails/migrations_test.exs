@@ -541,9 +541,15 @@ defmodule PhoenixKit.Modules.Emails.MigrationsTest do
           end
         )
 
+      # Every entry here is a column core's manifest does not know about, which
+      # core's audit reports at :info and never as a failure. Adding one is a
+      # decision, which is what this assertion is for — it fails until the new
+      # column is written down.
       assert Enum.sort(extra) == [
+               "ALTER TABLE public.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"archived_at\" timestamp with time zone",
                "ALTER TABLE public.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"integration_uuid\" uuid",
-               "COMMENT ON TABLE public.phoenix_kit_email_logs IS 'pke_schema:1'"
+               "ALTER TABLE public.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"s3_key\" text",
+               "COMMENT ON TABLE public.phoenix_kit_email_logs IS 'pke_schema:2'"
              ]
     end
 

@@ -72,7 +72,7 @@ defmodule PhoenixKit.Modules.Emails.Archiver do
   """
 
   require Logger
-  alias PhoenixKit.Modules.Emails.{Event, Log}
+  alias PhoenixKit.Modules.Emails.{AwsIntegrations, Event, Log}
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Date, as: UtilsDate
   import Ecto.Query
@@ -171,7 +171,7 @@ defmodule PhoenixKit.Modules.Emails.Archiver do
   - `:bucket` - S3 bucket name (required)
   - `:prefix` - S3 object key prefix
   - `:batch_size` - Process in batches (default: 500) 
-  - `:format` - Archive format: :json (default), :csv, :parquet
+  - `:format` - Archive format: :json (default) or :csv
   - `:delete_after_archive` - Delete from DB after successful archive
   - `:include_events` - Include email events in archive
 
@@ -304,8 +304,22 @@ defmodule PhoenixKit.Modules.Emails.Archiver do
     Settings.get_boolean_setting("email_archive_to_s3", false)
   end
 
-  defp get_s3_bucket do
-    Settings.get_setting("email_s3_bucket")
+  # An empty setting is "unset", not a bucket named "". Without this the
+  # `if bucket do` guard above passes on a blank string and the upload is
+  # attempted against no bucket at all.
+  defp get_s3_bucket, do: setting_or_nil("email_s3_bucket")
+
+  defp setting_or_nil(key) do
+    case Settings.get_setting(key) do
+      value when is_binary(value) ->
+        case String.trim(value) do
+          "" -> nil
+          trimmed -> trimmed
+        end
+
+      _ ->
+        nil
+    end
   end
 
   ## --- Query Builders ---
@@ -329,6 +343,10 @@ defmodule PhoenixKit.Modules.Emails.Archiver do
   defp build_archival_query(cutoff_date) do
     from(l in Log,
       where: l.sent_at < ^cutoff_date,
+      # Skip what a previous run already shipped. This is what makes the job
+      # safe to re-run: without it every pass re-uploads the same rows unless
+      # the run also deletes them.
+      where: is_nil(l.archived_at),
       order_by: [asc: l.sent_at]
     )
   end
@@ -441,18 +459,21 @@ defmodule PhoenixKit.Modules.Emails.Archiver do
 
   @dialyzer {:nowarn_function, archive_batch_to_s3: 6}
   defp archive_batch_to_s3(logs, bucket, prefix, format, include_events, delete_after) do
-    timestamp = UtilsDate.utc_now() |> DateTime.to_iso8601()
+    now = UtilsDate.utc_now()
     batch_id = :crypto.strong_rand_bytes(8) |> Base.encode16(case: :lower)
 
-    # Prepare data
     archive_data = prepare_archive_data(logs, format, include_events)
+    s3_key = "#{prefix}#{DateTime.to_iso8601(now)}/batch-#{batch_id}.#{format}"
 
-    # Generate S3 key
-    s3_key = "#{prefix}#{timestamp}/batch-#{batch_id}.#{format}"
-
-    # Upload to S3
-    case upload_to_s3(bucket, s3_key, archive_data) do
+    case upload_to_s3(bucket, s3_key, archive_data, format) do
       {:ok, _message} ->
+        # Record BEFORE deleting, and record even when not deleting. The old
+        # code left no trace of a successful upload unless the rows were
+        # destroyed, so a run configured to keep its data re-uploaded the same
+        # messages on every pass, and a run that did delete could not tell a
+        # crash-after-upload from a crash-before.
+        Log.mark_archived(Enum.map(logs, & &1.uuid), s3_key, now)
+
         if delete_after do
           delete_archived_logs(logs)
         end
@@ -465,21 +486,26 @@ defmodule PhoenixKit.Modules.Emails.Archiver do
     end
   end
 
+  # `Log` derives `JSON.Encoder` with `except: [:__meta__, :user, :events]`, so
+  # the old `Map.put(log, :events, events)` put the events on a key the encoder
+  # is told to skip: every archive written with `include_events: true` silently
+  # contained no events at all. They go BESIDE the log now, not inside it.
+  #
+  # One query for the whole batch rather than one per log — the per-log version
+  # was 500 round trips per batch.
   defp prepare_archive_data(logs, :json, include_events) do
-    archive_logs =
-      if include_events do
-        Enum.map(logs, fn log ->
-          events = repo().all(from(e in Event, where: e.email_log_uuid == ^log.uuid))
-          Map.put(log, :events, events)
-        end)
-      else
-        logs
-      end
+    events_by_log = if include_events, do: events_for(logs), else: %{}
+
+    records =
+      Enum.map(logs, fn log ->
+        %{log: log, events: Map.get(events_by_log, log.uuid, [])}
+      end)
 
     JSON.encode!(%{
       exported_at: UtilsDate.utc_now(),
       total_records: length(logs),
-      logs: archive_logs
+      includes_events: include_events,
+      records: records
     })
   end
 
@@ -506,18 +532,33 @@ defmodule PhoenixKit.Modules.Emails.Archiver do
     header <> rows
   end
 
-  @spec upload_to_s3(String.t(), String.t(), binary()) :: {:ok, String.t()} | {:error, String.t()}
-  defp upload_to_s3(bucket, key, data) do
-    # Upload compressed data to S3 with proper error handling
+  defp events_for([]), do: %{}
+
+  defp events_for(logs) do
+    uuids = Enum.map(logs, & &1.uuid)
+
+    from(e in Event, where: e.email_log_uuid in ^uuids)
+    |> repo().all()
+    |> Enum.group_by(& &1.email_log_uuid)
+  end
+
+  @spec upload_to_s3(String.t(), String.t(), binary(), :json | :csv) ::
+          {:ok, String.t()} | {:error, String.t()}
+  defp upload_to_s3(bucket, key, data, format) do
+    # The headers used to claim `application/gzip` + `content-encoding: gzip`
+    # over a plain JSON or CSV body. Every S3 client that honours them — the
+    # console preview, `aws s3 cp`, anything using the SDK's transparent
+    # decoding — then tried to gunzip text and failed, which would have turned
+    # the archive into an unreadable blob at exactly the moment someone needed
+    # to read it. The body is not compressed, so the headers now say so.
     case ExAws.S3.put_object(bucket, key, data,
-           content_type: "application/gzip",
-           content_encoding: "gzip",
+           content_type: content_type(format),
            metadata: %{
              "archived-by" => "phoenix_kit",
              "archived-at" => DateTime.to_iso8601(UtilsDate.utc_now())
            }
          )
-         |> ExAws.request() do
+         |> ExAws.request(s3_request_config()) do
       {:ok, _result} ->
         Logger.info("Successfully uploaded archive to S3: s3://#{bucket}/#{key}")
         {:ok, "Successfully archived to S3: #{key}"}
@@ -539,6 +580,33 @@ defmodule PhoenixKit.Modules.Emails.Archiver do
       Logger.error("S3 upload exception: #{inspect(error)}")
       {:error, "S3 upload exception: #{Exception.message(error)}"}
   end
+
+  defp content_type(:csv), do: "text/csv"
+  defp content_type(_), do: "application/json"
+
+  # Credentials for the upload. AWS keys moved to `PhoenixKit.Integrations`,
+  # so the ambient `config :ex_aws` this used to rely on is empty on any
+  # install that followed that move — the upload then signed with nothing and
+  # came back 403, with the settings page still reporting archival as "on".
+  #
+  # An empty list is a deliberate, valid answer: it leaves ExAws to its own
+  # resolution chain (environment, instance profile, ECS task role), which is
+  # how a deployment that never used Integrations for AWS is meant to work.
+  # Only an explicitly chosen connection overrides it.
+  @spec s3_request_config() :: keyword()
+  defp s3_request_config do
+    with uuid when is_binary(uuid) <- setting_or_nil("email_s3_integration"),
+         {:ok, creds} <- AwsIntegrations.resolve_credentials(uuid) do
+      [access_key_id: creds.access_key, secret_access_key: creds.secret_key]
+      |> maybe_put_region(creds.region)
+    else
+      _ -> []
+    end
+  end
+
+  defp maybe_put_region(config, nil), do: config
+  defp maybe_put_region(config, ""), do: config
+  defp maybe_put_region(config, region), do: Keyword.put(config, :region, region)
 
   @dialyzer {:nowarn_function, delete_archived_logs: 1}
   defp delete_archived_logs(logs) do
@@ -602,9 +670,7 @@ defmodule PhoenixKit.Modules.Emails.Archiver do
   end
 
   defp count_archived_logs do
-    # This would count logs marked as archived
-    # Simplified for now
-    0
+    repo().one(from(l in Log, where: not is_nil(l.archived_at), select: count(l.uuid))) || 0
   end
 
   defp calculate_storage_size_mb do
@@ -632,10 +698,12 @@ defmodule PhoenixKit.Modules.Emails.Archiver do
     end
   end
 
+  # Estimated from the rows we know we shipped, NOT read back from S3: asking
+  # the bucket would mean a LIST on every settings page render, and the number
+  # is only ever shown as an order of magnitude. Same 2KB/row basis as
+  # `calculate_storage_size_mb/0`, so the two are comparable.
   defp get_s3_archived_size do
-    # This would query S3 for archived data size
-    # Simplified for now
-    0.0
+    Float.round(count_archived_logs() * 2048 / 1024 / 1024, 1)
   end
 
   defp get_period_stats(start_time, end_time) do

@@ -101,6 +101,7 @@ defmodule PhoenixKit.Modules.Emails do
   alias PhoenixKit.Integrations
 
   alias PhoenixKit.Modules.Emails.{
+    Archiver,
     AwsIntegrations,
     Event,
     Log,
@@ -1447,6 +1448,61 @@ defmodule PhoenixKit.Modules.Emails do
     )
   end
 
+  @doc """
+  Gets the S3 bucket archives are written to, or `nil` when unset.
+  """
+  def get_s3_bucket do
+    case Settings.get_setting("email_s3_bucket") do
+      value when is_binary(value) ->
+        case String.trim(value) do
+          "" -> nil
+          trimmed -> trimmed
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  @doc """
+  Sets the S3 bucket archives are written to. An empty string clears it.
+
+  The bucket had a reader and no writer, so archival could never be pointed
+  anywhere: enabling it always failed with `:no_bucket_configured`.
+  """
+  def set_s3_bucket(bucket) when is_binary(bucket) do
+    Settings.update_setting_with_module("email_s3_bucket", String.trim(bucket), "email_system")
+  end
+
+  @doc """
+  Gets the uuid of the Integrations connection whose credentials sign archive
+  uploads, or `nil` to leave ExAws to its own resolution chain.
+  """
+  def get_s3_integration do
+    case Settings.get_setting("email_s3_integration") do
+      value when is_binary(value) ->
+        case String.trim(value) do
+          "" -> nil
+          trimmed -> trimmed
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  @doc """
+  Sets the Integrations connection used for archive uploads. `""` clears it,
+  which falls back to the environment, an instance profile, or a task role.
+  """
+  def set_s3_integration(uuid) when is_binary(uuid) do
+    Settings.update_setting_with_module(
+      "email_s3_integration",
+      String.trim(uuid),
+      "email_system"
+    )
+  end
+
   ## --- AWS SQS Configuration ---
 
   @doc """
@@ -2665,25 +2721,28 @@ defmodule PhoenixKit.Modules.Emails do
   end
 
   @doc """
-  Archives old emais to S3 if archival is enabled.
+  Archives old emails to S3 if archival is enabled.
+
+  Delegates to `PhoenixKit.Modules.Emails.Archiver.archive_to_s3/2`, which is
+  where the upload actually happens. Until this delegation existed the function
+  selected the rows and returned them untouched, so archival reported success
+  having written nothing to S3.
+
+  `opts` are the archiver's: `:bucket`, `:prefix`, `:batch_size`, `:format`,
+  `:include_events`, `:delete_after_archive`.
 
   ## Examples
 
       iex> PhoenixKit.Modules.Emails.archive_to_s3()
-      {:ok, archived_count: 100, s3_key: "archives/2024/01/emails.json"}
+      {:ok, 100}
+
+      iex> PhoenixKit.Modules.Emails.archive_to_s3(180, delete_after_archive: true)
+      {:ok, 42}
   """
-  def archive_to_s3(days_old \\ nil) do
+  def archive_to_s3(days_old \\ nil, opts \\ []) do
     if enabled?() and s3_archival_enabled?() do
       days = days_old || get_retention_days()
-      logs_to_archive = Log.get_logs_for_archival(days)
-
-      if Enum.empty?(logs_to_archive) do
-        {:ok, archived_count: 0, logs: []}
-      else
-        # This would be implemented in a separate Archiver module
-        # For now, return a placeholder
-        {:ok, archived_count: length(logs_to_archive), logs: logs_to_archive}
-      end
+      Archiver.archive_to_s3(days, opts)
     else
       {:ok, :skipped}
     end
