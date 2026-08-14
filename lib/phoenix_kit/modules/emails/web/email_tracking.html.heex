@@ -9,14 +9,20 @@
               <.icon name="hero-adjustments-horizontal" class="w-6 h-6" /> {gettext("Tracking Options")}
             </h2>
 
-            <%!-- Save Email Bodies --%>
-            <div class="fieldset mb-4">
-              <label class="label cursor-pointer">
-                <span class="fieldset-legend text-lg">
-                  <span class="font-semibold">{gettext("Save Email Bodies")}</span>
-                  <div class="text-sm text-base-content/70 mt-1">
+            <%!-- Save Email Bodies. Three things were wrong with the row and
+                 all three came from `.label`: in v5 it is the muted addon for
+                 checkbox rows, so a heading placed in it rendered at 60% of
+                 the text colour; `fieldset-legend` outside a <legend> styles
+                 the same text a second time; and a <div> nested in a <span>
+                 is invalid, which is what the description was. A plain flex
+                 <label> keeps the click-to-toggle binding without any of it. --%>
+            <div class="mb-4">
+              <label class="flex cursor-pointer items-center justify-between gap-4">
+                <span>
+                  <span class="text-lg font-semibold">{gettext("Save Email Bodies")}</span>
+                  <span class="block text-sm text-base-content/70 mt-1">
                     {gettext("Store the full content of sent emails for debugging and analysis")}
-                  </div>
+                  </span>
                 </span>
                 <input
                   type="checkbox"
@@ -30,13 +36,13 @@
             <div class="divider"></div>
 
             <%!-- AWS SES Events --%>
-            <div class="fieldset">
-              <label class="label cursor-pointer">
-                <span class="fieldset-legend text-lg">
-                  <span class="font-semibold">{gettext("AWS SES Events Tracking")}</span>
-                  <div class="text-sm text-base-content/70 mt-1">
+            <div>
+              <label class="flex cursor-pointer items-center justify-between gap-4">
+                <span>
+                  <span class="text-lg font-semibold">{gettext("AWS SES Events Tracking")}</span>
+                  <span class="block text-sm text-base-content/70 mt-1">
                     {gettext("Track delivery, bounce, and complaint events from Amazon SES")}
-                  </div>
+                  </span>
                 </span>
                 <input
                   type="checkbox"
@@ -56,29 +62,35 @@
               <.icon name="hero-archive-box" class="w-6 h-6" /> {gettext("Data Retention")}
             </h2>
 
-            <div class="fieldset">
-              <label class="label">
-                <span class="fieldset-legend text-lg font-semibold">{gettext("Email Retention Period")}</span>
-              </label>
-              <div class="input-group">
+            <%!-- `input-group` was the last daisyUI 4 class left in the module
+                 and v5 ships no rule for it, so the hand-painted `bg-base-200`
+                 suffix floated beside the field instead of joining it. v5's own
+                 idiom puts `.input` on a LABEL wrapping the field, with a
+                 `.label` span as the addon (rule `.label:is(.input > *, .select
+                 > *)`) — one border, right radii, a divider, and the unit
+                 inherits the field's size. The legend names the group, so the
+                 input keeps its own `aria-label`. --%>
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend text-lg font-semibold">
+                {gettext("Email Retention Period")}
+              </legend>
+              <label class="input w-full max-w-xs">
                 <input
                   type="number"
                   placeholder={gettext("Enter retention days")}
-                  class="input w-full max-w-xs"
+                  aria-label={gettext("Email Retention Period")}
                   value={@email_tracking_retention_days}
                   min="1"
                   max="365"
                   phx-blur="update_email_tracking_retention"
                   phx-value-retention_days={assigns[:email_tracking_retention_days]}
                 />
-                <span class="bg-base-200 px-4 py-3 text-sm">{gettext("days")}</span>
-              </div>
-              <label class="label">
-                <span class="fieldset-label text-base-content/70">
-                  {gettext("How long to keep email tracking data before automatic cleanup (1-365 days)")}
-                </span>
+                <span class="label">{gettext("days")}</span>
               </label>
-            </div>
+              <p class="fieldset-label">
+                {gettext("How long to keep email tracking data before automatic cleanup (1-365 days)")}
+              </p>
+            </fieldset>
 
             <div class="alert alert-warning mt-4">
               <.icon name="hero-exclamation-triangle" class="w-5 h-5" />

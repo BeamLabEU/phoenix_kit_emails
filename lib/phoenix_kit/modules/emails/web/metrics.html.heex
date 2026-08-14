@@ -132,30 +132,33 @@
           <h3 class="font-bold text-lg mb-4">{gettext("Select Custom Date Range")}</h3>
           <form phx-submit="apply_custom_range">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label class="label">
-                  <span class="fieldset-legend">{gettext("Start Date")}</span>
-                </label>
+              <%!-- `.label` is v5's addon INSIDE .input/.select, not a field
+                   label: on its own it only dims its text to 60% and never
+                   binds to the field. Real fieldset/legend instead, and since
+                   a legend names the GROUP rather than the control, each input
+                   carries an `aria-label` with the same string. --%>
+              <fieldset class="fieldset">
+                <legend class="fieldset-legend">{gettext("Start Date")}</legend>
                 <input
                   type="date"
                   name="start_date"
                   class="input w-full"
+                  aria-label={gettext("Start Date")}
                   max={Date.utc_today() |> Date.to_iso8601()}
                   required
                 />
-              </div>
-              <div>
-                <label class="label">
-                  <span class="fieldset-legend">{gettext("End Date")}</span>
-                </label>
+              </fieldset>
+              <fieldset class="fieldset">
+                <legend class="fieldset-legend">{gettext("End Date")}</legend>
                 <input
                   type="date"
                   name="end_date"
                   class="input w-full"
+                  aria-label={gettext("End Date")}
                   max={Date.utc_today() |> Date.to_iso8601()}
                   required
                 />
-              </div>
+              </fieldset>
             </div>
             <div class="modal-action">
               <button type="submit" class="btn btn-primary">{gettext("Apply")}</button>
