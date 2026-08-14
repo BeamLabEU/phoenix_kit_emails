@@ -458,8 +458,14 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
   ## --- This chain's own objects ---
 
   # The one genuine shape change in V1 — see the moduledoc's "What V1 is".
+  # `{version, table, definition}` — the version each column was introduced in.
+  # `up/1` honours a pinned `:version`, and before these tags every statement
+  # was emitted regardless of it: a host pinning `version: 1` got V2's columns
+  # anyway, under a `pke_schema:1` marker. That is exactly the "silent
+  # surprise at V2" the `up/1` doc promises not to have; with one version in
+  # existence there was no way to observe it.
   @owned_columns [
-    {"phoenix_kit_email_logs", "\"integration_uuid\" uuid"},
+    {1, "phoenix_kit_email_logs", "\"integration_uuid\" uuid"},
     # V2. Both nullable, and deliberately without a default: "not archived"
     # is the absence of a timestamp, not a sentinel, and every row that
     # predates the columns genuinely was never archived. `s3_key` is the
@@ -467,20 +473,23 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
     # to its file without reading the whole bucket, and so a second pass can
     # tell "already uploaded" from "never seen", which is what makes the
     # archival job safe to re-run.
-    {"phoenix_kit_email_logs", "\"archived_at\" timestamp with time zone"},
-    {"phoenix_kit_email_logs", "\"s3_key\" text"}
+    {2, "phoenix_kit_email_logs", "\"archived_at\" timestamp with time zone"},
+    {2, "phoenix_kit_email_logs", "\"s3_key\" text"}
   ]
 
+  # `{version, statement}` — see `@owned_columns` for why the tag exists.
   @owned_indexes [
-    "CREATE INDEX IF NOT EXISTS phoenix_kit_email_logs_integration_uuid_idx " <>
-      "ON #{@schema_token}.phoenix_kit_email_logs USING btree (integration_uuid)",
+    {1,
+     "CREATE INDEX IF NOT EXISTS phoenix_kit_email_logs_integration_uuid_idx " <>
+       "ON #{@schema_token}.phoenix_kit_email_logs USING btree (integration_uuid)"},
     # V2. Partial: the archival job's question is "which of these did I
     # already ship", and on a healthy install the archived set is the small
     # one, so indexing the NULLs would be paying for the majority to answer
     # about the minority.
-    "CREATE INDEX IF NOT EXISTS phoenix_kit_email_logs_archived_at_idx " <>
-      "ON #{@schema_token}.phoenix_kit_email_logs USING btree (archived_at) " <>
-      "WHERE archived_at IS NOT NULL"
+    {2,
+     "CREATE INDEX IF NOT EXISTS phoenix_kit_email_logs_archived_at_idx " <>
+       "ON #{@schema_token}.phoenix_kit_email_logs USING btree (archived_at) " <>
+       "WHERE archived_at IS NOT NULL"}
   ]
 
   @doc "The chain version this code needs."
@@ -606,8 +615,8 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
     statements =
       [lock_timeout_statement()] ++
         table_statements() ++
-        column_statements() ++
-        index_statements() ++
+        column_statements(version) ++
+        index_statements(version) ++
         constraint_statements() ++
         validate_foreign_key_statements() ++
         [marker_statement(version), reset_lock_timeout_statement()]
@@ -708,13 +717,18 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
     end
   end
 
-  defp column_statements do
+  defp column_statements(version) do
     adopted =
       Enum.map(@adopted_columns, fn {table, _pos, definition, _not_null} ->
         {table, definition}
       end)
 
-    Enum.map(adopted ++ @owned_columns, fn {table, definition} ->
+    owned =
+      for {introduced_in, table, definition} <- @owned_columns,
+          introduced_in <= version,
+          do: {table, definition}
+
+    Enum.map(adopted ++ owned, fn {table, definition} ->
       "ALTER TABLE #{@schema_token}.#{table} ADD COLUMN IF NOT EXISTS #{definition}"
     end)
   end
@@ -980,8 +994,10 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
   # The DDL inside is untouched, so the conformance test still matches it
   # against the manifest character for character — the guard is a wrapper, not
   # a rewrite.
-  defp index_statements do
-    Enum.map(@adopted_indexes ++ @owned_indexes, fn statement ->
+  defp index_statements(version) do
+    owned = for {introduced_in, sql} <- @owned_indexes, introduced_in <= version, do: sql
+
+    Enum.map(@adopted_indexes ++ owned, fn statement ->
       """
       DO $$
       BEGIN
