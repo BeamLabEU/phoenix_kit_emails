@@ -10,9 +10,9 @@
             </h2>
 
             <%!-- Save Email Bodies --%>
-            <div class="form-control mb-4">
+            <div class="fieldset mb-4">
               <label class="label cursor-pointer">
-                <span class="label-text text-lg">
+                <span class="fieldset-legend text-lg">
                   <span class="font-semibold">{gettext("Save Email Bodies")}</span>
                   <div class="text-sm text-base-content/70 mt-1">
                     {gettext("Store the full content of sent emails for debugging and analysis")}
@@ -30,9 +30,9 @@
             <div class="divider"></div>
 
             <%!-- AWS SES Events --%>
-            <div class="form-control">
+            <div class="fieldset">
               <label class="label cursor-pointer">
-                <span class="label-text text-lg">
+                <span class="fieldset-legend text-lg">
                   <span class="font-semibold">{gettext("AWS SES Events Tracking")}</span>
                   <div class="text-sm text-base-content/70 mt-1">
                     {gettext("Track delivery, bounce, and complaint events from Amazon SES")}
@@ -56,15 +56,15 @@
               <.icon name="hero-archive-box" class="w-6 h-6" /> {gettext("Data Retention")}
             </h2>
 
-            <div class="form-control">
+            <div class="fieldset">
               <label class="label">
-                <span class="label-text text-lg font-semibold">{gettext("Email Retention Period")}</span>
+                <span class="fieldset-legend text-lg font-semibold">{gettext("Email Retention Period")}</span>
               </label>
               <div class="input-group">
                 <input
                   type="number"
                   placeholder={gettext("Enter retention days")}
-                  class="input input-bordered w-full max-w-xs"
+                  class="input w-full max-w-xs"
                   value={@email_tracking_retention_days}
                   min="1"
                   max="365"
@@ -74,7 +74,7 @@
                 <span class="bg-base-200 px-4 py-3 text-sm">{gettext("days")}</span>
               </div>
               <label class="label">
-                <span class="label-text-alt text-base-content/70">
+                <span class="fieldset-label text-base-content/70">
                   {gettext("How long to keep email tracking data before automatic cleanup (1-365 days)")}
                 </span>
               </label>

@@ -134,24 +134,24 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label class="label">
-                  <span class="label-text">{gettext("Start Date")}</span>
+                  <span class="fieldset-legend">{gettext("Start Date")}</span>
                 </label>
                 <input
                   type="date"
                   name="start_date"
-                  class="input input-bordered w-full"
+                  class="input w-full"
                   max={Date.utc_today() |> Date.to_iso8601()}
                   required
                 />
               </div>
               <div>
                 <label class="label">
-                  <span class="label-text">{gettext("End Date")}</span>
+                  <span class="fieldset-legend">{gettext("End Date")}</span>
                 </label>
                 <input
                   type="date"
                   name="end_date"
-                  class="input input-bordered w-full"
+                  class="input w-full"
                   max={Date.utc_today() |> Date.to_iso8601()}
                   required
                 />

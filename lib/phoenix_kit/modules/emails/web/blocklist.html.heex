@@ -50,22 +50,22 @@
           </div>
 
           <form phx-submit="add_block" class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div class="form-control">
+            <div class="fieldset">
               <label class="label">
-                <span class="label-text">{gettext("Email Address")}</span>
+                <span class="fieldset-legend">{gettext("Email Address")}</span>
               </label>
               <input
                 type="email"
                 name="email"
                 placeholder="blocked@example.com"
-                class="input input-bordered"
+                class="input"
                 required
               />
             </div>
 
-            <div class="form-control">
+            <div class="fieldset">
               <label class="label">
-                <span class="label-text">{gettext("Reason")}</span>
+                <span class="fieldset-legend">{gettext("Reason")}</span>
               </label>
               <label class="select">
                 <select name="reason" required>
@@ -78,11 +78,11 @@
               </label>
             </div>
 
-            <div class="form-control">
+            <div class="fieldset">
               <label class="label">
-                <span class="label-text">{gettext("Expires At (Optional)")}</span>
+                <span class="fieldset-legend">{gettext("Expires At (Optional)")}</span>
               </label>
-              <input type="date" name="expires_at" class="input input-bordered" />
+              <input type="date" name="expires_at" class="input" />
             </div>
 
             <div class="col-span-full flex justify-end gap-2">
@@ -121,13 +121,13 @@
           </div>
 
           <form phx-submit="import_csv">
-            <div class="form-control">
+            <div class="fieldset">
               <label class="label">
-                <span class="label-text">{gettext("CSV Content")}</span>
+                <span class="fieldset-legend">{gettext("CSV Content")}</span>
               </label>
               <textarea
                 name="csv_content"
-                class="textarea textarea-bordered font-mono"
+                class="textarea font-mono"
                 rows="8"
                 placeholder="email,reason,expires_at&#10;spam@example.com,spam,&#10;abuse@test.com,abuse,2025-12-31"
                 required
@@ -327,7 +327,7 @@
           </:toolbar_title>
           <:toolbar_actions>
             <.form for={%{}} phx-change="filter_search">
-              <label class="input input-sm input-bordered flex items-center gap-2 w-44 sm:w-56">
+              <label class="input input-sm flex items-center gap-2 w-44 sm:w-56">
                 <.icon name="hero-magnifying-glass" class="w-4 h-4 opacity-60" />
                 <input
                   type="text"

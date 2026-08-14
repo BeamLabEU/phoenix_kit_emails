@@ -302,7 +302,7 @@
             </:toolbar_title>
             <:toolbar_actions>
               <.form for={%{}} phx-change="filter">
-                <label class="input input-sm input-bordered flex items-center gap-2 w-44 sm:w-56">
+                <label class="input input-sm flex items-center gap-2 w-44 sm:w-56">
                   <.icon name="hero-magnifying-glass" class="w-4 h-4 opacity-60" />
                   <input
                     type="text"
@@ -570,9 +570,9 @@
           phx-change="validate_clone"
           class="space-y-4"
         >
-          <div class="form-control">
+          <div class="fieldset">
             <label class="label">
-              <span class="label-text">{gettext("New Template Name")}</span>
+              <span class="fieldset-legend">{gettext("New Template Name")}</span>
             </label>
             <input
               type="text"
@@ -580,23 +580,23 @@
               value={@clone_form[:name] || ""}
               placeholder="welcome_email_copy"
               class={[
-                "input input-bordered w-full",
+                "input w-full",
                 @clone_form[:errors][:name] && "input-error"
               ]}
               required
             />
             <%= if @clone_form[:errors][:name] do %>
               <label class="label">
-                <span class="label-text-alt text-error">
+                <span class="fieldset-label text-error">
                   {@clone_form[:errors][:name]}
                 </span>
               </label>
             <% end %>
           </div>
 
-          <div class="form-control">
+          <div class="fieldset">
             <label class="label">
-              <span class="label-text">{gettext("New Display Name")}</span>
+              <span class="fieldset-legend">{gettext("New Display Name")}</span>
             </label>
             <input
               type="text"
@@ -604,14 +604,14 @@
               value={@clone_form[:display_name] || ""}
               placeholder="Welcome Email (Copy)"
               class={[
-                "input input-bordered w-full",
+                "input w-full",
                 @clone_form[:errors][:display_name] && "input-error"
               ]}
               required
             />
             <%= if @clone_form[:errors][:display_name] do %>
               <label class="label">
-                <span class="label-text-alt text-error">
+                <span class="fieldset-label text-error">
                   {@clone_form[:errors][:display_name]}
                 </span>
               </label>

@@ -249,26 +249,26 @@
                   class="dropdown-content z-20 w-64 p-4 shadow bg-base-100 rounded-box border border-base-200"
                 >
                   <.form for={%{}} phx-change="filter" class="space-y-3">
-                    <div class="form-control">
+                    <div class="fieldset">
                       <label class="label py-1">
-                        <span class="label-text text-xs">{gettext("From Date")}</span>
+                        <span class="fieldset-legend text-xs">{gettext("From Date")}</span>
                       </label>
                       <input
                         type="date"
                         name="filter[from_date]"
                         value={@filters.from_date}
-                        class="input input-bordered input-sm w-full"
+                        class="input input-sm w-full"
                       />
                     </div>
-                    <div class="form-control">
+                    <div class="fieldset">
                       <label class="label py-1">
-                        <span class="label-text text-xs">{gettext("To Date")}</span>
+                        <span class="fieldset-legend text-xs">{gettext("To Date")}</span>
                       </label>
                       <input
                         type="date"
                         name="filter[to_date]"
                         value={@filters.to_date}
-                        class="input input-bordered input-sm w-full"
+                        class="input input-sm w-full"
                       />
                     </div>
                   </.form>
@@ -278,7 +278,7 @@
           </:toolbar_title>
           <:toolbar_actions>
             <.form for={%{}} phx-change="filter">
-              <label class="input input-sm input-bordered flex items-center gap-2 w-44 sm:w-56">
+              <label class="input input-sm flex items-center gap-2 w-44 sm:w-56">
                 <.icon name="hero-magnifying-glass" class="w-4 h-4 opacity-60" />
                 <input
                   type="text"
@@ -608,9 +608,9 @@
           phx-change="validate_test_email"
           class="space-y-4"
         >
-          <div class="form-control">
+          <div class="fieldset">
             <label class="label">
-              <span class="label-text">{gettext("Recipient Email Address")}</span>
+              <span class="fieldset-legend">{gettext("Recipient Email Address")}</span>
             </label>
             <input
               type="email"
@@ -618,14 +618,14 @@
               value={@test_email_form[:recipient] || ""}
               placeholder="admin@example.com"
               class={[
-                "input input-bordered w-full",
+                "input w-full",
                 @test_email_form[:errors][:recipient] && "input-error"
               ]}
               required
             />
             <%= if @test_email_form[:errors][:recipient] do %>
               <label class="label">
-                <span class="label-text-alt text-error">
+                <span class="fieldset-label text-error">
                   {@test_email_form[:errors][:recipient]}
                 </span>
               </label>
