@@ -63,6 +63,12 @@ defmodule PhoenixKit.Modules.Emails.ArchiveWorker do
 
   alias PhoenixKit.Modules.Emails
 
+  # `ExAws` is outside dialyzer's PLT, so it resolves every upload to the error
+  # branch and concludes the archiver can only ever fail — which makes the
+  # success clauses below look unreachable. They are reached on every run that
+  # ships anything; `Archiver` carries the same suppression for the same
+  # reason.
+  @dialyzer {:nowarn_function, perform: 1}
   @impl Oban.Worker
   def perform(%Oban.Job{}) do
     case Emails.archive_to_s3() do

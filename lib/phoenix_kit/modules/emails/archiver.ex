@@ -213,10 +213,9 @@ defmodule PhoenixKit.Modules.Emails.Archiver do
     Logger.info("Starting S3 archival for emails older than #{days_old} days")
 
     cutoff_date = DateTime.add(UtilsDate.utc_now(), -days_old * 86_400)
-    query = build_archival_query(cutoff_date)
 
     case process_s3_archival(
-           query,
+           cutoff_date,
            bucket,
            prefix,
            batch_size,
@@ -434,8 +433,21 @@ defmodule PhoenixKit.Modules.Emails.Archiver do
 
   ## --- S3 Implementation ---
 
+  # Pages on the `archived_at` stamp instead of holding a cursor. `Repo.stream`
+  # requires an enclosing transaction, and every upload used to happen inside
+  # it: a run over a large backlog kept one connection — and one transaction
+  # snapshot — open for its whole duration, which is precisely what stops
+  # autovacuum from reclaiming anything on the busiest table in the schema.
+  # Now each batch is its own short transaction-free unit: select the next N
+  # unshipped rows, upload, stamp. The stamp is what advances the cursor, so
+  # there is nothing to hold open between batches.
+  #
+  # A batch that fails to upload stays unstamped, which would make the next
+  # `next_batch/2` return the same rows forever — so a failed batch stops the
+  # run rather than spinning on it. Whatever was already stamped stays
+  # archived, and the next tick resumes from there.
   defp process_s3_archival(
-         query,
+         cutoff_date,
          bucket,
          prefix,
          batch_size,
@@ -443,18 +455,58 @@ defmodule PhoenixKit.Modules.Emails.Archiver do
          include_events,
          delete_after
        ) do
-    _archived_count = 0
+    archive_loop(cutoff_date, bucket, prefix, batch_size, format, include_events, delete_after, 0)
+  rescue
+    error -> {:error, Exception.message(error)}
+  end
 
-    try do
-      query
-      |> stream_in_batches(batch_size, fn batch ->
-        archive_batch_to_s3(batch, bucket, prefix, format, include_events, delete_after)
-      end)
-      |> Enum.reduce(0, fn batch_count, total -> total + batch_count end)
-      |> then(fn count -> {:ok, count} end)
-    rescue
-      error -> {:error, Exception.message(error)}
+  # Same reason `archive_batch_to_s3/6` carries one: dialyzer resolves
+  # `ExAws.request/2` to its error branch only (the module is outside the PLT),
+  # so it concludes a batch can never report a non-zero count and calls the
+  # success clause here unreachable. It is reachable in every run that uploads
+  # anything.
+  @dialyzer {:nowarn_function, archive_loop: 8}
+  defp archive_loop(
+         cutoff,
+         bucket,
+         prefix,
+         batch_size,
+         format,
+         include_events,
+         delete_after,
+         done
+       ) do
+    case next_batch(cutoff, batch_size) do
+      [] ->
+        {:ok, done}
+
+      batch ->
+        case archive_batch_to_s3(batch, bucket, prefix, format, include_events, delete_after) do
+          0 ->
+            Logger.error("S3 archival stopped after #{done} logs: a batch failed to upload")
+
+            {:error, :upload_failed}
+
+          count ->
+            archive_loop(
+              cutoff,
+              bucket,
+              prefix,
+              batch_size,
+              format,
+              include_events,
+              delete_after,
+              done + count
+            )
+        end
     end
+  end
+
+  defp next_batch(cutoff, batch_size) do
+    cutoff
+    |> build_archival_query()
+    |> limit(^batch_size)
+    |> repo().all()
   end
 
   @dialyzer {:nowarn_function, archive_batch_to_s3: 6}
