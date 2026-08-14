@@ -640,6 +640,18 @@ defmodule PhoenixKit.Modules.Emails.Archiver do
       {:error, "S3 upload exception: #{Exception.message(error)}"}
   end
 
+  # `YYYY/MM/DD/HHMMSS`. The key used to embed a full ISO-8601 timestamp, which
+  # puts colons in the object name: legal in S3, but they need escaping in URLs
+  # and quoting in every shell that touches them, and they would have been in
+  # the name of every archive ever written. A date hierarchy also makes the
+  # bucket browsable and lets a lifecycle rule target a prefix by age.
+  @doc false
+  def object_path(%DateTime{} = at) do
+    "#{at.year}/#{pad(at.month)}/#{pad(at.day)}/#{pad(at.hour)}#{pad(at.minute)}#{pad(at.second)}"
+  end
+
+  defp pad(number), do: number |> Integer.to_string() |> String.pad_leading(2, "0")
+
   @doc false
   def content_type(:csv), do: "text/csv"
   def content_type(_), do: "application/json"

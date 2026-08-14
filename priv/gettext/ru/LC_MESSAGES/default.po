@@ -3145,12 +3145,12 @@ msgstr "Настроена одна общая очередь, но систем
 msgid "This queue is no longer configured — reload the page to see the current setup: %{url}"
 msgstr "Эта очередь больше не настроена — перезагрузите страницу, чтобы увидеть текущее состояние: %{url}"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:435
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:443
 #, elixir-autogen, elixir-format
 msgid "Archive uploads will use the ambient AWS credentials"
 msgstr "Выгрузка архивов будет использовать учётные данные AWS из окружения"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:436
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:444
 #, elixir-autogen, elixir-format
 msgid "Archive uploads will use the selected connection"
 msgstr "Выгрузка архивов будет использовать выбранное подключение"
@@ -3181,12 +3181,12 @@ msgstr "Переменные окружения или роль инстанса
 msgid "Failed to update S3 archival"
 msgstr "Не удалось обновить отслеживание %{label}"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:420
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:426
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Failed to update S3 bucket"
 msgstr "Не удалось обновить столбцы таблицы"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:443
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:451
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Failed to update the archive connection"
 msgstr "Не удалось обновить срок хранения писем"
@@ -3207,12 +3207,12 @@ msgstr "Архивация в S3 выключена"
 msgid "S3 archival enabled"
 msgstr "Архивация в S3 включена"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:412
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:418
 #, elixir-autogen, elixir-format
 msgid "S3 bucket cleared"
 msgstr "Бакет S3 очищен"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:413
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:419
 #, elixir-autogen, elixir-format
 msgid "S3 bucket set to %{bucket}"
 msgstr "Бакет S3: %{bucket}"

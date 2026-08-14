@@ -3140,12 +3140,12 @@ msgstr ""
 msgid "This queue is no longer configured — reload the page to see the current setup: %{url}"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:435
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:443
 #, elixir-autogen, elixir-format
 msgid "Archive uploads will use the ambient AWS credentials"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:436
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:444
 #, elixir-autogen, elixir-format
 msgid "Archive uploads will use the selected connection"
 msgstr ""
@@ -3176,12 +3176,12 @@ msgstr ""
 msgid "Failed to update S3 archival"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:420
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:426
 #, elixir-autogen, elixir-format
 msgid "Failed to update S3 bucket"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:443
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:451
 #, elixir-autogen, elixir-format
 msgid "Failed to update the archive connection"
 msgstr ""
@@ -3202,12 +3202,12 @@ msgstr ""
 msgid "S3 archival enabled"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:412
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:418
 #, elixir-autogen, elixir-format
 msgid "S3 bucket cleared"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:413
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:419
 #, elixir-autogen, elixir-format
 msgid "S3 bucket set to %{bucket}"
 msgstr ""

@@ -264,4 +264,16 @@ defmodule PhoenixKit.Modules.Emails.ArchiverTest do
       assert is_float(stats.s3_archived_size_mb)
     end
   end
+
+  describe "the object key" do
+    test "is a browsable date hierarchy with no characters that need escaping" do
+      key = Archiver.object_path(~U[2026-08-14 09:07:03Z])
+
+      assert key == "2026/08/14/090703"
+
+      refute key =~ ":",
+             "an ISO-8601 timestamp in the key puts colons in every object name — " <>
+               "legal in S3, but they need escaping in URLs and quoting in shells"
+    end
+  end
 end
