@@ -99,4 +99,44 @@ defmodule PhoenixKit.Modules.Emails.ArchiveWorkerTest do
              "the guard leaked into installs that never asked for archival"
     end
   end
+
+  describe "the hold-back is not a foot-gun" do
+    test "archival enabled with no bucket does not stop retention cleanup" do
+      # Flipping the toggle and forgetting the bucket used to disable retention
+      # permanently: nothing can stamp a row, so nothing is ever deletable, and
+      # the table grows while the page still shows a retention period.
+      {:ok, _} = Emails.set_s3_archival(true)
+      {:ok, _} = Emails.set_s3_bucket("")
+      {:ok, _} = Emails.set_retention_days(90)
+
+      log = old_log(120)
+
+      {_deleted, nil} = Emails.cleanup_old_logs()
+
+      refute Emails.get_log(log.uuid),
+             "a half-configured feature disabled a working one"
+    end
+
+    test "with a bucket set, the hold-back applies again" do
+      {:ok, _} = Emails.set_s3_archival(true)
+      {:ok, _} = Emails.set_s3_bucket("real-bucket")
+      {:ok, _} = Emails.set_retention_days(90)
+
+      log = old_log(120)
+
+      {_deleted, nil} = Emails.cleanup_old_logs()
+
+      assert Emails.get_log(log.uuid)
+    end
+
+    test "the count behind the hold-back is reported, not guessed" do
+      {:ok, _} = Emails.set_retention_days(90)
+
+      old_log(120)
+      old_log(120)
+      old_log(10)
+
+      assert Log.count_unarchived_past_retention(90) == 2
+    end
+  end
 end

@@ -1084,6 +1084,25 @@ defmodule PhoenixKit.Modules.Emails.Log do
   end
 
   @doc """
+  Counts logs past the retention cutoff that archival has not shipped yet.
+
+  Only ever called to explain why retention cleanup deleted nothing — a silent
+  hold-back looks exactly like a retention setting that stopped working.
+  """
+  @spec count_unarchived_past_retention(pos_integer()) :: non_neg_integer()
+  def count_unarchived_past_retention(days_old) when is_integer(days_old) and days_old > 0 do
+    cutoff_date = UtilsDate.utc_now() |> DateTime.add(-days_old, :day)
+
+    repo().one(
+      from(l in __MODULE__,
+        where: l.sent_at < ^cutoff_date,
+        where: is_nil(l.archived_at),
+        select: count(l.uuid)
+      )
+    ) || 0
+  end
+
+  @doc """
   Stamps a batch of logs as archived to `s3_key`.
 
   Returns `{updated_count, nil}`. Only ever stamps rows that are still

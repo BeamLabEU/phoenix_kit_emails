@@ -2712,12 +2712,47 @@ defmodule PhoenixKit.Modules.Emails do
   def cleanup_old_logs(days_old \\ nil) do
     if enabled?() do
       days = days_old || get_retention_days()
-      # While S3 archival is on, a row that has not been shipped yet is not
+      # While archival is RUNNABLE, a row it has not shipped yet is not
       # cleanup's to delete — otherwise the two jobs race over the same cutoff
       # and the loser is data the operator believed was in cold storage.
-      Log.cleanup_old_logs(days, require_archived: s3_archival_enabled?())
+      #
+      # "Runnable" is deliberately stricter than "enabled". Gating on the
+      # toggle alone meant that flipping it on and forgetting the bucket
+      # stopped retention cleanup permanently and silently: nothing can ever
+      # stamp a row, so nothing is ever deletable, and the table grows without
+      # bound while the settings page reports a retention period it is no
+      # longer enforcing. A half-configured feature must not disable a working
+      # one.
+      Log.cleanup_old_logs(days, require_archived: archival_runnable?())
     else
       {0, nil}
+    end
+  end
+
+  # Even when archival IS runnable the hold-back is worth saying out loud: if
+  # the host never added the crontab entry, rows pile up behind a job that
+  # never runs, and the only symptom is a retention period that quietly stopped
+  # applying.
+  defp archival_runnable? do
+    if s3_archival_enabled?() and get_s3_bucket() != nil do
+      warn_if_withholding()
+      true
+    else
+      false
+    end
+  end
+
+  defp warn_if_withholding do
+    case Log.count_unarchived_past_retention(get_retention_days()) do
+      0 ->
+        :ok
+
+      count ->
+        Logger.warning(
+          "Emails retention: #{count} logs past the retention period are being kept " <>
+            "because S3 archival has not shipped them yet. If nothing is uploading, " <>
+            "check that ArchiveWorker is in the host Oban crontab."
+        )
     end
   end
 
