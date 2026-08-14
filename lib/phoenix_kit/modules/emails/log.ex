@@ -1021,12 +1021,25 @@ defmodule PhoenixKit.Modules.Emails.Log do
       iex> PhoenixKit.Modules.Emails.Log.cleanup_old_logs(90)
       {5, nil}  # Deleted 5 records
   """
-  def cleanup_old_logs(days_old \\ 90) when is_integer(days_old) and days_old > 0 do
+  def cleanup_old_logs(days_old \\ 90, opts \\ [])
+
+  def cleanup_old_logs(days_old, opts) when is_integer(days_old) and days_old > 0 do
     cutoff_date = UtilsDate.utc_now() |> DateTime.add(-days_old, :day)
 
     from(l in __MODULE__, where: l.sent_at < ^cutoff_date)
+    |> maybe_require_archived(Keyword.get(opts, :require_archived, false))
     |> repo().delete_all()
   end
+
+  # With S3 archival switched on, retention cleanup and the archival job share
+  # a cutoff, and whichever runs first wins. Losing that race deletes rows the
+  # operator believed were being shipped to cold storage — silently, because
+  # nothing downstream can tell a row that was archived from one that was
+  # dropped. So while archival owes a row an upload, cleanup leaves it alone;
+  # the next archival pass stamps it, and the pass after that is free to
+  # delete it.
+  defp maybe_require_archived(query, false), do: query
+  defp maybe_require_archived(query, true), do: where(query, [l], not is_nil(l.archived_at))
 
   @doc """
   Compresses body_full field for logs older than specified days.

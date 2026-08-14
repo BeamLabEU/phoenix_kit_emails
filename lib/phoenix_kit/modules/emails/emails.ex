@@ -2712,7 +2712,10 @@ defmodule PhoenixKit.Modules.Emails do
   def cleanup_old_logs(days_old \\ nil) do
     if enabled?() do
       days = days_old || get_retention_days()
-      Log.cleanup_old_logs(days)
+      # While S3 archival is on, a row that has not been shipped yet is not
+      # cleanup's to delete — otherwise the two jobs race over the same cutoff
+      # and the loser is data the operator believed was in cold storage.
+      Log.cleanup_old_logs(days, require_archived: s3_archival_enabled?())
     else
       {0, nil}
     end
