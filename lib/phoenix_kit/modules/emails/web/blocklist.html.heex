@@ -50,25 +50,27 @@
           </div>
 
           <form phx-submit="add_block" class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div class="fieldset">
-              <label class="label">
-                <span class="fieldset-legend">{gettext("Email Address")}</span>
-              </label>
+            <%!-- `.label` is v5's muted addon for controls, not a field label:
+                 it neither binds to the input nor renders at full contrast.
+                 Real fieldset/legend instead, and because a legend names the
+                 GROUP rather than the control, every field carries an
+                 `aria-label` with the same string. --%>
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend">{gettext("Email Address")}</legend>
               <input
                 type="email"
                 name="email"
                 placeholder="blocked@example.com"
                 class="input"
+                aria-label={gettext("Email Address")}
                 required
               />
-            </div>
+            </fieldset>
 
-            <div class="fieldset">
-              <label class="label">
-                <span class="fieldset-legend">{gettext("Reason")}</span>
-              </label>
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend">{gettext("Reason")}</legend>
               <label class="select">
-                <select name="reason" required>
+                <select name="reason" aria-label={gettext("Reason")} required>
                   <option value="manual_block">{gettext("Manual Block")}</option>
                   <option value="spam">{gettext("Spam")}</option>
                   <option value="bounce_limit">{gettext("Bounce Limit Exceeded")}</option>
@@ -76,14 +78,17 @@
                   <option value="abuse">{gettext("Abuse")}</option>
                 </select>
               </label>
-            </div>
+            </fieldset>
 
-            <div class="fieldset">
-              <label class="label">
-                <span class="fieldset-legend">{gettext("Expires At (Optional)")}</span>
-              </label>
-              <input type="date" name="expires_at" class="input" />
-            </div>
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend">{gettext("Expires At (Optional)")}</legend>
+              <input
+                type="date"
+                name="expires_at"
+                class="input"
+                aria-label={gettext("Expires At (Optional)")}
+              />
+            </fieldset>
 
             <div class="col-span-full flex justify-end gap-2">
               <button type="button" phx-click="toggle_add_form" class="btn btn-ghost">
@@ -121,19 +126,18 @@
           </div>
 
           <form phx-submit="import_csv">
-            <div class="fieldset">
-              <label class="label">
-                <span class="fieldset-legend">{gettext("CSV Content")}</span>
-              </label>
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend">{gettext("CSV Content")}</legend>
               <textarea
                 name="csv_content"
                 class="textarea font-mono"
                 rows="8"
+                aria-label={gettext("CSV Content")}
                 placeholder="email,reason,expires_at&#10;spam@example.com,spam,&#10;abuse@test.com,abuse,2025-12-31"
                 required
               >
                   </textarea>
-            </div>
+            </fieldset>
 
             <div class="flex justify-end gap-2 mt-4">
               <button type="button" phx-click="toggle_import_form" class="btn btn-ghost">

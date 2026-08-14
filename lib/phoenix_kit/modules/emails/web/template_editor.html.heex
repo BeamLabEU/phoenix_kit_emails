@@ -15,12 +15,19 @@
             <div class="card-body">
               <h2 class="card-title text-lg mb-4">{gettext("Basic Information")}</h2>
 
+              <%!-- Every field on this page wrapped its caption in
+                   `<label class="label">`. In v5 that class is the muted addon
+                   that lives INSIDE .input/.select — outside one it binds to no
+                   control and only dims its text to 60%, so each caption read
+                   as deliberately de-emphasised. Real fieldset/legend
+                   throughout, and since a legend names the GROUP rather than
+                   the control, every field carries an `aria-label` with the
+                   same string. --%>
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div class="fieldset">
-                  <label class="label">
-                    <span class="fieldset-legend">{gettext("Template Name")}</span>
-                  </label>
+                <fieldset class="fieldset">
+                  <legend class="fieldset-legend">{gettext("Template Name")}</legend>
                   <input
+                    aria-label={gettext("Template Name")}
                     type="text"
                     name="email_template[name]"
                     value={Ecto.Changeset.get_field(@changeset, :name)}
@@ -32,12 +39,10 @@
                   <%= if err do %>
                     <div class="text-sm text-error mt-1">{elem(err, 0)}</div>
                   <% end %>
-                </div>
+                </fieldset>
 
-                <div class="fieldset">
-                  <label class="label">
-                    <span class="fieldset-legend">{gettext("Display Name")}</span>
-                  </label>
+                <fieldset class="fieldset">
+                  <legend class="fieldset-legend">{gettext("Display Name")}</legend>
                   <%!-- Hidden inputs preserve all locale values --%>
                   <%= for locale <- @available_locales, locale != @current_editor_locale do %>
                     <input
@@ -52,6 +57,7 @@
                     />
                   <% end %>
                   <input
+                    aria-label={gettext("Display Name")}
                     type="text"
                     name={"email_template[display_name][#{@current_editor_locale}]"}
                     value={
@@ -67,14 +73,13 @@
                   <%= if err do %>
                     <div class="text-sm text-error mt-1">{elem(err, 0)}</div>
                   <% end %>
-                </div>
+                </fieldset>
               </div>
 
-              <div class="fieldset">
-                <label class="label">
-                  <span class="fieldset-legend">{gettext("Slug")}</span>
-                </label>
+              <fieldset class="fieldset">
+                <legend class="fieldset-legend">{gettext("Slug")}</legend>
                 <input
+                  aria-label={gettext("Slug")}
                   type="text"
                   name="email_template[slug]"
                   value={Ecto.Changeset.get_field(@changeset, :slug)}
@@ -86,20 +91,17 @@
                 <%= if err do %>
                   <div class="text-sm text-error mt-1">{elem(err, 0)}</div>
                 <% end %>
-                <label class="label">
-                  <span class="fieldset-label">
+                <p class="fieldset-label">
                     {gettext("URL-friendly identifier (auto-generated from name if left empty)")}
-                  </span>
-                </label>
-              </div>
+                </p>
+              </fieldset>
 
               <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div class="fieldset">
-                  <label class="label">
-                    <span class="fieldset-legend">{gettext("Category")}</span>
-                  </label>
+                <fieldset class="fieldset">
+                  <legend class="fieldset-legend">{gettext("Category")}</legend>
                   <label class="select">
                     <select
+                      aria-label={gettext("Category")}
                       name="email_template[category]"
                       disabled={(@mode == :edit and @template) && @template.is_system}
                     >
@@ -141,16 +143,15 @@
                   <%= if err do %>
                     <div class="text-sm text-error mt-1">{elem(err, 0)}</div>
                   <% end %>
-                </div>
+                </fieldset>
 
-                <div class="fieldset">
-                  <label class="label">
-                    <span class="fieldset-legend">{gettext("Source Module")}</span>
-                  </label>
+                <fieldset class="fieldset">
+                  <legend class="fieldset-legend">{gettext("Source Module")}</legend>
                   <% current_metadata = Ecto.Changeset.get_field(@changeset, :metadata) || %{} %>
                   <% current_source_module = Map.get(current_metadata, "source_module", "custom") %>
                   <label class="select">
                     <select
+                      aria-label={gettext("Source Module")}
                       name="email_template[metadata][source_module]"
                     >
                       <option value="users" selected={current_source_module == "users"}>
@@ -173,17 +174,14 @@
                       </option>
                     </select>
                   </label>
-                  <label class="label">
-                    <span class="fieldset-label">{gettext("Module that sends this email")}</span>
-                  </label>
-                </div>
+                  <p class="fieldset-label">{gettext("Module that sends this email")}</p>
+                </fieldset>
 
-                <div class="fieldset">
-                  <label class="label">
-                    <span class="fieldset-legend">{gettext("Status")}</span>
-                  </label>
+                <fieldset class="fieldset">
+                  <legend class="fieldset-legend">{gettext("Status")}</legend>
                   <label class="select">
                     <select
+                      aria-label={gettext("Status")}
                       name="email_template[status]"
                     >
                       <option
@@ -210,18 +208,17 @@
                   <%= if err do %>
                     <div class="text-sm text-error mt-1">{elem(err, 0)}</div>
                   <% end %>
-                </div>
+                </fieldset>
               </div>
 
-              <div class="fieldset">
-                <label class="label">
-                  <span class="fieldset-legend">{gettext("Description (Optional)")}</span>
-                </label>
+              <fieldset class="fieldset">
+                <legend class="fieldset-legend">{gettext("Description (Optional)")}</legend>
                 <%!-- Hidden textareas preserve all locale values --%>
                 <%= for locale <- @available_locales, locale != @current_editor_locale do %>
                   <textarea name={"email_template[description][#{locale}]"} hidden><%= PhoenixKit.Modules.Emails.Template.get_translation(Ecto.Changeset.get_field(@changeset, :description) || %{}, locale) %></textarea>
                 <% end %>
                 <textarea
+                  aria-label={gettext("Description (Optional)")}
                   name={"email_template[description][#{@current_editor_locale}]"}
                   placeholder={gettext("Brief description of this template...")}
                   class="textarea"
@@ -231,7 +228,7 @@
                 <%= if err do %>
                   <div class="text-sm text-error mt-1">{elem(err, 0)}</div>
                 <% end %>
-              </div>
+              </fieldset>
             </div>
           </div>
 
@@ -257,10 +254,8 @@
                 <% end %>
               </div>
 
-              <div class="fieldset">
-                <label class="label">
-                  <span class="fieldset-legend">{gettext("Subject Line")}</span>
-                </label>
+              <fieldset class="fieldset">
+                <legend class="fieldset-legend">{gettext("Subject Line")}</legend>
                 <%!-- Hidden inputs preserve all locale values --%>
                 <%= for locale <- @available_locales, locale != @current_editor_locale do %>
                   <input
@@ -275,6 +270,7 @@
                   />
                 <% end %>
                 <input
+                  aria-label={gettext("Subject Line")}
                   type="text"
                   name={"email_template[subject][#{@current_editor_locale}]"}
                   value={
@@ -290,26 +286,23 @@
                 <%= if err do %>
                   <div class="text-sm text-error mt-1">{elem(err, 0)}</div>
                 <% end %>
-                <label class="label">
-                  <span class="fieldset-label">
+                <p class="fieldset-label">
                     {Phoenix.HTML.raw(
                       gettext("Use <code>%{var}</code> syntax for dynamic content",
                         var: "{{variable}}"
                       )
                     )}
-                  </span>
-                </label>
-              </div>
+                </p>
+              </fieldset>
 
-              <div class="fieldset">
-                <label class="label">
-                  <span class="fieldset-legend">{gettext("HTML Body")}</span>
-                </label>
+              <fieldset class="fieldset">
+                <legend class="fieldset-legend">{gettext("HTML Body")}</legend>
                 <%!-- Hidden textareas preserve all locale values --%>
                 <%= for locale <- @available_locales, locale != @current_editor_locale do %>
                   <textarea name={"email_template[html_body][#{locale}]"} hidden><%= PhoenixKit.Modules.Emails.Template.get_translation(Ecto.Changeset.get_field(@changeset, :html_body) || %{}, locale) %></textarea>
                 <% end %>
                 <textarea
+                  aria-label={gettext("HTML Body")}
                   name={"email_template[html_body][#{@current_editor_locale}]"}
                   class="textarea font-mono"
                   rows="12"
@@ -319,17 +312,16 @@
                 <%= if err do %>
                   <div class="text-sm text-error mt-1">{elem(err, 0)}</div>
                 <% end %>
-              </div>
+              </fieldset>
 
-              <div class="fieldset">
-                <label class="label">
-                  <span class="fieldset-legend">{gettext("Text Body")}</span>
-                </label>
+              <fieldset class="fieldset">
+                <legend class="fieldset-legend">{gettext("Text Body")}</legend>
                 <%!-- Hidden textareas preserve all locale values --%>
                 <%= for locale <- @available_locales, locale != @current_editor_locale do %>
                   <textarea name={"email_template[text_body][#{locale}]"} hidden><%= PhoenixKit.Modules.Emails.Template.get_translation(Ecto.Changeset.get_field(@changeset, :text_body) || %{}, locale) %></textarea>
                 <% end %>
                 <textarea
+                  aria-label={gettext("Text Body")}
                   name={"email_template[text_body][#{@current_editor_locale}]"}
                   class="textarea font-mono"
                   rows="8"
@@ -339,7 +331,7 @@
                 <%= if err do %>
                   <div class="text-sm text-error mt-1">{elem(err, 0)}</div>
                 <% end %>
-              </div>
+              </fieldset>
             </div>
           </div>
 
@@ -579,11 +571,12 @@
           phx-change="validate_test"
           class="space-y-4"
         >
-          <div class="fieldset">
-            <label class="label">
-              <span class="fieldset-legend">{gettext("Recipient Email")}</span>
-            </label>
+          <fieldset class="fieldset">
+            <legend class="fieldset-legend">{gettext("Recipient Email")}</legend>
             <input
+              aria-label={gettext("Recipient Email")}
+              aria-invalid={@test_form[:errors][:recipient] && "true"}
+              aria-describedby={@test_form[:errors][:recipient] && "test-recipient-error"}
               type="email"
               name="test[recipient]"
               value={@test_form[:recipient] || ""}
@@ -595,26 +588,28 @@
               required
             />
             <%= if @test_form[:errors][:recipient] do %>
-              <label class="label">
-                <span class="fieldset-label text-error">
-                  {@test_form[:errors][:recipient]}
-                </span>
-              </label>
+              <p id="test-recipient-error" class="text-sm text-error">
+                {@test_form[:errors][:recipient]}
+              </p>
             <% end %>
-          </div>
+          </fieldset>
 
           <%= if length(@extracted_variables) > 0 do %>
-            <div class="fieldset">
-              <label class="label">
-                <span class="fieldset-legend">{gettext("Sample Variable Values")}</span>
-              </label>
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend">{gettext("Sample Variable Values")}</legend>
               <div class="space-y-2">
                 <%= for variable <- @extracted_variables do %>
                   <div class="grid grid-cols-3 gap-2 items-center">
-                    <label class="text-sm font-mono">{"{{#{variable}}}"}</label>
+                    <%!-- The label was visible but bound to nothing; `for`/`id`
+                         give the row a real association, so clicking the
+                         variable name focuses its field. --%>
+                    <label for={"sample-var-#{variable}"} class="text-sm font-mono">
+                      {"{{#{variable}}}"}
+                    </label>
                     <div class="col-span-2">
                       <input
                         type="text"
+                        id={"sample-var-#{variable}"}
                         name={"test[sample_variables][#{variable}]"}
                         value={@test_form[:sample_variables][variable] || ""}
                         placeholder={"Sample #{variable}"}
@@ -624,7 +619,7 @@
                   </div>
                 <% end %>
               </div>
-            </div>
+            </fieldset>
           <% end %>
 
           <div class="alert alert-info">
