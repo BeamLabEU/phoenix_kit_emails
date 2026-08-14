@@ -19,6 +19,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTrackingTest do
 
   alias PhoenixKit.Modules.Emails
   alias PhoenixKit.Modules.Emails.Queue
+  alias PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTracking
 
   describe "the section renders" do
     test "with no email settings at all" do
@@ -78,20 +79,44 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTrackingTest do
       assert html =~ ~s|phx-blur="update_compress_days"|
     end
 
-    test "S3 archival is shown as unavailable rather than as a working switch" do
+    test "S3 archival is a live switch now that the uploader is wired" do
       html = render_section()
 
       assert html =~ "Enable S3 Archival"
-      assert html =~ "In development"
-      assert html =~ "Not available yet"
 
-      # The uploader is not wired to anything, so the box must not be clickable
-      # — a toggle that flips and does nothing is worse than a disabled one.
+      refute html =~ "In development",
+             "the badge outlived the thing it described"
+
+      refute html =~ "Not available yet"
+
       assert [checkbox] =
                Regex.run(~r|<input type="checkbox"[^>]*archive_to_s3[^>]*>|, html) ||
                  Regex.run(~r|<input[^>]*name="email_tracking\[archive_to_s3\]"[^>]*>|, html)
 
-      assert checkbox =~ "disabled"
+      refute checkbox =~ "disabled"
+      assert checkbox =~ ~s|phx-click="toggle_s3_archival"|
+    end
+
+    test "the settings the feature needs appear only once it is switched on" do
+      refute render_section() =~ ~s|name="s3_bucket"|
+
+      {:ok, _} = Emails.set_s3_archival(true)
+      html = render_section()
+
+      assert html =~ "S3 Bucket"
+      assert html =~ ~s|name="s3_bucket"|
+      assert html =~ ~s|phx-blur="update_s3_bucket"|
+
+      assert html =~ ~s|name="s3_integration"|,
+             "without a credentials choice the upload falls back to ambient keys " <>
+               "with no way to say so from the UI"
+
+      assert html =~ ~s|phx-change="update_s3_integration"|
+
+      # The schedule lives in the host's crontab, and the page has no way to
+      # check it — saying so is the difference between an honest switch and one
+      # that implies a job nobody configured.
+      assert html =~ "ArchiveWorker"
     end
   end
 
@@ -159,5 +184,74 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTrackingTest do
       %{id: "email-tracking"},
       endpoint: PhoenixKitEmails.Test.StubEndpoint
     )
+  end
+
+  describe "the S3 handlers accept the payload LiveView actually sends" do
+    # `phx-blur` and a form-less `phx-change` send the element's value under
+    # "value", not under the element's name. Reading only the name key meant
+    # every blur wrote `""` — which, since blank clears, deleted the bucket the
+    # operator had just typed. Both shapes are asserted so neither regresses.
+    setup do
+      socket = %Phoenix.LiveView.Socket{
+        assigns: %{
+          __changed__: %{},
+          flash: %{},
+          email_archive_to_s3: false,
+          email_s3_bucket: "",
+          email_s3_integration: ""
+        }
+      }
+
+      %{socket: socket}
+    end
+
+    test "the bucket is saved from the \"value\" key", %{socket: socket} do
+      {:noreply, socket} =
+        EmailTracking.handle_event("update_s3_bucket", %{"value" => "archive-bucket"}, socket)
+
+      assert socket.assigns.email_s3_bucket == "archive-bucket"
+      assert Emails.get_s3_bucket() == "archive-bucket"
+    end
+
+    test "the bucket is saved from the named key too", %{socket: socket} do
+      {:noreply, _socket} =
+        EmailTracking.handle_event("update_s3_bucket", %{"s3_bucket" => "named-bucket"}, socket)
+
+      assert Emails.get_s3_bucket() == "named-bucket"
+    end
+
+    test "a blank value clears the bucket rather than failing", %{socket: socket} do
+      {:ok, _} = Emails.set_s3_bucket("to-be-cleared")
+
+      {:noreply, socket} =
+        EmailTracking.handle_event("update_s3_bucket", %{"value" => "  "}, socket)
+
+      assert socket.assigns.email_s3_bucket == ""
+      assert Emails.get_s3_bucket() == nil
+    end
+
+    test "the connection is saved from the \"value\" key", %{socket: socket} do
+      {:noreply, socket} =
+        EmailTracking.handle_event("update_s3_integration", %{"value" => "some-uuid"}, socket)
+
+      assert socket.assigns.email_s3_integration == "some-uuid"
+      assert Emails.get_s3_integration() == "some-uuid"
+    end
+
+    test "an empty choice means the ambient credentials", %{socket: socket} do
+      {:ok, _} = Emails.set_s3_integration("some-uuid")
+
+      {:noreply, _socket} =
+        EmailTracking.handle_event("update_s3_integration", %{"value" => ""}, socket)
+
+      assert Emails.get_s3_integration() == nil
+    end
+
+    test "the toggle flips the setting", %{socket: socket} do
+      {:noreply, socket} = EmailTracking.handle_event("toggle_s3_archival", %{}, socket)
+
+      assert socket.assigns.email_archive_to_s3 == true
+      assert Emails.get_config().archive_to_s3 == true
+    end
   end
 end

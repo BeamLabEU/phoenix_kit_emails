@@ -211,6 +211,14 @@ defmodule PhoenixKit.Modules.Emails.Log do
     # `PhoenixKit.Modules.Emails.Interceptor`), so an unstamped row must stay
     # a valid row. Added by `PhoenixKit.Modules.Emails.Migrations` V1.
     field(:integration_uuid, UUIDv7)
+    # When this row was shipped to cold storage, and the object it landed in.
+    # Both nil until an archival run succeeds — "never archived" is the
+    # absence of a timestamp, not a sentinel. Added by
+    # `PhoenixKit.Modules.Emails.Migrations` V2; they are what lets a run be
+    # re-run without re-uploading, and what keeps a trace when the run is
+    # configured to leave the rows in place.
+    field(:archived_at, :utc_datetime)
+    field(:s3_key, :string)
     field(:user_uuid, UUIDv7)
 
     # Associations
@@ -271,6 +279,8 @@ defmodule PhoenixKit.Modules.Emails.Log do
       :message_tags,
       :provider,
       :integration_uuid,
+      :archived_at,
+      :s3_key,
       :user_uuid
     ])
     |> validate_required([:message_id, :to, :from, :provider])
@@ -1011,12 +1021,25 @@ defmodule PhoenixKit.Modules.Emails.Log do
       iex> PhoenixKit.Modules.Emails.Log.cleanup_old_logs(90)
       {5, nil}  # Deleted 5 records
   """
-  def cleanup_old_logs(days_old \\ 90) when is_integer(days_old) and days_old > 0 do
+  def cleanup_old_logs(days_old \\ 90, opts \\ [])
+
+  def cleanup_old_logs(days_old, opts) when is_integer(days_old) and days_old > 0 do
     cutoff_date = UtilsDate.utc_now() |> DateTime.add(-days_old, :day)
 
     from(l in __MODULE__, where: l.sent_at < ^cutoff_date)
+    |> maybe_require_archived(Keyword.get(opts, :require_archived, false))
     |> repo().delete_all()
   end
+
+  # With S3 archival switched on, retention cleanup and the archival job share
+  # a cutoff, and whichever runs first wins. Losing that race deletes rows the
+  # operator believed were being shipped to cold storage — silently, because
+  # nothing downstream can tell a row that was archived from one that was
+  # dropped. So while archival owes a row an upload, cleanup leaves it alone;
+  # the next archival pass stamps it, and the pass after that is free to
+  # delete it.
+  defp maybe_require_archived(query, false), do: query
+  defp maybe_require_archived(query, true), do: where(query, [l], not is_nil(l.archived_at))
 
   @doc """
   Compresses body_full field for logs older than specified days.
@@ -1050,10 +1073,55 @@ defmodule PhoenixKit.Modules.Emails.Log do
 
     from(l in __MODULE__,
       where: l.sent_at < ^cutoff_date,
+      # Already-shipped rows are not candidates. Without this an archival run
+      # that is configured to KEEP its rows re-uploads the same messages on
+      # every pass, growing the bucket without bound.
+      where: is_nil(l.archived_at),
       preload: [:events],
       order_by: [asc: l.sent_at]
     )
     |> repo().all()
+  end
+
+  @doc """
+  Counts logs past the retention cutoff that archival has not shipped yet.
+
+  Only ever called to explain why retention cleanup deleted nothing — a silent
+  hold-back looks exactly like a retention setting that stopped working.
+  """
+  @spec count_unarchived_past_retention(pos_integer()) :: non_neg_integer()
+  def count_unarchived_past_retention(days_old) when is_integer(days_old) and days_old > 0 do
+    cutoff_date = UtilsDate.utc_now() |> DateTime.add(-days_old, :day)
+
+    repo().one(
+      from(l in __MODULE__,
+        where: l.sent_at < ^cutoff_date,
+        where: is_nil(l.archived_at),
+        select: count(l.uuid)
+      )
+    ) || 0
+  end
+
+  @doc """
+  Stamps a batch of logs as archived to `s3_key`.
+
+  Returns `{updated_count, nil}`. Only ever stamps rows that are still
+  unstamped, so a retry that overlaps a partially-recorded run cannot
+  overwrite the key of an object already written.
+  """
+  @spec mark_archived([String.t()], String.t(), DateTime.t() | nil) :: {non_neg_integer(), nil}
+  def mark_archived(log_uuids, s3_key, archived_at \\ nil)
+
+  def mark_archived([], _s3_key, _archived_at), do: {0, nil}
+
+  def mark_archived(log_uuids, s3_key, archived_at) when is_list(log_uuids) do
+    archived_at = archived_at || UtilsDate.utc_now()
+
+    from(l in __MODULE__,
+      where: l.uuid in ^log_uuids,
+      where: is_nil(l.archived_at)
+    )
+    |> repo().update_all(set: [archived_at: archived_at, s3_key: s3_key])
   end
 
   ## --- Private Helper Functions ---

@@ -130,16 +130,22 @@ defmodule Mix.Tasks.PhoenixKitEmails.Install do
              emails: 50,
              sqs_polling: 1,
              brevo_polling: 1,
-             event_tracker_reconcile: 1
+             event_tracker_reconcile: 1,
+             email_archival: 1
            ],
            plugins: [
              Oban.Plugins.Pruner,
              Oban.Plugins.Lifeline,
              {Oban.Plugins.Cron,
               crontab: [
-                {"*/2 * * * *", PhoenixKit.Modules.Emails.EventTrackerReconcileWorker}
+                {"*/2 * * * *", PhoenixKit.Modules.Emails.EventTrackerReconcileWorker},
+                {"0 * * * *", PhoenixKit.Modules.Emails.ArchiveWorker}
               ]}
            ]
+
+       The `email_archival` entry is what gives S3 archival a schedule.
+       Without it the feature is inert no matter what the settings page
+       says — the archiver is only ever called from that Cron tick.
 
        MERGE that `plugins:` list into whatever you already have rather
        than replacing it. Lifeline is not optional here: a poller job left

@@ -101,6 +101,7 @@ defmodule PhoenixKit.Modules.Emails do
   alias PhoenixKit.Integrations
 
   alias PhoenixKit.Modules.Emails.{
+    Archiver,
     AwsIntegrations,
     Event,
     Log,
@@ -1447,6 +1448,79 @@ defmodule PhoenixKit.Modules.Emails do
     )
   end
 
+  @doc """
+  Gets the S3 bucket archives are written to, or `nil` when unset.
+  """
+  def get_s3_bucket do
+    case Settings.get_setting("email_s3_bucket") do
+      value when is_binary(value) ->
+        case String.trim(value) do
+          "" -> nil
+          trimmed -> trimmed
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  @doc """
+  Sets the S3 bucket archives are written to. A blank string clears it.
+
+  The bucket had a reader and no writer, so archival could never be pointed
+  anywhere: enabling it always failed with `:no_bucket_configured`.
+
+  Clearing DELETES the row rather than storing `""` — the settings changeset
+  rejects an empty value outright ("must provide either value or value_json"),
+  so a blank write would otherwise fail instead of unsetting.
+  """
+  def set_s3_bucket(bucket) when is_binary(bucket) do
+    put_or_clear_setting("email_s3_bucket", bucket)
+  end
+
+  @doc """
+  Gets the uuid of the Integrations connection whose credentials sign archive
+  uploads, or `nil` to leave ExAws to its own resolution chain.
+  """
+  def get_s3_integration do
+    case Settings.get_setting("email_s3_integration") do
+      value when is_binary(value) ->
+        case String.trim(value) do
+          "" -> nil
+          trimmed -> trimmed
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  @doc """
+  Sets the Integrations connection used for archive uploads. `""` clears it,
+  which falls back to the environment, an instance profile, or a task role.
+  """
+  def set_s3_integration(uuid) when is_binary(uuid) do
+    put_or_clear_setting("email_s3_integration", uuid)
+  end
+
+  # Clearing a setting that was never stored is not an error — the caller asked
+  # for "unset" and unset is what it gets. `delete_setting/1` reports
+  # `{:error, :not_found}` for that case, which would make a first-time clear
+  # look like a failed write.
+  defp put_or_clear_setting(key, value) do
+    case String.trim(value) do
+      "" ->
+        case Settings.delete_setting(key) do
+          {:error, :not_found} -> {:ok, :cleared}
+          {:ok, _} -> {:ok, :cleared}
+          other -> other
+        end
+
+      trimmed ->
+        Settings.update_setting_with_module(key, trimmed, "email_system")
+    end
+  end
+
   ## --- AWS SQS Configuration ---
 
   @doc """
@@ -2638,9 +2712,47 @@ defmodule PhoenixKit.Modules.Emails do
   def cleanup_old_logs(days_old \\ nil) do
     if enabled?() do
       days = days_old || get_retention_days()
-      Log.cleanup_old_logs(days)
+      # While archival is RUNNABLE, a row it has not shipped yet is not
+      # cleanup's to delete — otherwise the two jobs race over the same cutoff
+      # and the loser is data the operator believed was in cold storage.
+      #
+      # "Runnable" is deliberately stricter than "enabled". Gating on the
+      # toggle alone meant that flipping it on and forgetting the bucket
+      # stopped retention cleanup permanently and silently: nothing can ever
+      # stamp a row, so nothing is ever deletable, and the table grows without
+      # bound while the settings page reports a retention period it is no
+      # longer enforcing. A half-configured feature must not disable a working
+      # one.
+      Log.cleanup_old_logs(days, require_archived: archival_runnable?())
     else
       {0, nil}
+    end
+  end
+
+  # Even when archival IS runnable the hold-back is worth saying out loud: if
+  # the host never added the crontab entry, rows pile up behind a job that
+  # never runs, and the only symptom is a retention period that quietly stopped
+  # applying.
+  defp archival_runnable? do
+    if s3_archival_enabled?() and get_s3_bucket() != nil do
+      warn_if_withholding()
+      true
+    else
+      false
+    end
+  end
+
+  defp warn_if_withholding do
+    case Log.count_unarchived_past_retention(get_retention_days()) do
+      0 ->
+        :ok
+
+      count ->
+        Logger.warning(
+          "Emails retention: #{count} logs past the retention period are being kept " <>
+            "because S3 archival has not shipped them yet. If nothing is uploading, " <>
+            "check that ArchiveWorker is in the host Oban crontab."
+        )
     end
   end
 
@@ -2665,25 +2777,28 @@ defmodule PhoenixKit.Modules.Emails do
   end
 
   @doc """
-  Archives old emais to S3 if archival is enabled.
+  Archives old emails to S3 if archival is enabled.
+
+  Delegates to `PhoenixKit.Modules.Emails.Archiver.archive_to_s3/2`, which is
+  where the upload actually happens. Until this delegation existed the function
+  selected the rows and returned them untouched, so archival reported success
+  having written nothing to S3.
+
+  `opts` are the archiver's: `:bucket`, `:prefix`, `:batch_size`, `:format`,
+  `:include_events`, `:delete_after_archive`.
 
   ## Examples
 
       iex> PhoenixKit.Modules.Emails.archive_to_s3()
-      {:ok, archived_count: 100, s3_key: "archives/2024/01/emails.json"}
+      {:ok, 100}
+
+      iex> PhoenixKit.Modules.Emails.archive_to_s3(180, delete_after_archive: true)
+      {:ok, 42}
   """
-  def archive_to_s3(days_old \\ nil) do
+  def archive_to_s3(days_old \\ nil, opts \\ []) do
     if enabled?() and s3_archival_enabled?() do
       days = days_old || get_retention_days()
-      logs_to_archive = Log.get_logs_for_archival(days)
-
-      if Enum.empty?(logs_to_archive) do
-        {:ok, archived_count: 0, logs: []}
-      else
-        # This would be implemented in a separate Archiver module
-        # For now, return a placeholder
-        {:ok, archived_count: length(logs_to_archive), logs: logs_to_archive}
-      end
+      Archiver.archive_to_s3(days, opts)
     else
       {:ok, :skipped}
     end

@@ -541,9 +541,15 @@ defmodule PhoenixKit.Modules.Emails.MigrationsTest do
           end
         )
 
+      # Every entry here is a column core's manifest does not know about, which
+      # core's audit reports at :info and never as a failure. Adding one is a
+      # decision, which is what this assertion is for — it fails until the new
+      # column is written down.
       assert Enum.sort(extra) == [
+               "ALTER TABLE public.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"archived_at\" timestamp with time zone",
                "ALTER TABLE public.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"integration_uuid\" uuid",
-               "COMMENT ON TABLE public.phoenix_kit_email_logs IS 'pke_schema:1'"
+               "ALTER TABLE public.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"s3_key\" text",
+               "COMMENT ON TABLE public.phoenix_kit_email_logs IS 'pke_schema:2'"
              ]
     end
 
@@ -571,5 +577,45 @@ defmodule PhoenixKit.Modules.Emails.MigrationsTest do
     |> Enum.filter(fn {statement, _index} -> fun.(statement) end)
     |> List.last()
     |> elem(1)
+  end
+
+  describe "a pinned :version" do
+    test "V1 emits V1's objects only, and stamps V1" do
+      statements = Migrations.up_statements("public", 1)
+
+      assert Enum.any?(statements, &String.contains?(&1, "\"integration_uuid\" uuid"))
+      assert Enum.any?(statements, &String.contains?(&1, "integration_uuid_idx"))
+
+      refute Enum.any?(statements, &String.contains?(&1, "\"archived_at\"")),
+             "a host pinning version: 1 received V2's DDL — the exact surprise " <>
+               "up/1's doc promises not to spring"
+
+      refute Enum.any?(statements, &String.contains?(&1, "\"s3_key\""))
+      refute Enum.any?(statements, &String.contains?(&1, "archived_at_idx"))
+
+      assert Enum.any?(statements, &String.contains?(&1, "pke_schema:1"))
+      refute Enum.any?(statements, &String.contains?(&1, "pke_schema:2"))
+    end
+
+    test "V2 emits both versions' objects, and stamps V2" do
+      statements = Migrations.up_statements("public", 2)
+
+      assert Enum.any?(statements, &String.contains?(&1, "\"integration_uuid\" uuid"))
+      assert Enum.any?(statements, &String.contains?(&1, "\"archived_at\""))
+      assert Enum.any?(statements, &String.contains?(&1, "\"s3_key\""))
+      assert Enum.any?(statements, &String.contains?(&1, "archived_at_idx"))
+      assert Enum.any?(statements, &String.contains?(&1, "pke_schema:2"))
+    end
+
+    test "the adoption half is emitted at every version" do
+      # Adoption is not versioned: it is "the tables core already made", and a
+      # pinned version must still repair a missing one.
+      for version <- [1, 2] do
+        statements = Migrations.up_statements("public", version)
+
+        assert Enum.any?(statements, &String.contains?(&1, "phoenix_kit_email_logs")),
+               "version #{version} emitted no adoption statements"
+      end
+    end
   end
 end

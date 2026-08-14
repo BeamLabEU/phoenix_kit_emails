@@ -330,32 +330,77 @@
     <div class="divider"></div>
   <% end %>
 
-  <%!-- S3 Archival — NOT IMPLEMENTED YET. The real uploader (Archiver) is not
-  wired to anything: the button below calls a placeholder that loads the logs
-  and returns them without touching S3, the bucket name has no setter, the log
-  table has no archived_at/s3_key columns, and there is no scheduled worker.
-  The toggle stays visible so the plan is not forgotten, but it is disabled and
-  labelled rather than quietly reporting success. --%>
+  <%!-- S3 Archival. The toggle used to be disabled and badged "In
+       development", because the uploader was never wired to anything. It is
+       now, so the control is live — with the two settings the feature needs
+       (a bucket, and which credentials sign the upload) beside it rather than
+       hidden in config, and an honest note that the schedule comes from the
+       host's Oban crontab. --%>
   <div>
-    <div class="flex items-center gap-2">
-      <.checkbox
-        name="email_tracking[archive_to_s3]"
-        checked={@email_archive_to_s3}
-        disabled
-        label={gettext("Enable S3 Archival")}
-      >
-        <:description>
-          {gettext("Move old email data to AWS S3 for long-term cold storage")}
-        </:description>
-      </.checkbox>
-      <span class="badge badge-warning badge-sm">{gettext("In development")}</span>
-    </div>
-    <p class="text-sm text-base-content/70 mt-1">
-      {gettext(
-        "Not available yet: nothing is uploaded to S3. Retention cleanup below already removes old records."
-      )}
-    </p>
+    <.checkbox
+      name="email_tracking[archive_to_s3]"
+      checked={@email_archive_to_s3}
+      phx-click="toggle_s3_archival"
+      phx-target={@myself}
+      label={gettext("Enable S3 Archival")}
+    >
+      <:description>
+        {gettext("Move old email data to AWS S3 for long-term cold storage")}
+      </:description>
+    </.checkbox>
   </div>
+
+  <%= if @email_archive_to_s3 do %>
+    <fieldset class="fieldset">
+      <legend class="fieldset-legend">{gettext("S3 Bucket")}</legend>
+      <input
+        name="s3_bucket"
+        type="text"
+        class="input w-full max-w-md"
+        placeholder="my-email-archive"
+        aria-label={gettext("S3 Bucket")}
+        value={@email_s3_bucket}
+        phx-blur="update_s3_bucket"
+        phx-target={@myself}
+      />
+      <p class="fieldset-label">
+        {gettext("Archives are written under the email-logs/ prefix. Leave empty to unset.")}
+      </p>
+    </fieldset>
+
+    <fieldset class="fieldset">
+      <legend class="fieldset-legend">{gettext("Credentials for uploads")}</legend>
+      <label class="select w-full max-w-md">
+        <select
+          name="s3_integration"
+          aria-label={gettext("Credentials for uploads")}
+          phx-change="update_s3_integration"
+          phx-target={@myself}
+        >
+          <option value="" selected={@email_s3_integration == ""}>
+            {gettext("Environment or instance role")}
+          </option>
+          <%= for {uuid, name} <- @s3_connections do %>
+            <option value={uuid} selected={@email_s3_integration == uuid}>{name}</option>
+          <% end %>
+        </select>
+      </label>
+      <p class="fieldset-label">
+        {gettext(
+          "Which AWS connection signs the upload. Leave on the default to use environment keys or an instance role."
+        )}
+      </p>
+    </fieldset>
+
+    <div class="alert alert-info mt-2">
+      <.icon name="hero-clock" class="w-5 h-5" />
+      <p class="text-sm">
+        {gettext(
+          "Archiving runs from the host's Oban schedule (PhoenixKit.Modules.Emails.ArchiveWorker, hourly). Without that crontab entry nothing is uploaded. While archival is on, retention cleanup keeps rows that have not been archived yet."
+        )}
+      </p>
+    </div>
+  <% end %>
 
   <div class="alert alert-warning mt-2">
     <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
