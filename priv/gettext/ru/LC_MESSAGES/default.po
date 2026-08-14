@@ -123,7 +123,7 @@ msgid "How long to keep email tracking data before automatic cleanup (1-365 days
 msgstr "Как долго хранить данные отслеживания писем до автоматической очистки (1-365 дней)"
 
 #: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:86
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:363
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:408
 #, elixir-autogen, elixir-format
 msgid "Data Privacy Notice"
 msgstr "Уведомление о конфиденциальности"
@@ -797,7 +797,7 @@ msgstr "Шаблоны писем"
 msgid "Email actions"
 msgstr "Действия с письмом"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:365
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:410
 #, elixir-autogen, elixir-format
 msgid "Email data will be automatically deleted after the retention period expires. This helps maintain privacy compliance and reduces storage requirements."
 msgstr "Данные отслеживания писем будут автоматически удалены по истечении срока хранения. Это помогает соблюдать требования конфиденциальности и снижает нагрузку на хранилище."
@@ -1945,32 +1945,32 @@ msgstr "Отслеживание событий AWS SES отключено"
 msgid "AWS SES events tracking enabled"
 msgstr "Отслеживание событий AWS SES включено"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:277
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:280
 #, elixir-autogen, elixir-format
 msgid "Cleanup completed successfully! Deleted %{count} old email logs (older than %{days} days)."
 msgstr "Очистка успешно завершена! Удалено %{count} старых записей писем (старше %{days} дней)."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:293
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:296
 #, elixir-autogen, elixir-format
 msgid "Cleanup operation timed out. Please try again or run it manually via mix task."
 msgstr "Время операции очистки истекло. Попробуйте снова или запустите вручную через mix task."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:334
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:337
 #, elixir-autogen, elixir-format
 msgid "Compression completed! Compressed %{count} email bodies and freed up storage space."
 msgstr "Сжатие завершено! Сжато %{count} тел писем и освобождено место на хранилище."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:327
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:330
 #, elixir-autogen, elixir-format
 msgid "Compression completed! Compressed %{count} email bodies, saved ~%{size} MB of storage."
 msgstr "Сжатие завершено! Сжато %{count} тел писем, сэкономлено ~%{size} МБ хранилища."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:354
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:357
 #, elixir-autogen, elixir-format
 msgid "Compression operation timed out. Please try again or run it manually via mix task."
 msgstr "Время операции сжатия истекло. Попробуйте снова или запустите вручную через mix task."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:235
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:238
 #, elixir-autogen, elixir-format
 msgid "Compression setting updated to %{days} days"
 msgstr "Настройка сжатия обновлена до %{days} дней"
@@ -1991,23 +1991,23 @@ msgid "Email address unblocked successfully"
 msgstr "Email-адрес успешно разблокирован"
 
 #: lib/phoenix_kit/modules/emails/web/email_tracking.ex:80
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:70
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:73
 #, elixir-autogen, elixir-format
 msgid "Email body saving disabled"
 msgstr "Сохранение тела письма отключено"
 
 #: lib/phoenix_kit/modules/emails/web/email_tracking.ex:79
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:69
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:72
 #, elixir-autogen, elixir-format
 msgid "Email body saving enabled"
 msgstr "Сохранение тела письма включено"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:144
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:147
 #, elixir-autogen, elixir-format
 msgid "Email headers saving disabled"
 msgstr "Сохранение заголовков письма отключено"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:143
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:146
 #, elixir-autogen, elixir-format
 msgid "Email headers saving enabled"
 msgstr "Сохранение заголовков письма включено"
@@ -2036,12 +2036,12 @@ msgid "Email queued for retry"
 msgstr "Письмо поставлено в очередь на повторную отправку"
 
 #: lib/phoenix_kit/modules/emails/web/email_tracking.ex:129
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:201
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:204
 #, elixir-autogen, elixir-format
 msgid "Email retention period updated to %{days} days"
 msgstr "Срок хранения писем обновлён до %{days} дней"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:171
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:174
 #, elixir-autogen, elixir-format
 msgid "Email sampling rate updated to %{rate}%"
 msgstr "Коэффициент выборки писем обновлён до %{rate}%"
@@ -2087,12 +2087,12 @@ msgstr "Не удалось загрузить данные письма"
 msgid "Failed to retry email: %{reason}"
 msgstr "Не удалось повторить отправку письма: %{reason}"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:306
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:309
 #, elixir-autogen, elixir-format
 msgid "Failed to run cleanup. Please check logs for details."
 msgstr "Не удалось запустить очистку. Проверьте логи для подробностей."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:367
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:370
 #, elixir-autogen, elixir-format
 msgid "Failed to run compression. Please check logs for details."
 msgstr "Не удалось запустить сжатие. Проверьте логи для подробностей."
@@ -2118,29 +2118,29 @@ msgstr "Не удалось обновить максимум сообщений
 msgid "Failed to update SQS visibility timeout"
 msgstr "Не удалось обновить тайм-аут видимости SQS"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:244
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:247
 #, elixir-autogen, elixir-format
 msgid "Failed to update compression days"
 msgstr "Не удалось обновить дни сжатия"
 
 #: lib/phoenix_kit/modules/emails/web/email_tracking.ex:87
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:77
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:80
 #, elixir-autogen, elixir-format
 msgid "Failed to update email body saving setting"
 msgstr "Не удалось обновить настройку сохранения тела письма"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:152
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:155
 #, elixir-autogen, elixir-format
 msgid "Failed to update email headers saving setting"
 msgstr "Не удалось обновить настройку сохранения заголовков"
 
 #: lib/phoenix_kit/modules/emails/web/email_tracking.ex:135
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:207
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:210
 #, elixir-autogen, elixir-format
 msgid "Failed to update email retention period"
 msgstr "Не удалось обновить срок хранения писем"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:177
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:180
 #, elixir-autogen, elixir-format
 msgid "Failed to update email sampling rate"
 msgstr "Не удалось обновить коэффициент выборки писем"
@@ -2161,7 +2161,7 @@ msgstr "Недопустимое массовое действие"
 msgid "Invalid date range"
 msgstr "Недопустимый диапазон дат"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:183
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:186
 #, elixir-autogen, elixir-format
 msgid "Please enter a valid number between 0 and 100"
 msgstr "Введите корректное число от 0 до 100"
@@ -2172,7 +2172,7 @@ msgid "Please enter a valid number between 1 and 10"
 msgstr "Введите корректное число от 1 до 10"
 
 #: lib/phoenix_kit/modules/emails/web/email_tracking.ex:141
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:213
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:216
 #, elixir-autogen, elixir-format
 msgid "Please enter a valid number between 1 and 365"
 msgstr "Введите корректное число от 1 до 365"
@@ -2182,7 +2182,7 @@ msgstr "Введите корректное число от 1 до 365"
 msgid "Please enter a valid number between 30 and 43200 seconds"
 msgstr "Введите корректное число от 30 до 43200 секунд"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:255
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:258
 #, elixir-autogen, elixir-format
 msgid "Please enter a valid number between 7 and 365"
 msgstr "Введите корректное число от 7 до 365"
@@ -2410,7 +2410,7 @@ msgstr "Дата"
 msgid "Default"
 msgstr "Сбросить"
 
-#: lib/phoenix_kit/modules/emails/emails.ex:1066
+#: lib/phoenix_kit/modules/emails/emails.ex:1067
 #, elixir-autogen, elixir-format
 msgid "Delivery Event Tracking"
 msgstr "Отслеживание событий доставки"
@@ -2440,7 +2440,7 @@ msgstr "Письмо #%{uuid}"
 msgid "Email Template"
 msgstr "Шаблон письма"
 
-#: lib/phoenix_kit/modules/emails/emails.ex:1060
+#: lib/phoenix_kit/modules/emails/emails.ex:1061
 #, elixir-autogen, elixir-format
 msgid "Email Tracking"
 msgstr "Отслеживание писем"
@@ -2744,11 +2744,6 @@ msgstr "Инфраструктура AWS создана для этого акк
 msgid "AWS setup failed at step %{step}: %{reason}"
 msgstr "Настройка AWS остановилась на шаге %{step}: %{reason}"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:511
-#, elixir-autogen, elixir-format
-msgid "AWS setup failed: %{reason}"
-msgstr "Настройка AWS не удалась: %{reason}"
-
 #: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:145
 #, elixir-autogen, elixir-format
 msgid "Account added to event tracking"
@@ -2795,12 +2790,12 @@ msgstr "Конфигурация приложения: %{adapter}"
 msgid "Assign"
 msgstr "Назначить"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:118
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:121
 #, elixir-autogen, elixir-format
 msgid "Authentication emails are now queued"
 msgstr "Письма аутентификации теперь ставятся в очередь"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:119
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:122
 #, elixir-autogen, elixir-format
 msgid "Authentication emails are now sent immediately"
 msgstr "Письма аутентификации теперь отправляются сразу"
@@ -2860,12 +2855,12 @@ msgstr "Не удалось убрать аккаунт"
 msgid "Failed to save account settings"
 msgstr "Не удалось сохранить настройки аккаунта"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:127
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:130
 #, elixir-autogen, elixir-format
 msgid "Failed to update the authentication mail setting"
 msgstr "Не удалось обновить настройку писем аутентификации"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:103
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:106
 #, elixir-autogen, elixir-format
 msgid "Failed to update the send queue setting"
 msgstr "Не удалось обновить настройку очереди отправки"
@@ -2935,12 +2930,12 @@ msgstr "Отключена — отправка напрямую"
 msgid "On — %{pending} waiting, %{executing} sending, %{retryable} retrying"
 msgstr "Включена — %{pending} в ожидании, %{executing} отправляется, %{retryable} на повторе"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:95
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:98
 #, elixir-autogen, elixir-format
 msgid "Outgoing emails are now queued"
 msgstr "Исходящие письма теперь ставятся в очередь"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:96
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:99
 #, elixir-autogen, elixir-format
 msgid "Outgoing emails are now sent immediately"
 msgstr "Исходящие письма теперь отправляются сразу"
@@ -3075,16 +3070,6 @@ msgstr "— не назначено —"
 msgid "— select an Amazon SES connection —"
 msgstr "— выберите подключение Amazon SES —"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:351
-#, elixir-autogen, elixir-format
-msgid "In development"
-msgstr "В разработке"
-
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:354
-#, elixir-autogen, elixir-format
-msgid "Not available yet: nothing is uploaded to S3. Retention cleanup below already removes old records."
-msgstr "Пока недоступно: в S3 ничего не выгружается. Удалением старых записей уже занимается очистка ниже."
-
 #: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.html.heex:36
 #: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.html.heex:37
 #, elixir-autogen, elixir-format
@@ -3159,3 +3144,80 @@ msgstr "Настроена одна общая очередь, но систем
 #, elixir-autogen, elixir-format
 msgid "This queue is no longer configured — reload the page to see the current setup: %{url}"
 msgstr "Эта очередь больше не настроена — перезагрузите страницу, чтобы увидеть текущее состояние: %{url}"
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:435
+#, elixir-autogen, elixir-format
+msgid "Archive uploads will use the ambient AWS credentials"
+msgstr "Выгрузка архивов будет использовать учётные данные AWS из окружения"
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:436
+#, elixir-autogen, elixir-format
+msgid "Archive uploads will use the selected connection"
+msgstr "Выгрузка архивов будет использовать выбранное подключение"
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:367
+#, elixir-autogen, elixir-format
+msgid "Archives are written under the email-logs/ prefix. Leave empty to unset."
+msgstr "Архивы пишутся с префиксом email-logs/. Оставьте пустым, чтобы сбросить."
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:398
+#, elixir-autogen, elixir-format
+msgid "Archiving runs from the host's Oban schedule (PhoenixKit.Modules.Emails.ArchiveWorker, hourly). Without that crontab entry nothing is uploaded. While archival is on, retention cleanup keeps rows that have not been archived yet."
+msgstr "Архивация запускается по расписанию Oban в приложении (PhoenixKit.Modules.Emails.ArchiveWorker, ежечасно). Без этой записи в crontab ничего не выгружается. Пока архивация включена, очистка по сроку хранения не удаляет записи, которые ещё не выгружены."
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:372
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:376
+#, elixir-autogen, elixir-format
+msgid "Credentials for uploads"
+msgstr "Учётные данные для выгрузки"
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:381
+#, elixir-autogen, elixir-format
+msgid "Environment or instance role"
+msgstr "Переменные окружения или роль инстанса"
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:397
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed to update S3 archival"
+msgstr "Не удалось обновить отслеживание %{label}"
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:420
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed to update S3 bucket"
+msgstr "Не удалось обновить столбцы таблицы"
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:443
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed to update the archive connection"
+msgstr "Не удалось обновить срок хранения писем"
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:355
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:361
+#, elixir-autogen, elixir-format
+msgid "S3 Bucket"
+msgstr "Бакет S3"
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:390
+#, elixir-autogen, elixir-format
+msgid "S3 archival disabled"
+msgstr "Архивация в S3 выключена"
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:389
+#, elixir-autogen, elixir-format
+msgid "S3 archival enabled"
+msgstr "Архивация в S3 включена"
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:412
+#, elixir-autogen, elixir-format
+msgid "S3 bucket cleared"
+msgstr "Бакет S3 очищен"
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:413
+#, elixir-autogen, elixir-format
+msgid "S3 bucket set to %{bucket}"
+msgstr "Бакет S3: %{bucket}"
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:389
+#, elixir-autogen, elixir-format
+msgid "Which AWS connection signs the upload. Leave on the default to use environment keys or an instance role."
+msgstr "Каким подключением AWS подписывается выгрузка. Оставьте значение по умолчанию, чтобы использовать ключи из окружения или роль инстанса."

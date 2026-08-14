@@ -43,6 +43,9 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTracking do
         |> assign(:email_sampling_rate, email_config.sampling_rate)
         |> assign(:email_compress_body, email_config.compress_after_days)
         |> assign(:email_archive_to_s3, email_config.archive_to_s3)
+        |> assign(:email_s3_bucket, Emails.get_s3_bucket() || "")
+        |> assign(:email_s3_integration, Emails.get_s3_integration() || "")
+        |> assign(:s3_connections, s3_connections())
         |> assign(:running_cleanup, false)
         |> assign(:running_compression, false)
         |> assign(:updating_compress_days, false)
@@ -369,5 +372,86 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTracking do
 
         {:noreply, socket}
     end
+  end
+
+  def handle_event("toggle_s3_archival", _params, socket) do
+    new_value = !socket.assigns.email_archive_to_s3
+
+    case Emails.set_s3_archival(new_value) do
+      {:ok, _setting} ->
+        socket =
+          socket
+          |> assign(:email_archive_to_s3, new_value)
+          |> refresh_status()
+          |> put_flash(
+            :info,
+            if(new_value,
+              do: gettext("S3 archival enabled"),
+              else: gettext("S3 archival disabled")
+            )
+          )
+
+        {:noreply, socket}
+
+      {:error, _changeset} ->
+        {:noreply, put_flash(socket, :error, gettext("Failed to update S3 archival"))}
+    end
+  end
+
+  def handle_event("update_s3_bucket", params, socket) do
+    bucket = params |> Map.get("s3_bucket", "") |> String.trim()
+
+    case Emails.set_s3_bucket(bucket) do
+      {:ok, _} ->
+        socket =
+          socket
+          |> assign(:email_s3_bucket, bucket)
+          |> put_flash(
+            :info,
+            if(bucket == "",
+              do: gettext("S3 bucket cleared"),
+              else: gettext("S3 bucket set to %{bucket}", bucket: bucket)
+            )
+          )
+
+        {:noreply, socket}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, gettext("Failed to update S3 bucket"))}
+    end
+  end
+
+  def handle_event("update_s3_integration", params, socket) do
+    uuid = Map.get(params, "s3_integration", "")
+
+    case Emails.set_s3_integration(uuid) do
+      {:ok, _} ->
+        socket =
+          socket
+          |> assign(:email_s3_integration, uuid)
+          |> put_flash(
+            :info,
+            if(uuid == "",
+              do: gettext("Archive uploads will use the ambient AWS credentials"),
+              else: gettext("Archive uploads will use the selected connection")
+            )
+          )
+
+        {:noreply, socket}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, gettext("Failed to update the archive connection"))}
+    end
+  end
+
+  # Every AWS connection, not only the ones a SendProfile points at: an
+  # operator can reasonably keep archival on an account that sends no mail at
+  # all, and `AwsIntegrations.active_integrations_with_names/0` would hide it.
+  defp s3_connections do
+    "aws_ses"
+    |> PhoenixKit.Integrations.list_connections()
+    |> Enum.map(fn %{uuid: uuid} = conn -> {uuid, Map.get(conn, :name) || uuid} end)
+  rescue
+    _ -> []
   end
 end

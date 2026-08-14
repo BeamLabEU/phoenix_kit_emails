@@ -78,20 +78,44 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTrackingTest do
       assert html =~ ~s|phx-blur="update_compress_days"|
     end
 
-    test "S3 archival is shown as unavailable rather than as a working switch" do
+    test "S3 archival is a live switch now that the uploader is wired" do
       html = render_section()
 
       assert html =~ "Enable S3 Archival"
-      assert html =~ "In development"
-      assert html =~ "Not available yet"
 
-      # The uploader is not wired to anything, so the box must not be clickable
-      # — a toggle that flips and does nothing is worse than a disabled one.
+      refute html =~ "In development",
+             "the badge outlived the thing it described"
+
+      refute html =~ "Not available yet"
+
       assert [checkbox] =
                Regex.run(~r|<input type="checkbox"[^>]*archive_to_s3[^>]*>|, html) ||
                  Regex.run(~r|<input[^>]*name="email_tracking\[archive_to_s3\]"[^>]*>|, html)
 
-      assert checkbox =~ "disabled"
+      refute checkbox =~ "disabled"
+      assert checkbox =~ ~s|phx-click="toggle_s3_archival"|
+    end
+
+    test "the settings the feature needs appear only once it is switched on" do
+      refute render_section() =~ ~s|name="s3_bucket"|
+
+      {:ok, _} = Emails.set_s3_archival(true)
+      html = render_section()
+
+      assert html =~ "S3 Bucket"
+      assert html =~ ~s|name="s3_bucket"|
+      assert html =~ ~s|phx-blur="update_s3_bucket"|
+
+      assert html =~ ~s|name="s3_integration"|,
+             "without a credentials choice the upload falls back to ambient keys " <>
+               "with no way to say so from the UI"
+
+      assert html =~ ~s|phx-change="update_s3_integration"|
+
+      # The schedule lives in the host's crontab, and the page has no way to
+      # check it — saying so is the difference between an honest switch and one
+      # that implies a job nobody configured.
+      assert html =~ "ArchiveWorker"
     end
   end
 

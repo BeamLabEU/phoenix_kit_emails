@@ -122,7 +122,7 @@ msgid "How long to keep email tracking data before automatic cleanup (1-365 days
 msgstr "Kui kaua säilitada e-kirjade jälgimisandmeid enne automaatset puhastamist (1-365 päeva)"
 
 #: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:86
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:363
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:408
 #, elixir-autogen, elixir-format
 msgid "Data Privacy Notice"
 msgstr "Andmekaitse teade"
@@ -796,7 +796,7 @@ msgstr "E-kirjade mallid"
 msgid "Email actions"
 msgstr "Kirja toimingud"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:365
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:410
 #, elixir-autogen, elixir-format
 msgid "Email data will be automatically deleted after the retention period expires. This helps maintain privacy compliance and reduces storage requirements."
 msgstr "E-kirjade jälgimisandmed kustutatakse automaatselt pärast säilitusperioodi lõppu. See aitab säilitada privaatsuse vastavust ja vähendada salvestusruumi vajadust."
@@ -1944,32 +1944,32 @@ msgstr "AWS SES sündmuste jälgimine keelatud"
 msgid "AWS SES events tracking enabled"
 msgstr "AWS SES sündmuste jälgimine lubatud"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:277
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:280
 #, elixir-autogen, elixir-format
 msgid "Cleanup completed successfully! Deleted %{count} old email logs (older than %{days} days)."
 msgstr "Puhastus edukalt lõpetatud! Kustutati %{count} vana kirjakirjet (vanemad kui %{days} päeva)."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:293
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:296
 #, elixir-autogen, elixir-format
 msgid "Cleanup operation timed out. Please try again or run it manually via mix task."
 msgstr "Puhastusoperatsioon aegus. Proovige uuesti või käivitage käsitsi mix task abil."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:334
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:337
 #, elixir-autogen, elixir-format
 msgid "Compression completed! Compressed %{count} email bodies and freed up storage space."
 msgstr "Tihendamine lõpetatud! Tihendati %{count} kirja sisu ja vabastati salvestusruumi."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:327
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:330
 #, elixir-autogen, elixir-format
 msgid "Compression completed! Compressed %{count} email bodies, saved ~%{size} MB of storage."
 msgstr "Tihendamine lõpetatud! Tihendati %{count} kirja sisu, säästeti ~%{size} MB salvestusruumi."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:354
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:357
 #, elixir-autogen, elixir-format
 msgid "Compression operation timed out. Please try again or run it manually via mix task."
 msgstr "Tihendamise operatsioon aegus. Proovige uuesti või käivitage käsitsi mix task abil."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:235
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:238
 #, elixir-autogen, elixir-format
 msgid "Compression setting updated to %{days} days"
 msgstr "Tihendamise säte uuendati %{days} päevani"
@@ -1990,23 +1990,23 @@ msgid "Email address unblocked successfully"
 msgstr "E-posti aadress edukalt vabastatud"
 
 #: lib/phoenix_kit/modules/emails/web/email_tracking.ex:80
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:70
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:73
 #, elixir-autogen, elixir-format
 msgid "Email body saving disabled"
 msgstr "Kirja sisu salvestamine keelatud"
 
 #: lib/phoenix_kit/modules/emails/web/email_tracking.ex:79
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:69
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:72
 #, elixir-autogen, elixir-format
 msgid "Email body saving enabled"
 msgstr "Kirja sisu salvestamine lubatud"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:144
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:147
 #, elixir-autogen, elixir-format
 msgid "Email headers saving disabled"
 msgstr "Kirja päiste salvestamine keelatud"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:143
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:146
 #, elixir-autogen, elixir-format
 msgid "Email headers saving enabled"
 msgstr "Kirja päiste salvestamine lubatud"
@@ -2035,12 +2035,12 @@ msgid "Email queued for retry"
 msgstr "Kiri lisatud uuesti saatmise järjekorda"
 
 #: lib/phoenix_kit/modules/emails/web/email_tracking.ex:129
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:201
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:204
 #, elixir-autogen, elixir-format
 msgid "Email retention period updated to %{days} days"
 msgstr "Kirjade säilitusaeg uuendati %{days} päevani"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:171
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:174
 #, elixir-autogen, elixir-format
 msgid "Email sampling rate updated to %{rate}%"
 msgstr "Kirjade valimi määr uuendati %{rate}%-ni"
@@ -2086,12 +2086,12 @@ msgstr "Kirja andmete laadimine ebaõnnestus"
 msgid "Failed to retry email: %{reason}"
 msgstr "Kirja uuesti saatmine ebaõnnestus: %{reason}"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:306
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:309
 #, elixir-autogen, elixir-format
 msgid "Failed to run cleanup. Please check logs for details."
 msgstr "Puhastuse käivitamine ebaõnnestus. Üksikasjade jaoks vaadake logisid."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:367
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:370
 #, elixir-autogen, elixir-format
 msgid "Failed to run compression. Please check logs for details."
 msgstr "Tihendamise käivitamine ebaõnnestus. Üksikasjade jaoks vaadake logisid."
@@ -2117,29 +2117,29 @@ msgstr "SQS sõnumite maksimumi uuendamine ebaõnnestus"
 msgid "Failed to update SQS visibility timeout"
 msgstr "SQS nähtavuse aegumise uuendamine ebaõnnestus"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:244
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:247
 #, elixir-autogen, elixir-format
 msgid "Failed to update compression days"
 msgstr "Tihendamise päevade uuendamine ebaõnnestus"
 
 #: lib/phoenix_kit/modules/emails/web/email_tracking.ex:87
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:77
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:80
 #, elixir-autogen, elixir-format
 msgid "Failed to update email body saving setting"
 msgstr "Kirja sisu salvestamise sätte uuendamine ebaõnnestus"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:152
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:155
 #, elixir-autogen, elixir-format
 msgid "Failed to update email headers saving setting"
 msgstr "Kirja päiste salvestamise sätte uuendamine ebaõnnestus"
 
 #: lib/phoenix_kit/modules/emails/web/email_tracking.ex:135
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:207
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:210
 #, elixir-autogen, elixir-format
 msgid "Failed to update email retention period"
 msgstr "Kirjade säilitusaja uuendamine ebaõnnestus"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:177
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:180
 #, elixir-autogen, elixir-format
 msgid "Failed to update email sampling rate"
 msgstr "Kirjade valimi määra uuendamine ebaõnnestus"
@@ -2160,7 +2160,7 @@ msgstr "Sobimatu hulgitegevus"
 msgid "Invalid date range"
 msgstr "Sobimatu kuupäevavahemik"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:183
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:186
 #, elixir-autogen, elixir-format
 msgid "Please enter a valid number between 0 and 100"
 msgstr "Sisestage õige number vahemikus 0 kuni 100"
@@ -2171,7 +2171,7 @@ msgid "Please enter a valid number between 1 and 10"
 msgstr "Sisestage õige number vahemikus 1 kuni 10"
 
 #: lib/phoenix_kit/modules/emails/web/email_tracking.ex:141
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:213
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:216
 #, elixir-autogen, elixir-format
 msgid "Please enter a valid number between 1 and 365"
 msgstr "Sisestage õige number vahemikus 1 kuni 365"
@@ -2181,7 +2181,7 @@ msgstr "Sisestage õige number vahemikus 1 kuni 365"
 msgid "Please enter a valid number between 30 and 43200 seconds"
 msgstr "Sisestage õige number vahemikus 30 kuni 43200 sekundit"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:255
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:258
 #, elixir-autogen, elixir-format
 msgid "Please enter a valid number between 7 and 365"
 msgstr "Sisestage õige number vahemikus 7 kuni 365"
@@ -2408,7 +2408,7 @@ msgstr "Kuupäev"
 msgid "Default"
 msgstr "Lähtesta"
 
-#: lib/phoenix_kit/modules/emails/emails.ex:1066
+#: lib/phoenix_kit/modules/emails/emails.ex:1067
 #, elixir-autogen, elixir-format
 msgid "Delivery Event Tracking"
 msgstr "Kohaletoimetamise sündmuste jälgimine"
@@ -2438,7 +2438,7 @@ msgstr "E-kiri #%{uuid}"
 msgid "Email Template"
 msgstr "E-kirja mall"
 
-#: lib/phoenix_kit/modules/emails/emails.ex:1060
+#: lib/phoenix_kit/modules/emails/emails.ex:1061
 #, elixir-autogen, elixir-format
 msgid "Email Tracking"
 msgstr "E-kirjade jälgimine"
@@ -2742,11 +2742,6 @@ msgstr "Selle konto jaoks loodi AWS-i taristu"
 msgid "AWS setup failed at step %{step}: %{reason}"
 msgstr "AWS seadistamine ebaõnnestus sammul %{step}: %{reason}"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:511
-#, elixir-autogen, elixir-format
-msgid "AWS setup failed: %{reason}"
-msgstr "AWS seadistamine ebaõnnestus: %{reason}"
-
 #: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.ex:145
 #, elixir-autogen, elixir-format
 msgid "Account added to event tracking"
@@ -2793,12 +2788,12 @@ msgstr "Rakenduse seadistus: %{adapter}"
 msgid "Assign"
 msgstr "Määra"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:118
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:121
 #, elixir-autogen, elixir-format
 msgid "Authentication emails are now queued"
 msgstr "Autentimiskirjad lähevad nüüd järjekorda"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:119
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:122
 #, elixir-autogen, elixir-format
 msgid "Authentication emails are now sent immediately"
 msgstr "Autentimiskirjad saadetakse nüüd kohe"
@@ -2858,12 +2853,12 @@ msgstr "Konto eemaldamine ebaõnnestus"
 msgid "Failed to save account settings"
 msgstr "Konto seadete salvestamine ebaõnnestus"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:127
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:130
 #, elixir-autogen, elixir-format
 msgid "Failed to update the authentication mail setting"
 msgstr "Autentimiskirjade sätte uuendamine ebaõnnestus"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:103
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:106
 #, elixir-autogen, elixir-format
 msgid "Failed to update the send queue setting"
 msgstr "Saatmisjärjekorra sätte uuendamine ebaõnnestus"
@@ -2933,12 +2928,12 @@ msgstr "Väljas — saadetakse otse"
 msgid "On — %{pending} waiting, %{executing} sending, %{retryable} retrying"
 msgstr "Sees — %{pending} ootel, %{executing} saatmisel, %{retryable} korduskatsel"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:95
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:98
 #, elixir-autogen, elixir-format
 msgid "Outgoing emails are now queued"
 msgstr "Väljuvad kirjad lähevad nüüd järjekorda"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:96
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:99
 #, elixir-autogen, elixir-format
 msgid "Outgoing emails are now sent immediately"
 msgstr "Väljuvad kirjad saadetakse nüüd kohe"
@@ -3073,16 +3068,6 @@ msgstr "— määramata —"
 msgid "— select an Amazon SES connection —"
 msgstr "— vali Amazon SES ühendus —"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:351
-#, elixir-autogen, elixir-format
-msgid "In development"
-msgstr "Arenduses"
-
-#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:354
-#, elixir-autogen, elixir-format
-msgid "Not available yet: nothing is uploaded to S3. Retention cleanup below already removes old records."
-msgstr "Pole veel saadaval: S3-sse ei laadita midagi. Vanade kirjete eemaldamisega tegeleb juba allpool olev puhastus."
-
 #: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.html.heex:36
 #: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.html.heex:37
 #, elixir-autogen, elixir-format
@@ -3156,3 +3141,80 @@ msgstr "Seadistatud on üks ühine järjekord, kuid e-posti süsteem on välja l
 #, elixir-autogen, elixir-format
 msgid "This queue is no longer configured — reload the page to see the current setup: %{url}"
 msgstr "See järjekord ei ole enam seadistatud — värskenda lehte, et näha praegust seadistust: %{url}"
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:435
+#, elixir-autogen, elixir-format
+msgid "Archive uploads will use the ambient AWS credentials"
+msgstr "Arhiivide üleslaadimine kasutab keskkonnast leitud AWS-i mandaate"
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:436
+#, elixir-autogen, elixir-format
+msgid "Archive uploads will use the selected connection"
+msgstr "Arhiivide üleslaadimine kasutab valitud ühendust"
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:367
+#, elixir-autogen, elixir-format
+msgid "Archives are written under the email-logs/ prefix. Leave empty to unset."
+msgstr "Arhiivid kirjutatakse prefiksiga email-logs/. Tühjendamiseks jäta väli tühjaks."
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:398
+#, elixir-autogen, elixir-format
+msgid "Archiving runs from the host's Oban schedule (PhoenixKit.Modules.Emails.ArchiveWorker, hourly). Without that crontab entry nothing is uploaded. While archival is on, retention cleanup keeps rows that have not been archived yet."
+msgstr "Arhiveerimine käivitub rakenduse Obani ajakavast (PhoenixKit.Modules.Emails.ArchiveWorker, kord tunnis). Ilma selle crontab-kirjeta ei laadita midagi üles. Kuni arhiveerimine on sees, ei kustuta säilitusaja puhastus ridu, mida pole veel arhiveeritud."
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:372
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:376
+#, elixir-autogen, elixir-format
+msgid "Credentials for uploads"
+msgstr "Üleslaadimise mandaadid"
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:381
+#, elixir-autogen, elixir-format
+msgid "Environment or instance role"
+msgstr "Keskkonnamuutujad või instantsi roll"
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:397
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed to update S3 archival"
+msgstr "%{label} jälgimise uuendamine ebaõnnestus"
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:420
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed to update S3 bucket"
+msgstr "Tabeli veergude uuendamine ebaõnnestus"
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:443
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed to update the archive connection"
+msgstr "Kirjade säilitusaja uuendamine ebaõnnestus"
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:355
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:361
+#, elixir-autogen, elixir-format
+msgid "S3 Bucket"
+msgstr "S3 ämber"
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:390
+#, elixir-autogen, elixir-format
+msgid "S3 archival disabled"
+msgstr "S3 arhiveerimine on välja lülitatud"
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:389
+#, elixir-autogen, elixir-format
+msgid "S3 archival enabled"
+msgstr "S3 arhiveerimine on sisse lülitatud"
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:412
+#, elixir-autogen, elixir-format
+msgid "S3 bucket cleared"
+msgstr "S3 ämber on tühjendatud"
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.ex:413
+#, elixir-autogen, elixir-format
+msgid "S3 bucket set to %{bucket}"
+msgstr "S3 ämber: %{bucket}"
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/email_tracking.html.heex:389
+#, elixir-autogen, elixir-format
+msgid "Which AWS connection signs the upload. Leave on the default to use environment keys or an instance role."
+msgstr "Milline AWS-i ühendus üleslaadimise allkirjastab. Vaikeväärtuse puhul kasutatakse keskkonna võtmeid või instantsi rolli."
