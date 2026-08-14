@@ -1,5 +1,125 @@
 # Changelog
 
+## 0.4.0 - 2026-08-14
+
+### Upgrading — read this first
+
+This release adds two columns to `phoenix_kit_email_logs` (`archived_at`,
+`s3_key` — Emails V2), and the schema in the code expects them. **Migrate
+before you restart**, not after:
+
+```
+mix phoenix_kit.update --yes   # applies the module chain through Emails V2
+# ...then restart the application
+```
+
+Restarting first leaves the running code selecting columns the database does
+not have. Both statements are `IF NOT EXISTS` and the new columns are
+nullable without a default, so a host that has already run them is
+unaffected. The new partial index is empty on upgrade — every existing row
+is genuinely unarchived.
+
+S3 archival also needs a host-side Oban queue and Cron entry. The settings
+toggle does nothing without them; the page says so rather than implying a
+schedule that does not exist. Add both (and merge, do not replace, your
+existing `plugins:` list):
+
+```
+config :your_app, Oban,
+  queues: [
+    email_archival: 1
+    # ... your other queues
+  ],
+  plugins: [
+    {Oban.Plugins.Cron,
+     crontab: [
+       {"0 * * * *", PhoenixKit.Modules.Emails.ArchiveWorker}
+     ]}
+  ]
+```
+
+See `PhoenixKit.Modules.Emails.ArchiveWorker` and
+`mix phoenix_kit_emails.install`.
+
+### Added
+
+- **S3 archival is a real feature.** `Emails.archive_to_s3/1` used to select
+  the rows and return them with a comment that the upload "would be
+  implemented in a separate Archiver module". The Archiver had been there
+  all along and was called by nothing. It is wired up now:
+
+  * events are written *beside* the log, not on `log.events` — `Log`
+    derives `JSON.Encoder` with `except: [..., :events]`, so every archive
+    written with `include_events: true` previously contained none;
+  * the object is labelled `application/json` / `text/csv`, not
+    `application/gzip` over an uncompressed body;
+  * credentials come from a chosen Integrations connection
+    (`email_s3_integration`); an unset one falls through to the ExAws
+    chain (environment, instance profile, task role);
+  * a blank bucket is unset, not a bucket named `""`;
+  * each batch is its own short unit (select → upload → stamp) instead of
+    holding a `Repo.stream` transaction open across S3 calls.
+
+- **`ArchiveWorker`** — hourly Oban Cron, the first thing that ever calls
+  the archiver on its own. No-ops when the system, the feature, or the
+  bucket is absent. `unique: [period: :infinity, states: :incomplete]`
+  stops a slow run being joined by the next tick.
+
+- **Migrations V2** — nullable `archived_at` + `s3_key` on
+  `phoenix_kit_email_logs`, plus a partial index on stamped rows. Without
+  them the only record of a successful upload was the row's deletion, so a
+  run configured to keep its rows re-uploaded the same messages every pass.
+
+- **Settings UI** — live S3 toggle, bucket field, and credentials picker
+  on the Email Tracking section. The "In development" badge is gone.
+
+- Retention cleanup and archival share `email_retention_days`. While
+  archival is *runnable* (enabled and pointed at a bucket), cleanup skips
+  unstamped rows — archive, then delete. A half-configured toggle no
+  longer disables a working retention policy.
+
+### Changed
+
+- **daisyUI 5 fieldset sweep** (#34). The six templates still on
+  `<div class="fieldset">` + `<label class="label">` are real
+  `<fieldset>` / `<legend>` now; visible controls have `aria-label`;
+  modal validation messages are bound with `aria-describedby` /
+  `aria-invalid`. Dead v4 classes (`form-control`, `label-text`,
+  `input-group`, `btn-group`) no longer silently unstyle those pages.
+
+- A pinned `up(version: 1)` now emits V1's objects only. Owned columns
+  and indexes carry the version that introduced them.
+
+- Archive object keys are a date hierarchy
+  (`email-logs/2026/08/14/090703-ab12cd34.json`) instead of an ISO-8601
+  timestamp with colons in the name.
+
+### Fixed
+
+- **The bucket field deleted what you typed into it.** `phx-blur` sends
+  the value under `"value"`, not the element's name; blank means clear, so
+  every blur wiped the setting. The connection picker was a silent no-op
+  for the same reason.
+
+- **Retention blur on the Email Tracking page resubmitted the stored
+  assign** rather than the typed value (#34 follow-up).
+
+### Fixed (review follow-ups, #35)
+
+- **`object_path/1` was never called.** The helper and its test landed;
+  the upload path still interpolated `DateTime.to_iso8601/1`. Keys are
+  built through `object_key/4` now.
+
+- **`ArchiveWorker` uniqueness expired after one hour.** `period: 3600`
+  is checked against `inserted_at`, so a backlog still running at T+3601s
+  was no longer unique and the next cron tick uploaded the same unstamped
+  rows again. `period: :infinity` with `states: :incomplete`, matching
+  every other worker in this package.
+
+- **`bucket: ""` as an opt still counted as a bucket.** Empty string is
+  truthy, so an explicit blank override skipped the settings fallback and
+  then passed `if bucket do`.
+
 ## 0.3.0 - 2026-08-13
 
 ### Upgrading — read this first
