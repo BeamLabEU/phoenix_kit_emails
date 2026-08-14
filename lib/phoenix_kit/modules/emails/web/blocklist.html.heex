@@ -61,7 +61,7 @@
                 type="email"
                 name="email"
                 placeholder="blocked@example.com"
-                class="input"
+                class="input w-full"
                 aria-label={gettext("Email Address")}
                 required
               />
@@ -69,7 +69,7 @@
 
             <fieldset class="fieldset">
               <legend class="fieldset-legend">{gettext("Reason")}</legend>
-              <label class="select">
+              <label class="select w-full">
                 <select name="reason" aria-label={gettext("Reason")} required>
                   <option value="manual_block">{gettext("Manual Block")}</option>
                   <option value="spam">{gettext("Spam")}</option>
@@ -85,7 +85,7 @@
               <input
                 type="date"
                 name="expires_at"
-                class="input"
+                class="input w-full"
                 aria-label={gettext("Expires At (Optional)")}
               />
             </fieldset>
@@ -130,13 +130,12 @@
               <legend class="fieldset-legend">{gettext("CSV Content")}</legend>
               <textarea
                 name="csv_content"
-                class="textarea font-mono"
+                class="textarea font-mono w-full"
                 rows="8"
                 aria-label={gettext("CSV Content")}
                 placeholder="email,reason,expires_at&#10;spam@example.com,spam,&#10;abuse@test.com,abuse,2025-12-31"
                 required
-              >
-                  </textarea>
+              ></textarea>
             </fieldset>
 
             <div class="flex justify-end gap-2 mt-4">
@@ -339,6 +338,7 @@
                   value={@search_term}
                   class="grow"
                   placeholder={gettext("Search email...")}
+                  aria-label={gettext("Search email...")}
                   phx-debounce="300"
                 />
                 <button

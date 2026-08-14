@@ -116,7 +116,13 @@ defmodule PhoenixKit.Modules.Emails.Web.EmailTracking do
     end
   end
 
-  def handle_event("update_email_tracking_retention", %{"retention_days" => value}, socket) do
+  def handle_event("update_email_tracking_retention", params, socket) do
+    # LiveView's phx-blur payload is the typed value under "value". A name=
+    # attribute also copies it to "retention_days". Never read a phx-value-*
+    # of the current assign — that resubmits the previous number and the
+    # field cannot change.
+    value = Map.get(params, "retention_days") || Map.get(params, "value") || ""
+
     case Integer.parse(value) do
       {retention_days, _} when retention_days > 0 and retention_days <= 365 ->
         case Emails.set_retention_days(retention_days) do

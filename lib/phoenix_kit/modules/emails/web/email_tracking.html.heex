@@ -77,13 +77,13 @@
               <label class="input w-full max-w-xs">
                 <input
                   type="number"
+                  name="retention_days"
                   placeholder={gettext("Enter retention days")}
                   aria-label={gettext("Email Retention Period")}
                   value={@email_tracking_retention_days}
                   min="1"
                   max="365"
                   phx-blur="update_email_tracking_retention"
-                  phx-value-retention_days={assigns[:email_tracking_retention_days]}
                 />
                 <span class="label">{gettext("days")}</span>
               </label>

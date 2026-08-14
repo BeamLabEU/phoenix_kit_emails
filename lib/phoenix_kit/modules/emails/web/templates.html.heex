@@ -310,6 +310,7 @@
                     value={@filters.search}
                     class="grow"
                     placeholder={gettext("Search...")}
+                    aria-label={gettext("Search...")}
                     phx-debounce="300"
                   />
                   <button
@@ -572,9 +573,8 @@
         >
           <%!-- `.label` in v5 is the muted addon that belongs inside a control;
                on its own it binds to nothing and dims its text. Real
-               fieldset/legend, an `aria-label` per field (the legend names the
-               group, not the control), and the error tied to its input through
-               `aria-describedby` instead of mere proximity. --%>
+               fieldset/legend, an `aria-label` per field, and the error tied
+               to its input through `aria-describedby`. --%>
           <fieldset class="fieldset">
             <legend class="fieldset-legend">{gettext("New Template Name")}</legend>
             <input

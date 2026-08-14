@@ -289,6 +289,7 @@
                   value={@filters.search}
                   class="grow"
                   placeholder={gettext("Search...")}
+                  aria-label={gettext("Search...")}
                   phx-debounce="300"
                 />
                 <button
@@ -611,11 +612,9 @@
           phx-change="validate_test_email"
           class="space-y-4"
         >
-          <%!-- The error text used to be a second `.label` floating after the
-               field, tied to it by proximity alone. As a `fieldset-label`
-               referenced through `aria-describedby` (and with `aria-invalid`
-               set) it is announced with the field that failed, not read as a
-               stray line. --%>
+          <%!-- Error text used to be a second `.label` after the field, tied
+               to it by proximity. Bound through `aria-describedby` /
+               `aria-invalid` so it is announced with the field that failed. --%>
           <fieldset class="fieldset">
             <legend class="fieldset-legend">{gettext("Recipient Email Address")}</legend>
             <input

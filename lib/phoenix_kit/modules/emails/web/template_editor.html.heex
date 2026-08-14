@@ -26,18 +26,22 @@
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <fieldset class="fieldset">
                   <legend class="fieldset-legend">{gettext("Template Name")}</legend>
+                  <% name_err = @changeset.action && Keyword.get(@changeset.errors, :name) %>
                   <input
                     aria-label={gettext("Template Name")}
+                    aria-invalid={name_err && "true"}
+                    aria-describedby={name_err && "template-name-error"}
                     type="text"
                     name="email_template[name]"
                     value={Ecto.Changeset.get_field(@changeset, :name)}
                     placeholder="welcome_email"
-                    class="input"
+                    class="input w-full"
                     disabled={(@mode == :edit and @template) && @template.is_system}
                   />
-                  <% err = @changeset.action && Keyword.get(@changeset.errors, :name) %>
-                  <%= if err do %>
-                    <div class="text-sm text-error mt-1">{elem(err, 0)}</div>
+                  <%= if name_err do %>
+                    <p id="template-name-error" class="text-sm text-error mt-1">
+                      {elem(name_err, 0)}
+                    </p>
                   <% end %>
                 </fieldset>
 
@@ -56,8 +60,12 @@
                       }
                     />
                   <% end %>
+                  <% display_name_err =
+                    @changeset.action && Keyword.get(@changeset.errors, :display_name) %>
                   <input
                     aria-label={gettext("Display Name")}
+                    aria-invalid={display_name_err && "true"}
+                    aria-describedby={display_name_err && "template-display-name-error"}
                     type="text"
                     name={"email_template[display_name][#{@current_editor_locale}]"}
                     value={
@@ -67,29 +75,34 @@
                       )
                     }
                     placeholder="Welcome Email"
-                    class="input"
+                    class="input w-full"
                   />
-                  <% err = @changeset.action && Keyword.get(@changeset.errors, :display_name) %>
-                  <%= if err do %>
-                    <div class="text-sm text-error mt-1">{elem(err, 0)}</div>
+                  <%= if display_name_err do %>
+                    <p id="template-display-name-error" class="text-sm text-error mt-1">
+                      {elem(display_name_err, 0)}
+                    </p>
                   <% end %>
                 </fieldset>
               </div>
 
               <fieldset class="fieldset">
                 <legend class="fieldset-legend">{gettext("Slug")}</legend>
+                <% slug_err = @changeset.action && Keyword.get(@changeset.errors, :slug) %>
                 <input
                   aria-label={gettext("Slug")}
+                  aria-invalid={slug_err && "true"}
+                  aria-describedby={slug_err && "template-slug-error"}
                   type="text"
                   name="email_template[slug]"
                   value={Ecto.Changeset.get_field(@changeset, :slug)}
                   placeholder="welcome-email"
-                  class="input"
+                  class="input w-full"
                   disabled={(@mode == :edit and @template) && @template.is_system}
                 />
-                <% err = @changeset.action && Keyword.get(@changeset.errors, :slug) %>
-                <%= if err do %>
-                  <div class="text-sm text-error mt-1">{elem(err, 0)}</div>
+                <%= if slug_err do %>
+                  <p id="template-slug-error" class="text-sm text-error mt-1">
+                    {elem(slug_err, 0)}
+                  </p>
                 <% end %>
                 <p class="fieldset-label">
                     {gettext("URL-friendly identifier (auto-generated from name if left empty)")}
@@ -99,9 +112,12 @@
               <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <fieldset class="fieldset">
                   <legend class="fieldset-legend">{gettext("Category")}</legend>
-                  <label class="select">
+                  <% category_err = @changeset.action && Keyword.get(@changeset.errors, :category) %>
+                  <label class="select w-full">
                     <select
                       aria-label={gettext("Category")}
+                      aria-invalid={category_err && "true"}
+                      aria-describedby={category_err && "template-category-error"}
                       name="email_template[category]"
                       disabled={(@mode == :edit and @template) && @template.is_system}
                     >
@@ -139,9 +155,10 @@
                       </option>
                     </select>
                   </label>
-                  <% err = @changeset.action && Keyword.get(@changeset.errors, :category) %>
-                  <%= if err do %>
-                    <div class="text-sm text-error mt-1">{elem(err, 0)}</div>
+                  <%= if category_err do %>
+                    <p id="template-category-error" class="text-sm text-error mt-1">
+                      {elem(category_err, 0)}
+                    </p>
                   <% end %>
                 </fieldset>
 
@@ -149,7 +166,7 @@
                   <legend class="fieldset-legend">{gettext("Source Module")}</legend>
                   <% current_metadata = Ecto.Changeset.get_field(@changeset, :metadata) || %{} %>
                   <% current_source_module = Map.get(current_metadata, "source_module", "custom") %>
-                  <label class="select">
+                  <label class="select w-full">
                     <select
                       aria-label={gettext("Source Module")}
                       name="email_template[metadata][source_module]"
@@ -179,9 +196,12 @@
 
                 <fieldset class="fieldset">
                   <legend class="fieldset-legend">{gettext("Status")}</legend>
-                  <label class="select">
+                  <% status_err = @changeset.action && Keyword.get(@changeset.errors, :status) %>
+                  <label class="select w-full">
                     <select
                       aria-label={gettext("Status")}
+                      aria-invalid={status_err && "true"}
+                      aria-describedby={status_err && "template-status-error"}
                       name="email_template[status]"
                     >
                       <option
@@ -204,9 +224,10 @@
                       </option>
                     </select>
                   </label>
-                  <% err = @changeset.action && Keyword.get(@changeset.errors, :status) %>
-                  <%= if err do %>
-                    <div class="text-sm text-error mt-1">{elem(err, 0)}</div>
+                  <%= if status_err do %>
+                    <p id="template-status-error" class="text-sm text-error mt-1">
+                      {elem(status_err, 0)}
+                    </p>
                   <% end %>
                 </fieldset>
               </div>
@@ -217,16 +238,21 @@
                 <%= for locale <- @available_locales, locale != @current_editor_locale do %>
                   <textarea name={"email_template[description][#{locale}]"} hidden><%= PhoenixKit.Modules.Emails.Template.get_translation(Ecto.Changeset.get_field(@changeset, :description) || %{}, locale) %></textarea>
                 <% end %>
+                <% description_err =
+                  @changeset.action && Keyword.get(@changeset.errors, :description) %>
                 <textarea
                   aria-label={gettext("Description (Optional)")}
+                  aria-invalid={description_err && "true"}
+                  aria-describedby={description_err && "template-description-error"}
                   name={"email_template[description][#{@current_editor_locale}]"}
                   placeholder={gettext("Brief description of this template...")}
-                  class="textarea"
+                  class="textarea w-full"
                   rows="2"
                 ><%= PhoenixKit.Modules.Emails.Template.get_translation(Ecto.Changeset.get_field(@changeset, :description) || %{}, @current_editor_locale) %></textarea>
-                <% err = @changeset.action && Keyword.get(@changeset.errors, :description) %>
-                <%= if err do %>
-                  <div class="text-sm text-error mt-1">{elem(err, 0)}</div>
+                <%= if description_err do %>
+                  <p id="template-description-error" class="text-sm text-error mt-1">
+                    {elem(description_err, 0)}
+                  </p>
                 <% end %>
               </fieldset>
             </div>
@@ -269,8 +295,11 @@
                     }
                   />
                 <% end %>
+                <% subject_err = @changeset.action && Keyword.get(@changeset.errors, :subject) %>
                 <input
                   aria-label={gettext("Subject Line")}
+                  aria-invalid={subject_err && "true"}
+                  aria-describedby={subject_err && "template-subject-error"}
                   type="text"
                   name={"email_template[subject][#{@current_editor_locale}]"}
                   value={
@@ -280,11 +309,12 @@
                     )
                   }
                   placeholder={"Welcome to {{app_name}}! (#{String.upcase(@current_editor_locale)})"}
-                  class="input"
+                  class="input w-full"
                 />
-                <% err = @changeset.action && Keyword.get(@changeset.errors, :subject) %>
-                <%= if err do %>
-                  <div class="text-sm text-error mt-1">{elem(err, 0)}</div>
+                <%= if subject_err do %>
+                  <p id="template-subject-error" class="text-sm text-error mt-1">
+                    {elem(subject_err, 0)}
+                  </p>
                 <% end %>
                 <p class="fieldset-label">
                     {Phoenix.HTML.raw(
@@ -301,16 +331,20 @@
                 <%= for locale <- @available_locales, locale != @current_editor_locale do %>
                   <textarea name={"email_template[html_body][#{locale}]"} hidden><%= PhoenixKit.Modules.Emails.Template.get_translation(Ecto.Changeset.get_field(@changeset, :html_body) || %{}, locale) %></textarea>
                 <% end %>
+                <% html_body_err = @changeset.action && Keyword.get(@changeset.errors, :html_body) %>
                 <textarea
                   aria-label={gettext("HTML Body")}
+                  aria-invalid={html_body_err && "true"}
+                  aria-describedby={html_body_err && "template-html-body-error"}
                   name={"email_template[html_body][#{@current_editor_locale}]"}
-                  class="textarea font-mono"
+                  class="textarea font-mono w-full"
                   rows="12"
                   placeholder={"<h1>Welcome {{user_name}}!</h1> (#{String.upcase(@current_editor_locale)})"}
                 ><%= PhoenixKit.Modules.Emails.Template.get_translation(Ecto.Changeset.get_field(@changeset, :html_body) || %{}, @current_editor_locale) %></textarea>
-                <% err = @changeset.action && Keyword.get(@changeset.errors, :html_body) %>
-                <%= if err do %>
-                  <div class="text-sm text-error mt-1">{elem(err, 0)}</div>
+                <%= if html_body_err do %>
+                  <p id="template-html-body-error" class="text-sm text-error mt-1">
+                    {elem(html_body_err, 0)}
+                  </p>
                 <% end %>
               </fieldset>
 
@@ -320,16 +354,20 @@
                 <%= for locale <- @available_locales, locale != @current_editor_locale do %>
                   <textarea name={"email_template[text_body][#{locale}]"} hidden><%= PhoenixKit.Modules.Emails.Template.get_translation(Ecto.Changeset.get_field(@changeset, :text_body) || %{}, locale) %></textarea>
                 <% end %>
+                <% text_body_err = @changeset.action && Keyword.get(@changeset.errors, :text_body) %>
                 <textarea
                   aria-label={gettext("Text Body")}
+                  aria-invalid={text_body_err && "true"}
+                  aria-describedby={text_body_err && "template-text-body-error"}
                   name={"email_template[text_body][#{@current_editor_locale}]"}
-                  class="textarea font-mono"
+                  class="textarea font-mono w-full"
                   rows="8"
                   placeholder={"Welcome {{user_name}}! (#{String.upcase(@current_editor_locale)})"}
                 ><%= PhoenixKit.Modules.Emails.Template.get_translation(Ecto.Changeset.get_field(@changeset, :text_body) || %{}, @current_editor_locale) %></textarea>
-                <% err = @changeset.action && Keyword.get(@changeset.errors, :text_body) %>
-                <%= if err do %>
-                  <div class="text-sm text-error mt-1">{elem(err, 0)}</div>
+                <%= if text_body_err do %>
+                  <p id="template-text-body-error" class="text-sm text-error mt-1">
+                    {elem(text_body_err, 0)}
+                  </p>
                 <% end %>
               </fieldset>
             </div>
@@ -361,12 +399,15 @@
                   <%= for {name, description} <- Ecto.Changeset.get_field(@changeset, :variables) || %{} do %>
                     <div class="flex items-start gap-2 p-3 bg-base-200 rounded">
                       <div class="flex-shrink-0 pt-2">
-                        <span class="font-mono text-sm font-semibold">{"{{#{name}}}"}</span>
+                        <span id={"var-name-#{name}"} class="font-mono text-sm font-semibold">
+                          {"{{#{name}}}"}
+                        </span>
                       </div>
                       <div class="flex-1">
                         <input
                           type="text"
                           value={description}
+                          aria-labelledby={"var-name-#{name}"}
                           placeholder={gettext("Description for this variable...")}
                           class="input input-sm w-full"
                           phx-change="update_variable_description"
@@ -469,13 +510,13 @@
           <div class="card-body">
             <div class="flex items-center justify-between mb-4">
               <h2 class="card-title text-lg">{gettext("Live Preview")}</h2>
-              <div class="btn-group">
+              <div class="join">
                 <button
                   type="button"
                   phx-click="switch_preview"
                   phx-value-mode="html"
                   class={[
-                    "btn btn-sm",
+                    "btn btn-sm join-item",
                     @preview_mode == "html" && "btn-active"
                   ]}
                 >
@@ -486,7 +527,7 @@
                   phx-click="switch_preview"
                   phx-value-mode="text"
                   class={[
-                    "btn btn-sm",
+                    "btn btn-sm join-item",
                     @preview_mode == "text" && "btn-active"
                   ]}
                 >
