@@ -249,28 +249,31 @@
                   class="dropdown-content z-20 w-64 p-4 shadow bg-base-100 rounded-box border border-base-200"
                 >
                   <.form for={%{}} phx-change="filter" class="space-y-3">
-                    <div class="fieldset">
-                      <label class="label py-1">
-                        <span class="fieldset-legend text-xs">{gettext("From Date")}</span>
-                      </label>
+                    <%!-- `.label` in v5 is the muted addon that lives inside a
+                         control, so on its own it neither binds to the field
+                         nor renders at full contrast. Real fieldset/legend,
+                         plus an `aria-label` per input since a legend names the
+                         group and not the control. --%>
+                    <fieldset class="fieldset">
+                      <legend class="fieldset-legend text-xs">{gettext("From Date")}</legend>
                       <input
                         type="date"
                         name="filter[from_date]"
                         value={@filters.from_date}
+                        aria-label={gettext("From Date")}
                         class="input input-sm w-full"
                       />
-                    </div>
-                    <div class="fieldset">
-                      <label class="label py-1">
-                        <span class="fieldset-legend text-xs">{gettext("To Date")}</span>
-                      </label>
+                    </fieldset>
+                    <fieldset class="fieldset">
+                      <legend class="fieldset-legend text-xs">{gettext("To Date")}</legend>
                       <input
                         type="date"
                         name="filter[to_date]"
                         value={@filters.to_date}
+                        aria-label={gettext("To Date")}
                         class="input input-sm w-full"
                       />
-                    </div>
+                    </fieldset>
                   </.form>
                 </div>
               </div>
@@ -608,15 +611,23 @@
           phx-change="validate_test_email"
           class="space-y-4"
         >
-          <div class="fieldset">
-            <label class="label">
-              <span class="fieldset-legend">{gettext("Recipient Email Address")}</span>
-            </label>
+          <%!-- The error text used to be a second `.label` floating after the
+               field, tied to it by proximity alone. As a `fieldset-label`
+               referenced through `aria-describedby` (and with `aria-invalid`
+               set) it is announced with the field that failed, not read as a
+               stray line. --%>
+          <fieldset class="fieldset">
+            <legend class="fieldset-legend">{gettext("Recipient Email Address")}</legend>
             <input
               type="email"
               name="test_email[recipient]"
               value={@test_email_form[:recipient] || ""}
               placeholder="admin@example.com"
+              aria-label={gettext("Recipient Email Address")}
+              aria-invalid={@test_email_form[:errors][:recipient] && "true"}
+              aria-describedby={
+                @test_email_form[:errors][:recipient] && "test-email-recipient-error"
+              }
               class={[
                 "input w-full",
                 @test_email_form[:errors][:recipient] && "input-error"
@@ -624,13 +635,11 @@
               required
             />
             <%= if @test_email_form[:errors][:recipient] do %>
-              <label class="label">
-                <span class="fieldset-label text-error">
-                  {@test_email_form[:errors][:recipient]}
-                </span>
-              </label>
+              <p id="test-email-recipient-error" class="fieldset-label text-error">
+                {@test_email_form[:errors][:recipient]}
+              </p>
             <% end %>
-          </div>
+          </fieldset>
 
           <div class="alert alert-info">
             <.icon name="hero-information-circle" class="w-5 h-5" />
