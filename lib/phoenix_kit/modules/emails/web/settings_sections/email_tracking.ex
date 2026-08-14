@@ -399,7 +399,13 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTracking do
   end
 
   def handle_event("update_s3_bucket", params, socket) do
-    bucket = params |> Map.get("s3_bucket", "") |> String.trim()
+    # `phx-blur` sends the element's value under "value", not under its name —
+    # reading only "s3_bucket" got `nil` on every blur and cleared the setting
+    # the operator had just typed. The three fields above this one already read
+    # both keys; this one has to as well.
+    bucket =
+      (Map.get(params, "s3_bucket") || Map.get(params, "value") || "")
+      |> String.trim()
 
     case Emails.set_s3_bucket(bucket) do
       {:ok, _} ->
@@ -422,7 +428,9 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTracking do
   end
 
   def handle_event("update_s3_integration", params, socket) do
-    uuid = Map.get(params, "s3_integration", "")
+    # Same shape problem: a `phx-change` on a <select> outside a form sends
+    # `%{"value" => uuid}`.
+    uuid = Map.get(params, "s3_integration") || Map.get(params, "value") || ""
 
     case Emails.set_s3_integration(uuid) do
       {:ok, _} ->

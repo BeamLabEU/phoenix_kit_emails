@@ -19,6 +19,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTrackingTest do
 
   alias PhoenixKit.Modules.Emails
   alias PhoenixKit.Modules.Emails.Queue
+  alias PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTracking
 
   describe "the section renders" do
     test "with no email settings at all" do
@@ -183,5 +184,74 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTrackingTest do
       %{id: "email-tracking"},
       endpoint: PhoenixKitEmails.Test.StubEndpoint
     )
+  end
+
+  describe "the S3 handlers accept the payload LiveView actually sends" do
+    # `phx-blur` and a form-less `phx-change` send the element's value under
+    # "value", not under the element's name. Reading only the name key meant
+    # every blur wrote `""` — which, since blank clears, deleted the bucket the
+    # operator had just typed. Both shapes are asserted so neither regresses.
+    setup do
+      socket = %Phoenix.LiveView.Socket{
+        assigns: %{
+          __changed__: %{},
+          flash: %{},
+          email_archive_to_s3: false,
+          email_s3_bucket: "",
+          email_s3_integration: ""
+        }
+      }
+
+      %{socket: socket}
+    end
+
+    test "the bucket is saved from the \"value\" key", %{socket: socket} do
+      {:noreply, socket} =
+        EmailTracking.handle_event("update_s3_bucket", %{"value" => "archive-bucket"}, socket)
+
+      assert socket.assigns.email_s3_bucket == "archive-bucket"
+      assert Emails.get_s3_bucket() == "archive-bucket"
+    end
+
+    test "the bucket is saved from the named key too", %{socket: socket} do
+      {:noreply, _socket} =
+        EmailTracking.handle_event("update_s3_bucket", %{"s3_bucket" => "named-bucket"}, socket)
+
+      assert Emails.get_s3_bucket() == "named-bucket"
+    end
+
+    test "a blank value clears the bucket rather than failing", %{socket: socket} do
+      {:ok, _} = Emails.set_s3_bucket("to-be-cleared")
+
+      {:noreply, socket} =
+        EmailTracking.handle_event("update_s3_bucket", %{"value" => "  "}, socket)
+
+      assert socket.assigns.email_s3_bucket == ""
+      assert Emails.get_s3_bucket() == nil
+    end
+
+    test "the connection is saved from the \"value\" key", %{socket: socket} do
+      {:noreply, socket} =
+        EmailTracking.handle_event("update_s3_integration", %{"value" => "some-uuid"}, socket)
+
+      assert socket.assigns.email_s3_integration == "some-uuid"
+      assert Emails.get_s3_integration() == "some-uuid"
+    end
+
+    test "an empty choice means the ambient credentials", %{socket: socket} do
+      {:ok, _} = Emails.set_s3_integration("some-uuid")
+
+      {:noreply, _socket} =
+        EmailTracking.handle_event("update_s3_integration", %{"value" => ""}, socket)
+
+      assert Emails.get_s3_integration() == nil
+    end
+
+    test "the toggle flips the setting", %{socket: socket} do
+      {:noreply, socket} = EmailTracking.handle_event("toggle_s3_archival", %{}, socket)
+
+      assert socket.assigns.email_archive_to_s3 == true
+      assert Emails.get_config().archive_to_s3 == true
+    end
   end
 end
