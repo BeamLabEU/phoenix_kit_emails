@@ -592,7 +592,7 @@
               required
             />
             <%= if @clone_form[:errors][:name] do %>
-              <p id="clone-name-error" class="fieldset-label text-error">
+              <p id="clone-name-error" class="text-sm text-error">
                 {@clone_form[:errors][:name]}
               </p>
             <% end %>
@@ -615,7 +615,7 @@
               required
             />
             <%= if @clone_form[:errors][:display_name] do %>
-              <p id="clone-display-name-error" class="fieldset-label text-error">
+              <p id="clone-display-name-error" class="text-sm text-error">
                 {@clone_form[:errors][:display_name]}
               </p>
             <% end %>

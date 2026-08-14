@@ -575,6 +575,8 @@
             <legend class="fieldset-legend">{gettext("Recipient Email")}</legend>
             <input
               aria-label={gettext("Recipient Email")}
+              aria-invalid={@test_form[:errors][:recipient] && "true"}
+              aria-describedby={@test_form[:errors][:recipient] && "test-recipient-error"}
               type="email"
               name="test[recipient]"
               value={@test_form[:recipient] || ""}
@@ -586,8 +588,8 @@
               required
             />
             <%= if @test_form[:errors][:recipient] do %>
-              <p class="fieldset-label text-error">
-                  {@test_form[:errors][:recipient]}
+              <p id="test-recipient-error" class="text-sm text-error">
+                {@test_form[:errors][:recipient]}
               </p>
             <% end %>
           </fieldset>
