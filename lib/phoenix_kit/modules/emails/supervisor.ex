@@ -238,11 +238,8 @@ defmodule PhoenixKit.Modules.Emails.Supervisor do
 
   defp start_polling_when_oban_ready do
     case wait_for_oban(10, 500) do
-      :ok ->
-        Logger.info("Email Supervisor: Reconciling event trackers")
-
-        results = EventTrackerReconciler.reconcile()
-        Logger.info("Email Supervisor: Event tracker reconcile complete", %{results: results})
+      {:ok, config} ->
+        maybe_reconcile(config)
 
       :timeout ->
         Logger.warning(
@@ -251,11 +248,35 @@ defmodule PhoenixKit.Modules.Emails.Supervisor do
     end
   end
 
+  defp maybe_reconcile(config) do
+    if reconcile_on_boot?(config) do
+      Logger.info("Email Supervisor: Reconciling event trackers")
+
+      results = EventTrackerReconciler.reconcile()
+      Logger.info("Email Supervisor: Event tracker reconcile complete", %{results: results})
+    else
+      Logger.debug(
+        "Email Supervisor: Oban in #{inspect(config.testing)} testing mode, skipping boot reconcile"
+      )
+    end
+  end
+
+  @doc false
+  # Boot reconcile is skipped while Oban runs in a testing mode. It is a
+  # host's test suite, and the reconcile writes: it walks trackers and calls
+  # `Oban.cancel_all_jobs/2`, from the Task spawned here — a process that owns
+  # no Ecto sandbox connection. The write can only fail, and it fails loudly,
+  # printing an OwnershipError dump into every run of every host that installs
+  # this module. Nothing is lost by skipping: in a testing mode Oban does not
+  # execute the chains this would seed.
+  def reconcile_on_boot?(%Oban.Config{testing: :disabled}), do: true
+  def reconcile_on_boot?(%Oban.Config{}), do: false
+
   defp wait_for_oban(0, _delay), do: :timeout
 
   defp wait_for_oban(attempts, delay) do
     case Oban.Registry.config(Oban) do
-      %Oban.Config{} -> :ok
+      %Oban.Config{} = config -> {:ok, config}
     end
   catch
     _, _ ->
