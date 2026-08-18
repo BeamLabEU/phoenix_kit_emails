@@ -13,6 +13,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTracking do
   use PhoenixKitWeb, :live_component
   use Gettext, backend: PhoenixKit.Modules.Emails.Gettext
 
+  alias PhoenixKit.Integrations.Providers
   alias PhoenixKit.Modules.Emails
   alias PhoenixKit.Modules.Emails.Queue
   alias PhoenixKit.Modules.Emails.Status
@@ -468,12 +469,23 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTracking do
     |> PhoenixKit.Integrations.load_all_connections()
     |> Enum.flat_map(fn {provider, connections} ->
       Enum.map(connections, fn %{uuid: uuid} = conn ->
-        label = "#{Map.get(conn, :name) || uuid} (#{provider})"
+        label = "#{Map.get(conn, :name) || uuid} (#{provider_display_name(provider)})"
         {uuid, label}
       end)
     end)
     |> Enum.sort_by(fn {_uuid, label} -> String.downcase(label) end)
   rescue
     _ -> []
+  end
+
+  # Falls back to the raw key when core doesn't recognize it — this package's
+  # own hex-pinned core floor predates `object_storage`, so `Providers.get/1`
+  # returns nil there even though the provider key itself works fine end to
+  # end (see the `object_storage_config/1` duplication note in archiver.ex).
+  defp provider_display_name(key) do
+    case Providers.get(key) do
+      %{name: name} -> name
+      _ -> key
+    end
   end
 end

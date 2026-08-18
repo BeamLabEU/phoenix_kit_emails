@@ -60,7 +60,11 @@ defmodule PhoenixKit.Modules.Emails.ArchiverTest do
       setting.value_json
       |> Map.delete("aws_region")
       |> Map.put("provider", "object_storage")
-      |> Map.merge(attrs)
+      # `secret_key` is already stored correctly (encrypted) by `save_setup/2`
+      # above — re-merging it here from `attrs` would overwrite the
+      # ciphertext with the raw value and stop these tests from exercising
+      # the decrypt round-trip a real connection always goes through.
+      |> Map.merge(Map.drop(attrs, ["secret_key"]))
 
     Repo.update!(Ecto.Changeset.change(setting, value_json: flipped))
 

@@ -748,12 +748,17 @@ defmodule PhoenixKit.Modules.Emails.Archiver do
       secret_access_key: secret_key,
       region: region,
       host: host,
-      scheme: "https://",
-      retries: [max_attempts: 2, base_backoff_in_ms: 10, max_backoff_in_ms: 1_000],
-      http_opts: [recv_timeout: 5_000, connect_timeout: 5_000]
+      scheme: "https://"
     ]
   end
 
+  # Blank stays "us-east-1" rather than nil because `host` above is derived
+  # from this region — ExAws' own host builder needs *some* region even when
+  # no endpoint is given. This is the one place archival guesses, unlike the
+  # `aws_ses` branch above which deliberately leaves a blank region blank: a
+  # custom `endpoint` (R2/B2/Tigris) makes the guess moot since region there
+  # is only a signing formality, and a bare AWS S3 connection is expected to
+  # have `region` set at setup time.
   defp object_storage_region(creds) do
     case present_string(creds["region"]) do
       nil -> "us-east-1"
