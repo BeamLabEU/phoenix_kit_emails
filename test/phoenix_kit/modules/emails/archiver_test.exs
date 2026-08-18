@@ -17,6 +17,7 @@ defmodule PhoenixKit.Modules.Emails.ArchiverTest do
   alias PhoenixKit.Modules.Emails
   alias PhoenixKit.Modules.Emails.{Archiver, Log}
   alias PhoenixKit.Utils.Date, as: UtilsDate
+  alias PhoenixKitEmails.Test.Repo
 
   setup do
     {:ok, _} = Emails.enable_system()
@@ -249,6 +250,91 @@ defmodule PhoenixKit.Modules.Emails.ArchiverTest do
     test "a connection that stores no credentials falls back rather than signing with nils" do
       {:ok, %{uuid: uuid}} =
         Integrations.add_connection("aws_ses", "empty #{System.unique_integer([:positive])}")
+
+      Emails.invalidate_aws_credentials_cache()
+      {:ok, _} = Emails.set_s3_integration(uuid)
+
+      assert Archiver.s3_request_config() == []
+    end
+
+    test "an object_storage connection signs the request too, not only aws_ses" do
+      # This package's own test env pins core below the `object_storage`
+      # provider (see mix.lock), so `add_connection("object_storage", ...)`
+      # would fail with `:scope_not_allowed` here regardless of the fix under
+      # test. Birthed as `aws_ses` (a registered provider) through the real
+      # API, then flipped to the provider string the row would actually carry
+      # in an install running a core new enough to have registered it — same
+      # shape `save_setup/3` produces either way, only the tag differs.
+      {:ok, %{uuid: uuid}} =
+        Integrations.add_connection(
+          "aws_ses",
+          "object_storage stand-in #{System.unique_integer([:positive])}"
+        )
+
+      {:ok, _} =
+        Integrations.save_setup(uuid, %{
+          "access_key" => "AKIAOBJSTORE",
+          "secret_key" => "objstore-secret",
+          # Saved under "aws_region" here — with the row still tagged
+          # aws_ses at this point, that's the field name `maybe_set_status/2`
+          # checks against THAT provider's required fields to mark the
+          # connection "configured" (core's `has_credentials?/1` gate,
+          # unrelated to this fix). Renamed to "region" below, alongside the
+          # provider flip, so the final row matches what a real
+          # `object_storage` connection actually stores.
+          "aws_region" => "eu-central-1"
+        })
+
+      setting = Repo.get_by!(PhoenixKit.Settings.Setting, key: uuid)
+
+      flipped =
+        setting.value_json
+        |> Map.put("provider", "object_storage")
+        |> Map.put("region", Map.fetch!(setting.value_json, "aws_region"))
+        |> Map.delete("aws_region")
+
+      Repo.update!(Ecto.Changeset.change(setting, value_json: flipped))
+
+      Emails.invalidate_aws_credentials_cache()
+      {:ok, _} = Emails.set_s3_integration(uuid)
+
+      config = Archiver.s3_request_config()
+
+      assert config[:access_key_id] == "AKIAOBJSTORE"
+      assert config[:secret_access_key] == "objstore-secret"
+      assert config[:region] == "eu-central-1"
+    end
+
+    test "aws_ses's own region key still works — the object_storage fix does not shadow it" do
+      {:ok, %{uuid: uuid}} =
+        Integrations.add_connection(
+          "aws_ses",
+          "still ses #{System.unique_integer([:positive])}"
+        )
+
+      {:ok, _} =
+        Integrations.save_setup(uuid, %{
+          "access_key" => "AKIASTILLSES",
+          "secret_key" => "still-ses-secret",
+          "aws_region" => "eu-north-1"
+        })
+
+      Emails.invalidate_aws_credentials_cache()
+      {:ok, _} = Emails.set_s3_integration(uuid)
+
+      config = Archiver.s3_request_config()
+
+      assert config[:region] == "eu-north-1"
+    end
+
+    test "a Brevo connection's secrets do not leak through the archival credential path" do
+      {:ok, %{uuid: uuid}} =
+        Integrations.add_connection(
+          "brevo_api",
+          "not for archival #{System.unique_integer([:positive])}"
+        )
+
+      {:ok, _} = Integrations.save_setup(uuid, %{"api_key" => "brevo-secret-key"})
 
       Emails.invalidate_aws_credentials_cache()
       {:ok, _} = Emails.set_s3_integration(uuid)

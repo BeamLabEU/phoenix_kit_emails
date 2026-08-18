@@ -72,7 +72,8 @@ defmodule PhoenixKit.Modules.Emails.Archiver do
   """
 
   require Logger
-  alias PhoenixKit.Modules.Emails.{AwsIntegrations, Event, Log}
+  alias PhoenixKit.Modules.Emails
+  alias PhoenixKit.Modules.Emails.{Event, Log}
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Date, as: UtilsDate
   import Ecto.Query
@@ -680,13 +681,34 @@ defmodule PhoenixKit.Modules.Emails.Archiver do
   # resolution chain (environment, instance profile, ECS task role), which is
   # how a deployment that never used Integrations for AWS is meant to work.
   # Only an explicitly chosen connection overrides it.
+  #
+  # Reads through `Emails.s3_archival_credentials/1`, NOT
+  # `AwsIntegrations.resolve_credentials/1` — that module resolves "which SES
+  # SENDING account(s) are active" (SQS polling, per-account tracking
+  # settings) and is `aws_ses`-only by design; archival needs credentials for
+  # uploading TO S3, not sending mail, so it accepts an `object_storage`
+  # connection too (the type built for this — see
+  # `PhoenixKit.Integrations.Providers.object_storage/0` in core) alongside
+  # `aws_ses` (an install may already have pointed archival at an SES
+  # connection before `object_storage` existed).
   @doc false
   @spec s3_request_config() :: keyword()
   def s3_request_config do
     with uuid when is_binary(uuid) <- setting_or_nil("email_s3_integration"),
-         {:ok, creds} <- AwsIntegrations.resolve_credentials(uuid) do
-      [access_key_id: creds.access_key, secret_access_key: creds.secret_key]
-      |> maybe_put_region(creds.region)
+         creds <- Emails.s3_archival_credentials(uuid),
+         access_key when is_binary(access_key) and access_key != "" <- creds["access_key"],
+         secret_key when is_binary(secret_key) and secret_key != "" <- creds["secret_key"] do
+      # `region` is the field key `object_storage` connections use;
+      # `aws_region` is what `aws_ses` connections use (same key
+      # `PhoenixKit.Modules.Emails.get_aws_region/0` reads for the SEND
+      # path). A connection is one or the other, never both, so checking
+      # `region` first and falling back to `aws_region` picks up whichever
+      # this connection actually has — it does not merge or prefer one
+      # provider's data over the other's.
+      region = present_string(creds["region"]) || present_string(creds["aws_region"])
+
+      [access_key_id: access_key, secret_access_key: secret_key]
+      |> maybe_put_region(region)
     else
       _ -> []
     end
