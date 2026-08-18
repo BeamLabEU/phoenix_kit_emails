@@ -695,20 +695,23 @@ defmodule PhoenixKit.Modules.Emails.Archiver do
   @spec s3_request_config() :: keyword()
   def s3_request_config do
     with uuid when is_binary(uuid) <- setting_or_nil("email_s3_integration"),
-         creds <- Emails.s3_archival_credentials(uuid),
-         access_key when is_binary(access_key) and access_key != "" <- creds["access_key"],
-         secret_key when is_binary(secret_key) and secret_key != "" <- creds["secret_key"] do
-      # `region` is the field key `object_storage` connections use;
-      # `aws_region` is what `aws_ses` connections use (same key
-      # `PhoenixKit.Modules.Emails.get_aws_region/0` reads for the SEND
-      # path). A connection is one or the other, never both, so checking
-      # `region` first and falling back to `aws_region` picks up whichever
-      # this connection actually has — it does not merge or prefer one
-      # provider's data over the other's.
-      region = present_string(creds["region"]) || present_string(creds["aws_region"])
+         creds = Emails.s3_archival_credentials(uuid),
+         access_key when is_binary(access_key) <- present_string(creds["access_key"]),
+         secret_key when is_binary(secret_key) <- present_string(creds["secret_key"]) do
+      case creds["provider"] do
+        "object_storage" ->
+          object_storage_config(creds, access_key, secret_key)
 
-      [access_key_id: access_key, secret_access_key: secret_key]
-      |> maybe_put_region(region)
+        _ ->
+          # `aws_ses`: no endpoint, no host override. Blank region stays
+          # blank rather than defaulting to "us-east-1" — deliberately, per
+          # `AwsIntegrations.resolve_credentials/1`'s own docstring: a
+          # guessed region does not merely mislabel an S3 request, it can
+          # send it somewhere else entirely, so "unknown" and "us-east-1"
+          # must stay distinguishable here too.
+          [access_key_id: access_key, secret_access_key: secret_key]
+          |> maybe_put_region(present_string(creds["aws_region"]))
+      end
     else
       _ -> []
     end
@@ -717,6 +720,68 @@ defmodule PhoenixKit.Modules.Emails.Archiver do
   defp maybe_put_region(config, nil), do: config
   defp maybe_put_region(config, ""), do: config
   defp maybe_put_region(config, region), do: Keyword.put(config, :region, region)
+
+  # Deliberately duplicates `PhoenixKit.Integrations.Validators.object_storage_config/1`
+  # in core (`/app` at the time of writing) rather than calling it: this
+  # package's own `mix.exs` pins core to a HEX release, and no hex release of
+  # core has shipped `object_storage_config/1` yet — `object_storage` itself
+  # is still an unreleased core PR as of this fix. Depending on it now would
+  # mean this package's own `mix compile` fails for anyone building against
+  # published core, this package's own test env included (see
+  # `test/support/` — it locks a hex core version). Once core publishes a hex
+  # release containing `object_storage_config/1` and this package's own core
+  # requirement can be bumped past it, this should become a straight
+  # delegation to that function instead of tracking it by hand — the trailing
+  # slash / scheme-stripping / nil-host-for-newer-regions / China-partition
+  # traps it dodges are exactly the traps this copy has to dodge too.
+  defp object_storage_config(creds, access_key, secret_key) do
+    region = object_storage_region(creds)
+
+    host =
+      case object_storage_endpoint(creds) do
+        nil -> object_storage_default_host(region)
+        endpoint -> endpoint
+      end
+
+    [
+      access_key_id: access_key,
+      secret_access_key: secret_key,
+      region: region,
+      host: host,
+      scheme: "https://",
+      retries: [max_attempts: 2, base_backoff_in_ms: 10, max_backoff_in_ms: 1_000],
+      http_opts: [recv_timeout: 5_000, connect_timeout: 5_000]
+    ]
+  end
+
+  defp object_storage_region(creds) do
+    case present_string(creds["region"]) do
+      nil -> "us-east-1"
+      region -> region
+    end
+  end
+
+  # Operators paste this straight from a provider's dashboard — Cloudflare R2
+  # hands out `https://<account_id>.r2.cloudflarestorage.com`, scheme
+  # included, and sometimes with a trailing slash — but ExAws's `host:`
+  # config wants a bare hostname. A scheme prefix makes `URI` read the host
+  # as an IPv6 literal and ExAws raises a `MatchError` building the request.
+  defp object_storage_endpoint(creds) do
+    case present_string(creds["endpoint"]) do
+      nil ->
+        nil
+
+      endpoint ->
+        endpoint
+        |> String.replace(~r{\Ahttps?://}i, "")
+        |> String.trim_trailing("/")
+    end
+  end
+
+  # The China partition answers on .amazonaws.com.cn — the global host does
+  # not resolve there at all.
+  defp object_storage_default_host("cn-" <> _ = region), do: "s3.#{region}.amazonaws.com.cn"
+  defp object_storage_default_host(region), do: "s3.#{region}.amazonaws.com"
 
   @dialyzer {:nowarn_function, delete_archived_logs: 1}
   defp delete_archived_logs(logs) do

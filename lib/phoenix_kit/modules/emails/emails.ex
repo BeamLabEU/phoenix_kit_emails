@@ -3133,7 +3133,7 @@ defmodule PhoenixKit.Modules.Emails do
   signing outgoing mail. This one backs `Archiver.s3_request_config/0`
   instead, which needs credentials for uploading to S3, not for sending
   through it, so it accepts either provider shape: `aws_ses` (the connection
-  a install may already have pointed archival at, before `object_storage`
+  an install may already have pointed archival at, before `object_storage`
   existed) or `object_storage` (the type built for this — see
   `PhoenixKit.Integrations.Providers.object_storage/0` in core).
   """
@@ -3172,9 +3172,10 @@ defmodule PhoenixKit.Modules.Emails do
 
       {:ok, creds} when is_map(creds) ->
         # A connection saved before `provider` was stored in the blob reads as
-        # missing rather than wrong — treat it as matching the FIRST allowed
-        # provider (the historical behaviour, when only `aws_ses` existed)
-        # instead of breaking those installs.
+        # missing rather than wrong — accepted by ANY caller regardless of
+        # its allowlist (the historical behaviour, when only `aws_ses`
+        # existed and this branch's caller was the only caller) instead of
+        # breaking those installs.
         creds
 
       _ ->

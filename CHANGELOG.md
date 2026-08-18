@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- S3 archival now resolves credentials from an `object_storage` Integrations
+  connection, not only `aws_ses`. `Archiver.s3_request_config/0` routed
+  through a credential getter that deliberately accepted only `aws_ses` (a
+  leak guard, not an oversight — see the code comment), which predates core's
+  `object_storage` connection type: pointing `email_s3_integration` at one
+  resolved to an empty credential map and archival silently signed with
+  nothing while the settings page reported it as configured. Also fixes the
+  `object_storage` connection picker on the Email Tracking settings page,
+  which listed `aws_ses` connections only, and a related region-key mismatch
+  (`object_storage` stores it under `"region"`, `aws_ses` under
+  `"aws_region"`).
+
 ## 0.4.0 - 2026-08-14
 
 ### Upgrading — read this first
