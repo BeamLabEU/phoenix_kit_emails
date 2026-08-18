@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.4.1 - 2026-08-18
+
+### Fixed
+
+- Boot reconcile no longer runs while Oban is in a testing mode (`:manual` or
+  `:inline`). Previously the boot `Task` unconditionally called
+  `EventTrackerReconciler.reconcile/0`, which writes via
+  `Oban.cancel_all_jobs/1` from a process with no Ecto sandbox connection —
+  under a host's test suite this write could only fail, dumping a
+  `DBConnection.OwnershipError` into every test run. Nothing is lost by
+  skipping it there: in a testing mode Oban does not execute the chains the
+  reconcile would seed. (#36)
+
 ## 0.4.0 - 2026-08-14
 
 ### Upgrading — read this first
