@@ -13,6 +13,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTracking do
   use PhoenixKitWeb, :live_component
   use Gettext, backend: PhoenixKit.Modules.Emails.Gettext
 
+  alias PhoenixKit.Integrations.Providers
   alias PhoenixKit.Modules.Emails
   alias PhoenixKit.Modules.Emails.Queue
   alias PhoenixKit.Modules.Emails.Status
@@ -452,14 +453,39 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTracking do
     end
   end
 
-  # Every AWS connection, not only the ones a SendProfile points at: an
+  # Every eligible connection, not only the ones a SendProfile points at: an
   # operator can reasonably keep archival on an account that sends no mail at
   # all, and `AwsIntegrations.active_integrations_with_names/0` would hide it.
+  #
+  # Both `aws_ses` (an install may already have pointed archival at an SES
+  # connection, before `object_storage` existed — `Archiver.s3_request_config/0`
+  # still honors it) and `object_storage` (the type built for this) — matching
+  # what `Emails.s3_archival_credentials/1` actually accepts. Two providers
+  # can produce same-named connections ("Production" for both a mailbox and a
+  # bucket is a plausible operator choice), so each option is labelled with
+  # its provider, not just its name.
   defp s3_connections do
-    "aws_ses"
-    |> PhoenixKit.Integrations.list_connections()
-    |> Enum.map(fn %{uuid: uuid} = conn -> {uuid, Map.get(conn, :name) || uuid} end)
+    ["aws_ses", "object_storage"]
+    |> PhoenixKit.Integrations.load_all_connections()
+    |> Enum.flat_map(fn {provider, connections} ->
+      Enum.map(connections, fn %{uuid: uuid} = conn ->
+        label = "#{Map.get(conn, :name) || uuid} (#{provider_display_name(provider)})"
+        {uuid, label}
+      end)
+    end)
+    |> Enum.sort_by(fn {_uuid, label} -> String.downcase(label) end)
   rescue
     _ -> []
+  end
+
+  # Falls back to the raw key when core doesn't recognize it — this package's
+  # own hex-pinned core floor predates `object_storage`, so `Providers.get/1`
+  # returns nil there even though the provider key itself works fine end to
+  # end (see the `object_storage_config/1` duplication note in archiver.ex).
+  defp provider_display_name(key) do
+    case Providers.get(key) do
+      %{name: name} -> name
+      _ -> key
+    end
   end
 end

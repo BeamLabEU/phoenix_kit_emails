@@ -17,6 +17,7 @@ defmodule PhoenixKit.Modules.Emails.ArchiverTest do
   alias PhoenixKit.Modules.Emails
   alias PhoenixKit.Modules.Emails.{Archiver, Log}
   alias PhoenixKit.Utils.Date, as: UtilsDate
+  alias PhoenixKitEmails.Test.Repo
 
   setup do
     {:ok, _} = Emails.enable_system()
@@ -26,6 +27,48 @@ defmodule PhoenixKit.Modules.Emails.ArchiverTest do
     end)
 
     :ok
+  end
+
+  # This package's own test env pins core below the `object_storage`
+  # provider (see mix.lock), so `Integrations.add_connection("object_storage", ...)`
+  # would fail with `:scope_not_allowed` here regardless of what's under
+  # test. Birthed as `aws_ses` (a registered provider, with a throwaway
+  # "aws_region" so `has_credentials?/1`'s required-fields check against
+  # THAT provider passes and the row lands "configured" rather than
+  # "disconnected") through the real API, then flipped to the provider
+  # string a row would actually carry in an install running a core new
+  # enough to have registered it — the row shape after the flip, including
+  # `attrs`, is exactly what `save_setup/3` produces for a real
+  # `object_storage` connection.
+  defp seed_object_storage_stand_in(attrs) do
+    {:ok, %{uuid: uuid}} =
+      Integrations.add_connection(
+        "aws_ses",
+        "object_storage stand-in #{System.unique_integer([:positive])}"
+      )
+
+    {:ok, _} =
+      Integrations.save_setup(uuid, %{
+        "access_key" => attrs["access_key"] || "AKIA_PLACEHOLDER",
+        "secret_key" => attrs["secret_key"] || "placeholder-secret",
+        "aws_region" => "us-east-1"
+      })
+
+    setting = Repo.get_by!(PhoenixKit.Settings.Setting, key: uuid)
+
+    flipped =
+      setting.value_json
+      |> Map.delete("aws_region")
+      |> Map.put("provider", "object_storage")
+      # `secret_key` is already stored correctly (encrypted) by `save_setup/2`
+      # above — re-merging it here from `attrs` would overwrite the
+      # ciphertext with the raw value and stop these tests from exercising
+      # the decrypt round-trip a real connection always goes through.
+      |> Map.merge(Map.drop(attrs, ["secret_key"]))
+
+    Repo.update!(Ecto.Changeset.change(setting, value_json: flipped))
+
+    uuid
   end
 
   defp old_log(days_ago, attrs \\ %{}) do
@@ -249,6 +292,102 @@ defmodule PhoenixKit.Modules.Emails.ArchiverTest do
     test "a connection that stores no credentials falls back rather than signing with nils" do
       {:ok, %{uuid: uuid}} =
         Integrations.add_connection("aws_ses", "empty #{System.unique_integer([:positive])}")
+
+      Emails.invalidate_aws_credentials_cache()
+      {:ok, _} = Emails.set_s3_integration(uuid)
+
+      assert Archiver.s3_request_config() == []
+    end
+
+    test "an object_storage connection signs the request too, not only aws_ses" do
+      uuid =
+        seed_object_storage_stand_in(%{
+          "access_key" => "AKIAOBJSTORE",
+          "secret_key" => "objstore-secret",
+          "region" => "eu-central-1"
+        })
+
+      Emails.invalidate_aws_credentials_cache()
+      {:ok, _} = Emails.set_s3_integration(uuid)
+
+      config = Archiver.s3_request_config()
+
+      assert config[:access_key_id] == "AKIAOBJSTORE"
+      assert config[:secret_access_key] == "objstore-secret"
+      assert config[:region] == "eu-central-1"
+
+      assert config[:host] == "s3.eu-central-1.amazonaws.com",
+             "no endpoint set — falls back to AWS S3's own regional host"
+
+      assert config[:scheme] == "https://"
+    end
+
+    test "an object_storage connection with a custom endpoint signs against it, not AWS" do
+      uuid =
+        seed_object_storage_stand_in(%{
+          "access_key" => "R2KEY",
+          "secret_key" => "r2-secret",
+          "region" => "auto",
+          # Cloudflare R2's dashboard hands this out scheme-included, with a
+          # trailing slash — both must be stripped or ExAws raises building
+          # the request (a scheme prefix reads as an IPv6 literal to `URI`).
+          "endpoint" => "https://abc123.r2.cloudflarestorage.com/"
+        })
+
+      Emails.invalidate_aws_credentials_cache()
+      {:ok, _} = Emails.set_s3_integration(uuid)
+
+      config = Archiver.s3_request_config()
+
+      assert config[:host] == "abc123.r2.cloudflarestorage.com",
+             "must sign against the connection's own endpoint, not default to AWS"
+
+      assert config[:access_key_id] == "R2KEY"
+      assert config[:secret_access_key] == "r2-secret"
+    end
+
+    test "an object_storage credential does not leak through the SEND path's aws_ses-only guard" do
+      uuid =
+        seed_object_storage_stand_in(%{
+          "access_key" => "AKIANOSEND",
+          "secret_key" => "must-not-leak"
+        })
+
+      assert Emails.aws_ses_credentials(uuid) == %{},
+             "aws_ses_credentials/1 backs outgoing mail — an object_storage " <>
+               "connection must never resolve through it, archival-only or not"
+    end
+
+    test "aws_ses's own region key still works — the object_storage fix does not shadow it" do
+      {:ok, %{uuid: uuid}} =
+        Integrations.add_connection(
+          "aws_ses",
+          "still ses #{System.unique_integer([:positive])}"
+        )
+
+      {:ok, _} =
+        Integrations.save_setup(uuid, %{
+          "access_key" => "AKIASTILLSES",
+          "secret_key" => "still-ses-secret",
+          "aws_region" => "eu-north-1"
+        })
+
+      Emails.invalidate_aws_credentials_cache()
+      {:ok, _} = Emails.set_s3_integration(uuid)
+
+      config = Archiver.s3_request_config()
+
+      assert config[:region] == "eu-north-1"
+    end
+
+    test "a Brevo connection's secrets do not leak through the archival credential path" do
+      {:ok, %{uuid: uuid}} =
+        Integrations.add_connection(
+          "brevo_api",
+          "not for archival #{System.unique_integer([:positive])}"
+        )
+
+      {:ok, _} = Integrations.save_setup(uuid, %{"api_key" => "brevo-secret-key"})
 
       Emails.invalidate_aws_credentials_cache()
       {:ok, _} = Emails.set_s3_integration(uuid)

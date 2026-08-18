@@ -3120,22 +3120,63 @@ defmodule PhoenixKit.Modules.Emails do
 
   def aws_ses_credentials(_uuid), do: %{}
 
-  # The provider check is not ceremony: `aws_ses_credentials/1` is public and
-  # takes any uuid, `Integrations.get_credentials/2` defaults to `owner: :any`,
-  # and the map it returns is DECRYPTED. Without this, passing a Brevo (or any
-  # other) connection's uuid would hand back that connection's secrets through
-  # an AWS-named function. `creds["provider"]` is already in the map core's own
-  # mailer reads, so this costs nothing.
-  defp fetch_aws_ses_credentials(uuid) do
-    case Integrations.get_credentials(uuid) do
-      {:ok, %{"provider" => "aws_ses"} = creds} ->
+  @doc """
+  The decrypted credential map for ONE S3-archival Integrations connection,
+  memoized under `{:s3_archival_credentials, uuid}` (same cache table and
+  invalidation as `aws_ses_credentials/1`, distinct key so the two never
+  collide).
+
+  Deliberately a separate function rather than widening `aws_ses_credentials/1`
+  itself: that one backs the SEND path (`selected_aws_integration_uuid/0`,
+  the mailer's access/secret/region getters, per-account SQS polling) and
+  must stay `aws_ses`-only — an `object_storage` connection has no business
+  signing outgoing mail. This one backs `Archiver.s3_request_config/0`
+  instead, which needs credentials for uploading to S3, not for sending
+  through it, so it accepts either provider shape: `aws_ses` (the connection
+  an install may already have pointed archival at, before `object_storage`
+  existed) or `object_storage` (the type built for this — see
+  `PhoenixKit.Integrations.Providers.object_storage/0` in core).
+  """
+  @spec s3_archival_credentials(String.t()) :: map()
+  def s3_archival_credentials(uuid) when is_binary(uuid) and uuid != "" do
+    cache_miss = :__aws_credentials_cache_miss__
+    key = {:s3_archival_credentials, uuid}
+
+    case PhoenixKit.Cache.get(@aws_credentials_cache_name, key, cache_miss) do
+      ^cache_miss ->
+        creds = fetch_credentials_for_providers(uuid, ["aws_ses", "object_storage"])
+        PhoenixKit.Cache.put(@aws_credentials_cache_name, key, creds)
         creds
+
+      creds ->
+        creds
+    end
+  end
+
+  def s3_archival_credentials(_uuid), do: %{}
+
+  defp fetch_aws_ses_credentials(uuid), do: fetch_credentials_for_providers(uuid, ["aws_ses"])
+
+  # The provider check is not ceremony: both public callers above take any
+  # uuid, `Integrations.get_credentials/2` defaults to `owner: :any`, and the
+  # map it returns is DECRYPTED. Without this, passing a Brevo (or any other)
+  # connection's uuid would hand back that connection's secrets through an
+  # AWS-named function. `creds["provider"]` is already in the map core's own
+  # mailer reads, so this costs nothing. `allowed_providers` is the caller's
+  # own allowlist — `fetch_aws_ses_credentials/1` passes `["aws_ses"]`,
+  # `s3_archival_credentials/1` passes `["aws_ses", "object_storage"]`.
+  defp fetch_credentials_for_providers(uuid, allowed_providers) do
+    case Integrations.get_credentials(uuid) do
+      {:ok, %{"provider" => provider} = creds} ->
+        if provider in allowed_providers, do: creds, else: %{}
 
       {:ok, creds} when is_map(creds) ->
         # A connection saved before `provider` was stored in the blob reads as
-        # missing rather than wrong — treat it as SES (the historical
-        # behaviour) instead of breaking those installs.
-        if Map.has_key?(creds, "provider"), do: %{}, else: creds
+        # missing rather than wrong — accepted by ANY caller regardless of
+        # its allowlist (the historical behaviour, when only `aws_ses`
+        # existed and this branch's caller was the only caller) instead of
+        # breaking those installs.
+        creds
 
       _ ->
         %{}
