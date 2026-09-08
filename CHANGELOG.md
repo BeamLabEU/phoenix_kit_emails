@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- The two **Settings → Integrations** links in the Amazon SES / SQS settings
+  section pointed at `/admin/settings/integrations/website`, the path core
+  renamed to `/admin/settings/integrations` in 2.21.3. The old path does not
+  404: it still matches core's `/admin/settings/integrations/:uuid` edit route
+  with `uuid = "website"`, so `Repo.get/2` raises `Ecto.Query.CastError` and
+  LiveView turns it into a 400 reload response that loops.
+
+### Changed
+
+- The `phoenix_kit` floor is now `>= 2.21.3`, the release that renamed the
+  Integrations page those links point at. Below it the link resolves to the
+  personal integrations page (core < 2.19.0) or to nothing (2.19.0–2.21.2).
+
 ## 0.5.0 - 2026-09-06
 
 ### Added
