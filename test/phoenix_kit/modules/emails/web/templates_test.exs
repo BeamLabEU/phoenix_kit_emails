@@ -13,8 +13,10 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplatesTest do
 
   import Phoenix.LiveViewTest
 
+  alias PhoenixKit.Modules.Emails.Template
   alias PhoenixKit.Modules.Emails.Templates
   alias PhoenixKit.Modules.Emails.Web.Templates, as: TemplatesLive
+  alias PhoenixKitEmails.Test.Repo
 
   defp bare_socket(assigns \\ %{}) do
     defaults = %{
@@ -34,6 +36,11 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplatesTest do
     }
   end
 
+  # Templates.create_template/1 never honors a client-supplied is_system
+  # (that's exactly what closes the reserved-name bypass — see Template
+  # module docs), so a test helper that wants a genuine is_system: true row
+  # has to go through the same trusted path Templates.seed_system_templates/0
+  # uses: Template.changeset/3 with the literal `true`.
   defp create_system_template(attrs \\ %{}) do
     n = System.unique_integer([:positive])
 
@@ -45,12 +52,12 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplatesTest do
       html_body: %{"en" => "<p>Hi</p>"},
       text_body: %{"en" => "Hi"},
       category: "system",
-      status: "active",
-      is_system: true
+      status: "active"
     }
 
-    {:ok, template} = Templates.create_template(Map.merge(base, attrs))
-    template
+    %Template{}
+    |> Template.changeset(Map.merge(base, attrs), true)
+    |> Repo.insert!()
   end
 
   defp create_custom_template(attrs \\ %{}) do
@@ -191,40 +198,147 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplatesTest do
   end
 
   describe "render" do
-    test "Archive/Activate buttons appear for a system template row, Delete does not" do
-      system_template = create_system_template()
-      custom_template = create_custom_template()
-
-      assigns = %{
+    defp base_list_assigns(templates) do
+      %{
         stats: Templates.get_template_stats(),
         loading: false,
         filters: %{search: "", category: "", status: "", is_system: ""},
-        templates: [system_template, custom_template],
+        templates: templates,
         display_locale: "en",
         sort_by: :inserted_at,
         sort_dir: :desc,
         page: 1,
         per_page: 25,
-        total_count: 2,
+        total_count: length(templates),
         total_pages: 1,
         show_clone_modal: false,
         clone_template: nil,
         clone_form: %{name: "", display_name: "", errors: %{}},
         confirmation_modal: %{show: false}
       }
+    end
+
+    defp render_list(templates) do
+      render_component(&TemplatesLive.render/1, base_list_assigns(templates),
+        endpoint: PhoenixKitEmails.Test.StubEndpoint
+      )
+    end
+
+    test "Archive button appears (by unique id) for a system template row, Delete does not" do
+      system_template = create_system_template()
+      custom_template = create_custom_template()
+
+      html = render_list([system_template, custom_template])
+
+      # Scoped to this specific row via its uuid-suffixed id — a mutation
+      # that hides Archive/Activate for system rows again must fail this,
+      # unlike a bare substring check for "request_archive" (which the
+      # custom row's own button would also satisfy).
+      assert html =~ ~s|id="archive-template-#{system_template.uuid}"|
+      assert html =~ ~s|id="archive-template-card-#{system_template.uuid}"|
+
+      # The system row must not carry a delete button — id-scoped, not a
+      # bare phx-value-name check (the custom row's own delete button also
+      # carries a phx-value-name, so that alone wouldn't catch a mutation
+      # that re-shows delete for system rows).
+      refute html =~ ~s|id="delete-template-#{system_template.uuid}"|
+      refute html =~ ~s|id="delete-template-card-#{system_template.uuid}"|
+
+      # The custom row still gets both.
+      assert html =~ ~s|id="archive-template-#{custom_template.uuid}"|
+      assert html =~ ~s|id="delete-template-#{custom_template.uuid}"|
+    end
+
+    test "Activate button appears (by unique id) for an archived system template row" do
+      system_template = create_system_template(%{status: "archived"})
+
+      html = render_list([system_template])
+
+      assert html =~ ~s|id="activate-template-#{system_template.uuid}"|
+      refute html =~ ~s|id="archive-template-#{system_template.uuid}"|
+    end
+
+    test "the confirmation modal renders the system-specific archive warning text" do
+      system_template = create_system_template()
+      socket = bare_socket()
+
+      assert {:noreply, updated} =
+               TemplatesLive.handle_event(
+                 "request_archive",
+                 %{"uuid" => system_template.uuid},
+                 socket
+               )
+
+      assigns =
+        base_list_assigns([system_template])
+        |> Map.put(:confirmation_modal, updated.assigns.confirmation_modal)
 
       html =
         render_component(&TemplatesLive.render/1, assigns,
           endpoint: PhoenixKitEmails.Test.StubEndpoint
         )
 
-      assert html =~ ~s|phx-value-uuid="#{system_template.uuid}"|
-      assert html =~ "request_archive"
+      assert html =~ ~s|id="template-confirm-modal"|
+      # The template name and the specific, non-generic claims the copy
+      # makes — a mutation that shortens or genericizes the warning (e.g.
+      # back to the old unconditional "HTML version will be lost") must fail
+      # at least one of these.
+      assert html =~ system_template.name
+      assert html =~ "translations"
+      assert html =~ "file override"
+      assert html =~ "reactivate"
+    end
 
-      # The system row's action group must not carry a delete button.
-      refute html =~ ~s|phx-value-name="#{system_template.name}"|
-      # The custom row still gets a delete button.
-      assert html =~ ~s|phx-value-name="#{custom_template.name}"|
+    test "the confirmation modal renders the test_email-specific warning" do
+      # "test_email" is one of the nine names default_system_templates/0
+      # seeds — some other test file in the suite (e.g. a boot/migration
+      # test that seeds outside a rolled-back sandbox transaction) may
+      # already have left a permanent row under this name in the shared
+      # physical test database, so create-or-reuse like seed_system_templates/0
+      # itself does, rather than assuming the name is free.
+      test_email =
+        Templates.get_template_by_name("test_email") ||
+          create_system_template(%{name: "test_email", slug: "test-email"})
+
+      socket = bare_socket()
+
+      assert {:noreply, updated} =
+               TemplatesLive.handle_event("request_archive", %{"uuid" => test_email.uuid}, socket)
+
+      assigns =
+        base_list_assigns([test_email])
+        |> Map.put(:confirmation_modal, updated.assigns.confirmation_modal)
+
+      html =
+        render_component(&TemplatesLive.render/1, assigns,
+          endpoint: PhoenixKitEmails.Test.StubEndpoint
+        )
+
+      assert html =~ "test-send"
+      assert html =~ "built-in English template"
+    end
+
+    test "the activate confirmation button is not styled as an error/destructive action" do
+      system_template = create_system_template(%{status: "archived"})
+      socket = bare_socket()
+
+      assert {:noreply, updated} =
+               TemplatesLive.handle_event(
+                 "request_activate",
+                 %{"uuid" => system_template.uuid},
+                 socket
+               )
+
+      assigns =
+        base_list_assigns([system_template])
+        |> Map.put(:confirmation_modal, updated.assigns.confirmation_modal)
+
+      html =
+        render_component(&TemplatesLive.render/1, assigns,
+          endpoint: PhoenixKitEmails.Test.StubEndpoint
+        )
+
+      refute html =~ ~s|class="btn btn-error"|
     end
   end
 end

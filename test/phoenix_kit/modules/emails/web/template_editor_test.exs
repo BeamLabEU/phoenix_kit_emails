@@ -6,6 +6,11 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditorTest do
   reserved-name guard (`PhoenixKit.Modules.Emails.Template`) actually blocks
   the save and surfaces a readable error, not just that the context function
   does.
+
+  Also covers a crafted "save" event that isn't limited to what the rendered
+  form submits — a LiveView event is just a map the client controls, so a
+  request that adds `is_system: true` or a `status` change for an existing
+  system template must be rejected the same way a form submission is.
   """
 
   use PhoenixKitEmails.DataCase, async: false
@@ -53,5 +58,75 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditorTest do
 
     # Not created.
     assert Templates.get_template_by_name("new_login_alert") == nil
+  end
+
+  test "a crafted is_system: true in the save event does not bypass the reserved-name guard" do
+    socket = bare_socket(%{mode: :new, saving: false, template: nil})
+
+    params = reserved_params("failed_login_alert") |> Map.put("is_system", "true")
+
+    assert {:noreply, updated} =
+             TemplateEditor.handle_event(
+               "save",
+               %{"email_template" => params, "save_as" => "active"},
+               socket
+             )
+
+    changeset = updated.assigns.changeset
+    refute changeset.valid?
+    assert {msg, _} = Keyword.get(changeset.errors, :name)
+    assert msg =~ "reserved"
+
+    assert Templates.get_template_by_name("failed_login_alert") == nil
+  end
+
+  describe "system template status is protected from the editor" do
+    test "a crafted status change in the save event does not archive an existing system template" do
+      {:ok, seeded} = Templates.seed_system_templates()
+      system_template = Enum.find(seeded, & &1.is_system)
+
+      socket =
+        bare_socket(%{mode: :edit, saving: false, template: system_template})
+
+      params =
+        reserved_params(system_template.name)
+        |> Map.put("status", "archived")
+
+      assert {:noreply, _updated} =
+               TemplateEditor.handle_event(
+                 "save",
+                 %{"email_template" => params, "save_as" => "active"},
+                 socket
+               )
+
+      assert Templates.get_template(system_template.uuid).status == "active"
+    end
+
+    test "a non-system template's status is unaffected by the guard" do
+      {:ok, custom} =
+        Templates.create_template(%{
+          name: "custom_status_#{System.unique_integer([:positive])}",
+          slug: "custom-status-#{System.unique_integer([:positive])}",
+          display_name: %{"en" => "Custom"},
+          subject: %{"en" => "Subject"},
+          html_body: %{"en" => "<p>Hi</p>"},
+          text_body: %{"en" => "Hi"},
+          category: "transactional",
+          status: "active"
+        })
+
+      socket = bare_socket(%{mode: :edit, saving: false, template: custom})
+
+      params = reserved_params(custom.name) |> Map.put("status", "archived")
+
+      assert {:noreply, _updated} =
+               TemplateEditor.handle_event(
+                 "save",
+                 %{"email_template" => params, "save_as" => "active"},
+                 socket
+               )
+
+      assert Templates.get_template(custom.uuid).status == "archived"
+    end
   end
 end

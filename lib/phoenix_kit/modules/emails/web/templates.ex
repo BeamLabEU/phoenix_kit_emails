@@ -239,10 +239,10 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
            )
            |> push_navigate(to: Routes.path("/admin/emails/templates/#{new_template.uuid}/edit"))}
 
-        {:error, _changeset} ->
+        {:error, changeset} ->
           {:noreply,
            socket
-           |> put_flash(:error, gettext("Failed to clone template"))}
+           |> put_flash(:error, clone_failure_message(changeset))}
       end
     else
       # Show validation errors
@@ -275,11 +275,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
         modal = %{
           show: true,
           title: gettext("Archive System Template"),
-          message:
-            gettext(
-              "Archiving \"%{name}\" switches this email to its file override (if any) or the built-in default text. The HTML version will be lost — built-in defaults have no HTML. You can reactivate it at any time.",
-              name: template.name
-            ),
+          message: archive_warning_message(template),
           button_text: gettext("Archive Template"),
           action: "archive_template",
           uuid: template_uuid
@@ -287,8 +283,8 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
 
         {:noreply, assign(socket, :confirmation_modal, modal)}
 
-      _template ->
-        handle_event("archive_template", %{"uuid" => template_uuid}, socket)
+      template ->
+        do_archive(socket, template)
     end
   end
 
@@ -316,8 +312,8 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
 
         {:noreply, assign(socket, :confirmation_modal, modal)}
 
-      _template ->
-        handle_event("activate_template", %{"uuid" => template_uuid}, socket)
+      template ->
+        do_activate(socket, template)
     end
   end
 
@@ -330,29 +326,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
          |> put_flash(:error, gettext("Template not found"))}
 
       template ->
-        case Templates.archive_template(template) do
-          {:ok, _archived_template} ->
-            message =
-              if template.is_system do
-                gettext(
-                  "Template '%{name}' archived — it now falls back to its file override or built-in default",
-                  name: template.name
-                )
-              else
-                gettext("Template '%{name}' archived successfully", name: template.name)
-              end
-
-            {:noreply,
-             socket
-             |> put_flash(:info, message)
-             |> load_templates()
-             |> load_stats()}
-
-          {:error, _changeset} ->
-            {:noreply,
-             socket
-             |> put_flash(:error, gettext("Failed to archive template"))}
-        end
+        do_archive(socket, template)
     end
   end
 
@@ -365,29 +339,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
          |> put_flash(:error, gettext("Template not found"))}
 
       template ->
-        case Templates.activate_template(template) do
-          {:ok, _activated_template} ->
-            message =
-              if template.is_system do
-                gettext(
-                  "Template '%{name}' activated — the database template now wins for this email again",
-                  name: template.name
-                )
-              else
-                gettext("Template '%{name}' activated successfully", name: template.name)
-              end
-
-            {:noreply,
-             socket
-             |> put_flash(:info, message)
-             |> load_templates()
-             |> load_stats()}
-
-          {:error, _changeset} ->
-            {:noreply,
-             socket
-             |> put_flash(:error, gettext("Failed to activate template"))}
-        end
+        do_activate(socket, template)
     end
   end
 
@@ -470,6 +422,84 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
   ## --- Template ---
 
   ## --- Private Helper Functions ---
+
+  # "test_email" is looked up directly by
+  # PhoenixKit.Modules.Emails.Provider.send_test_tracking_email/2 rather than
+  # through PhoenixKit.Email.Content.resolve/5 — it has no file-override
+  # layer at all, so archiving it makes the admin test-send fall back to a
+  # built-in English template that DOES include HTML. That's the opposite of
+  # the other eight system templates, where the fallback (a file override, if
+  # one exists, otherwise the calling module's gettext default) may or may
+  # not have HTML, so losing it can't be promised unconditionally.
+  defp archive_warning_message(%Template{name: "test_email"} = template) do
+    gettext(
+      "Archiving \"%{name}\" removes it from the admin test-send lookup — sending a test email will use a built-in English template (with HTML) instead of your saved one. You can reactivate it at any time.",
+      name: template.name
+    )
+  end
+
+  defp archive_warning_message(%Template{} = template) do
+    gettext(
+      "Archiving \"%{name}\" stops sending its saved subject, body and translations for this email. It falls back to a file override (if one is configured for this name) or this module's built-in text, which may not cover every language you use and has no HTML unless a file override supplies one. You can reactivate it at any time.",
+      name: template.name
+    )
+  end
+
+  # Shared by the "archive_template" event (uuid lookup — from confirm_action
+  # after a system-row confirmation, or the plain uuid-only client event) and
+  # request_archive's non-system branch (which already has `template` loaded
+  # and would otherwise fetch it a second time).
+  defp do_archive(socket, template) do
+    case Templates.archive_template(template) do
+      {:ok, _archived_template} ->
+        message =
+          if template.is_system do
+            gettext(
+              "Template '%{name}' archived — it now falls back to its file override or built-in default",
+              name: template.name
+            )
+          else
+            gettext("Template '%{name}' archived successfully", name: template.name)
+          end
+
+        {:noreply,
+         socket
+         |> put_flash(:info, message)
+         |> load_templates()
+         |> load_stats()}
+
+      {:error, _changeset} ->
+        {:noreply,
+         socket
+         |> put_flash(:error, gettext("Failed to archive template"))}
+    end
+  end
+
+  defp do_activate(socket, template) do
+    case Templates.activate_template(template) do
+      {:ok, _activated_template} ->
+        message =
+          if template.is_system do
+            gettext(
+              "Template '%{name}' activated — the database template now wins for this email again",
+              name: template.name
+            )
+          else
+            gettext("Template '%{name}' activated successfully", name: template.name)
+          end
+
+        {:noreply,
+         socket
+         |> put_flash(:info, message)
+         |> load_templates()
+         |> load_stats()}
+
+      {:error, _changeset} ->
+        {:noreply,
+         socket
+         |> put_flash(:error, gettext("Failed to activate template"))}
+    end
+  end
 
   # Apply default filter values
   defp assign_filter_defaults(socket) do
@@ -619,6 +649,17 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
   defp validate_sort_dir("asc"), do: :asc
   defp validate_sort_dir("desc"), do: :desc
   defp validate_sort_dir(_), do: :desc
+
+  # Surfaces the changeset's :name error (e.g. the reserved-name rejection)
+  # instead of a bare "something went wrong" — the pre-submit uniqueness
+  # check in validate_clone_form/1 doesn't catch a reserved name with no
+  # existing row, so this is often the only place that reason is seen.
+  defp clone_failure_message(changeset) do
+    case Keyword.get(changeset.errors, :name) do
+      {msg, _opts} -> gettext("Failed to clone template: %{reason}", reason: msg)
+      nil -> gettext("Failed to clone template")
+    end
+  end
 
   # Validate clone form
   defp validate_clone_form(params) do
