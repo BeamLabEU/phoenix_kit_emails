@@ -264,6 +264,64 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
   end
 
   @impl true
+  def handle_event("request_archive", %{"uuid" => template_uuid}, socket) do
+    case Templates.get_template(template_uuid) do
+      nil ->
+        {:noreply,
+         socket
+         |> put_flash(:error, gettext("Template not found"))}
+
+      %Template{is_system: true} = template ->
+        modal = %{
+          show: true,
+          title: gettext("Archive System Template"),
+          message:
+            gettext(
+              "Archiving \"%{name}\" switches this email to its file override (if any) or the built-in default text. The HTML version will be lost — built-in defaults have no HTML. You can reactivate it at any time.",
+              name: template.name
+            ),
+          button_text: gettext("Archive Template"),
+          action: "archive_template",
+          uuid: template_uuid
+        }
+
+        {:noreply, assign(socket, :confirmation_modal, modal)}
+
+      _template ->
+        handle_event("archive_template", %{"uuid" => template_uuid}, socket)
+    end
+  end
+
+  @impl true
+  def handle_event("request_activate", %{"uuid" => template_uuid}, socket) do
+    case Templates.get_template(template_uuid) do
+      nil ->
+        {:noreply,
+         socket
+         |> put_flash(:error, gettext("Template not found"))}
+
+      %Template{is_system: true} = template ->
+        modal = %{
+          show: true,
+          title: gettext("Activate System Template"),
+          message:
+            gettext(
+              "Activating \"%{name}\" makes the database template win again for this email, overriding any file override or built-in default.",
+              name: template.name
+            ),
+          button_text: gettext("Activate Template"),
+          action: "activate_template",
+          uuid: template_uuid
+        }
+
+        {:noreply, assign(socket, :confirmation_modal, modal)}
+
+      _template ->
+        handle_event("activate_template", %{"uuid" => template_uuid}, socket)
+    end
+  end
+
+  @impl true
   def handle_event("archive_template", %{"uuid" => template_uuid}, socket) do
     case Templates.get_template(template_uuid) do
       nil ->
@@ -271,20 +329,22 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
          socket
          |> put_flash(:error, gettext("Template not found"))}
 
-      %Template{is_system: true} ->
-        {:noreply,
-         socket
-         |> put_flash(:error, gettext("System templates cannot be archived"))}
-
       template ->
         case Templates.archive_template(template) do
           {:ok, _archived_template} ->
+            message =
+              if template.is_system do
+                gettext(
+                  "Template '%{name}' archived — it now falls back to its file override or built-in default",
+                  name: template.name
+                )
+              else
+                gettext("Template '%{name}' archived successfully", name: template.name)
+              end
+
             {:noreply,
              socket
-             |> put_flash(
-               :info,
-               gettext("Template '%{name}' archived successfully", name: template.name)
-             )
+             |> put_flash(:info, message)
              |> load_templates()
              |> load_stats()}
 
@@ -307,12 +367,19 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
       template ->
         case Templates.activate_template(template) do
           {:ok, _activated_template} ->
+            message =
+              if template.is_system do
+                gettext(
+                  "Template '%{name}' activated — the database template now wins for this email again",
+                  name: template.name
+                )
+              else
+                gettext("Template '%{name}' activated successfully", name: template.name)
+              end
+
             {:noreply,
              socket
-             |> put_flash(
-               :info,
-               gettext("Template '%{name}' activated successfully", name: template.name)
-             )
+             |> put_flash(:info, message)
              |> load_templates()
              |> load_stats()}
 
@@ -348,6 +415,18 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
   def handle_event("confirm_action", %{"action" => "delete_template", "uuid" => uuid}, socket) do
     socket = assign(socket, :confirmation_modal, %{show: false})
     handle_event("delete_template", %{"uuid" => uuid}, socket)
+  end
+
+  @impl true
+  def handle_event("confirm_action", %{"action" => "archive_template", "uuid" => uuid}, socket) do
+    socket = assign(socket, :confirmation_modal, %{show: false})
+    handle_event("archive_template", %{"uuid" => uuid}, socket)
+  end
+
+  @impl true
+  def handle_event("confirm_action", %{"action" => "activate_template", "uuid" => uuid}, socket) do
+    socket = assign(socket, :confirmation_modal, %{show: false})
+    handle_event("activate_template", %{"uuid" => uuid}, socket)
   end
 
   @impl true
