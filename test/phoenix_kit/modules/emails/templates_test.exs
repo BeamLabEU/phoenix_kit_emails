@@ -105,6 +105,17 @@ defmodule PhoenixKit.Modules.Emails.TemplatesTest do
     end
   end
 
+  describe "clone_template/3" do
+    test "wraps a plain display_name string into an i18n map" do
+      {:ok, source} = Templates.create_template(valid_custom_attrs())
+      name = "clone_#{System.unique_integer([:positive])}"
+
+      assert {:ok, clone} = Templates.clone_template(source, name, %{display_name: "Copy"})
+      assert clone.display_name == %{"en" => "Copy"}
+      assert clone.is_system == false
+    end
+  end
+
   describe "delete_template/1" do
     test "rejects a system template (context-level guard, independent of the LiveView one)" do
       {:ok, seeded} = Templates.seed_system_templates()

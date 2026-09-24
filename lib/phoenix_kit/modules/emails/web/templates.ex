@@ -490,12 +490,20 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
   defp changeset_error_reason(changeset) do
     changeset
     |> Ecto.Changeset.traverse_errors(fn {msg, opts} ->
-      Enum.reduce(opts, msg, fn {key, value}, acc ->
-        String.replace(acc, "%{#{key}}", to_string(value))
-      end)
+      # Only interpolate placeholders actually present in msg — opts also
+      # carries non-string metadata (e.g. a cast error's `type: {:array, _}`)
+      # that to_string/1 would crash on.
+      Regex.replace(~r/%{(\w+)}/, msg, &interpolate_error_opt(&1, &2, opts))
     end)
     |> Enum.flat_map(fn {field, msgs} -> Enum.map(msgs, &"#{field}: #{&1}") end)
     |> List.first()
+  end
+
+  defp interpolate_error_opt(placeholder, key, opts) do
+    case Enum.find(opts, fn {k, _} -> Atom.to_string(k) == key end) do
+      {_, value} -> to_string(value)
+      nil -> placeholder
+    end
   end
 
   defp archive_failure_message(changeset) do
@@ -719,18 +727,24 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
           Map.put(errors, :name, "Name is required")
 
         name ->
-          if Regex.match?(~r/^[a-z][a-z0-9_]*$/, name) do
-            # Check if name already exists
-            case Templates.get_template_by_name(name) do
-              nil -> errors
-              _ -> Map.put(errors, :name, "Name already exists")
-            end
-          else
-            Map.put(
-              errors,
-              :name,
-              "Must start with a letter and contain only lowercase letters, numbers, and underscores"
-            )
+          cond do
+            not Regex.match?(~r/^[a-z][a-z0-9_]*$/, name) ->
+              Map.put(
+                errors,
+                :name,
+                "Must start with a letter and contain only lowercase letters, numbers, and underscores"
+              )
+
+            # A clone is always non-system, so the changeset would reject
+            # this on submit anyway — flag it inline while typing instead.
+            name in Template.reserved_names() ->
+              Map.put(errors, :name, "Name is reserved for a system email")
+
+            Templates.get_template_by_name(name) != nil ->
+              Map.put(errors, :name, "Name already exists")
+
+            true ->
+              errors
           end
       end
 

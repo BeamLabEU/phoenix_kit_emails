@@ -365,7 +365,10 @@ defmodule PhoenixKit.Modules.Emails.Templates do
 
     # create_template/1 never sets is_system regardless of what attrs
     # contains (see Template.changeset/2) — a clone is always non-system.
-    final_attrs = Map.merge(base_attrs, attrs)
+    # :display_name is dropped from the merge: base_attrs already wrapped the
+    # caller's plain string into an i18n map, and merging the raw string back
+    # over it fails the :map cast (which broke every clone from the UI).
+    final_attrs = Map.merge(base_attrs, Map.delete(attrs, :display_name))
     create_template(final_attrs)
   end
 
