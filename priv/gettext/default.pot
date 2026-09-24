@@ -2072,17 +2072,17 @@ msgid "Email sampling rate updated to %{rate}%"
 msgstr ""
 
 #: lib/phoenix_kit/modules/emails/web/emails.ex:445
-#: lib/phoenix_kit/modules/emails/web/template_editor.ex:436
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:426
 #, elixir-autogen, elixir-format
 msgid "Error sending test email: %{message}"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/templates.ex:500
+#: lib/phoenix_kit/modules/emails/web/templates.ex:510
 #, elixir-autogen, elixir-format
 msgid "Failed to activate template"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/templates.ex:474
+#: lib/phoenix_kit/modules/emails/web/templates.ex:503
 #, elixir-autogen, elixir-format
 msgid "Failed to archive template"
 msgstr ""
@@ -2092,7 +2092,7 @@ msgstr ""
 msgid "Failed to block email: %{reason}"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/templates.ex:660
+#: lib/phoenix_kit/modules/emails/web/templates.ex:706
 #, elixir-autogen, elixir-format
 msgid "Failed to clone template"
 msgstr ""
@@ -2123,7 +2123,7 @@ msgid "Failed to run compression. Please check logs for details."
 msgstr ""
 
 #: lib/phoenix_kit/modules/emails/web/emails.ex:427
-#: lib/phoenix_kit/modules/emails/web/template_editor.ex:426
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:416
 #, elixir-autogen, elixir-format
 msgid "Failed to send test email: %{reason}"
 msgstr ""
@@ -2237,7 +2237,7 @@ msgstr ""
 msgid "SQS visibility timeout updated to %{seconds} seconds"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/template_editor.ex:247
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:237
 #, elixir-autogen, elixir-format
 msgid "Something went wrong. Please try again."
 msgstr ""
@@ -2253,17 +2253,17 @@ msgstr ""
 msgid "System templates cannot be deleted"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/templates.ex:488
+#: lib/phoenix_kit/modules/emails/web/templates.ex:482
 #, elixir-autogen, elixir-format
 msgid "Template '%{name}' activated successfully"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/templates.ex:462
+#: lib/phoenix_kit/modules/emails/web/templates.ex:471
 #, elixir-autogen, elixir-format
 msgid "Template '%{name}' archived successfully"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/template_editor.ex:450
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:452
 #, elixir-autogen, elixir-format
 msgid "Template '%{name}' created successfully"
 msgstr ""
@@ -2273,7 +2273,7 @@ msgstr ""
 msgid "Template '%{name}' deleted successfully"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/template_editor.ex:471
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:473
 #, elixir-autogen, elixir-format
 msgid "Template '%{name}' updated successfully (v%{version})"
 msgstr ""
@@ -2294,7 +2294,7 @@ msgstr ""
 msgid "Template not found"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/template_editor.ex:417
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:407
 #, elixir-autogen, elixir-format
 msgid "Test email sent successfully to %{recipient}"
 msgstr ""
@@ -3257,27 +3257,17 @@ msgstr ""
 msgid "Archive System Template"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/templates.ex:435
-#, elixir-autogen, elixir-format
-msgid "Archiving \"%{name}\" removes it from the admin test-send lookup — sending a test email will use a built-in English template (with HTML) instead of your saved one. You can reactivate it at any time."
-msgstr ""
-
-#: lib/phoenix_kit/modules/emails/web/templates.ex:442
-#, elixir-autogen, elixir-format
-msgid "Archiving \"%{name}\" stops sending its saved subject, body and translations for this email. It falls back to a file override (if one is configured for this name) or this module's built-in text, which may not cover every language you use and has no HTML unless a file override supplies one. You can reactivate it at any time."
-msgstr ""
-
-#: lib/phoenix_kit/modules/emails/web/templates.ex:659
+#: lib/phoenix_kit/modules/emails/web/templates.ex:707
 #, elixir-autogen, elixir-format
 msgid "Failed to clone template: %{reason}"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/templates.ex:483
+#: lib/phoenix_kit/modules/emails/web/templates.ex:475
 #, elixir-autogen, elixir-format
 msgid "Template '%{name}' activated — the database template now wins for this email again"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/templates.ex:457
+#: lib/phoenix_kit/modules/emails/web/templates.ex:464
 #, elixir-autogen, elixir-format
 msgid "Template '%{name}' archived — it now falls back to its file override or built-in default"
 msgstr ""
@@ -3285,4 +3275,29 @@ msgstr ""
 #: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:236
 #, elixir-autogen, elixir-format
 msgid "Use Archive/Activate on the Templates list to change a system template's status — it shows what changes first."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/templates.ex:443
+#, elixir-autogen, elixir-format
+msgid "Archiving \"%{name}\" removes it from the admin test-send lookup — sending a test email will use a built-in English template (with HTML) instead of your saved one. Newsletters campaigns that already reference this template keep using it (they load it by id, not status), but it disappears from the newsletters editor's template picker. You can reactivate it at any time."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/templates.ex:450
+#, elixir-autogen, elixir-format
+msgid "Archiving \"%{name}\" stops sending its saved subject, body and translations for this email. It falls back to a file override (if one is configured for this name) or the sending module's built-in text, which may not cover every language you use and has no HTML unless a file override supplies one. You can reactivate it at any time."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/templates.ex:511
+#, elixir-autogen, elixir-format
+msgid "Failed to activate template: %{reason}"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/templates.ex:504
+#, elixir-autogen, elixir-format
+msgid "Failed to archive template: %{reason}"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/templates.ex:457
+#, elixir-autogen, elixir-format
+msgid "Template '%{name}' archived — test emails will now use the built-in template instead"
 msgstr ""

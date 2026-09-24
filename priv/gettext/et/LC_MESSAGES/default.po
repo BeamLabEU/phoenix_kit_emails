@@ -2072,17 +2072,17 @@ msgid "Email sampling rate updated to %{rate}%"
 msgstr "Kirjade valimi määr uuendati %{rate}%-ni"
 
 #: lib/phoenix_kit/modules/emails/web/emails.ex:445
-#: lib/phoenix_kit/modules/emails/web/template_editor.ex:436
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:426
 #, elixir-autogen, elixir-format
 msgid "Error sending test email: %{message}"
 msgstr "Viga testkirja saatmisel: %{message}"
 
-#: lib/phoenix_kit/modules/emails/web/templates.ex:500
+#: lib/phoenix_kit/modules/emails/web/templates.ex:510
 #, elixir-autogen, elixir-format
 msgid "Failed to activate template"
 msgstr "Malli aktiveerimine ebaõnnestus"
 
-#: lib/phoenix_kit/modules/emails/web/templates.ex:474
+#: lib/phoenix_kit/modules/emails/web/templates.ex:503
 #, elixir-autogen, elixir-format
 msgid "Failed to archive template"
 msgstr "Malli arhiveerimine ebaõnnestus"
@@ -2092,7 +2092,7 @@ msgstr "Malli arhiveerimine ebaõnnestus"
 msgid "Failed to block email: %{reason}"
 msgstr "E-posti blokeerimine ebaõnnestus: %{reason}"
 
-#: lib/phoenix_kit/modules/emails/web/templates.ex:660
+#: lib/phoenix_kit/modules/emails/web/templates.ex:706
 #, elixir-autogen, elixir-format
 msgid "Failed to clone template"
 msgstr "Malli kloonimine ebaõnnestus"
@@ -2123,7 +2123,7 @@ msgid "Failed to run compression. Please check logs for details."
 msgstr "Tihendamise käivitamine ebaõnnestus. Üksikasjade jaoks vaadake logisid."
 
 #: lib/phoenix_kit/modules/emails/web/emails.ex:427
-#: lib/phoenix_kit/modules/emails/web/template_editor.ex:426
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:416
 #, elixir-autogen, elixir-format
 msgid "Failed to send test email: %{reason}"
 msgstr "Testkirja saatmine ebaõnnestus: %{reason}"
@@ -2237,7 +2237,7 @@ msgstr "SQS sõnumite maksimum uuendati %{count}-ni"
 msgid "SQS visibility timeout updated to %{seconds} seconds"
 msgstr "SQS nähtavuse aegumine uuendati %{seconds} sekundini"
 
-#: lib/phoenix_kit/modules/emails/web/template_editor.ex:247
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:237
 #, elixir-autogen, elixir-format
 msgid "Something went wrong. Please try again."
 msgstr "Midagi läks valesti. Palun proovige uuesti."
@@ -2253,17 +2253,17 @@ msgstr "Edukalt imporditi %{count} blokeeritud kirja"
 msgid "System templates cannot be deleted"
 msgstr "Süsteemi malle ei saa kustutada"
 
-#: lib/phoenix_kit/modules/emails/web/templates.ex:488
+#: lib/phoenix_kit/modules/emails/web/templates.ex:482
 #, elixir-autogen, elixir-format
 msgid "Template '%{name}' activated successfully"
 msgstr "Mall '%{name}' edukalt aktiveeritud"
 
-#: lib/phoenix_kit/modules/emails/web/templates.ex:462
+#: lib/phoenix_kit/modules/emails/web/templates.ex:471
 #, elixir-autogen, elixir-format
 msgid "Template '%{name}' archived successfully"
 msgstr "Mall '%{name}' edukalt arhiveeritud"
 
-#: lib/phoenix_kit/modules/emails/web/template_editor.ex:450
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:452
 #, elixir-autogen, elixir-format
 msgid "Template '%{name}' created successfully"
 msgstr "Mall '%{name}' edukalt loodud"
@@ -2273,7 +2273,7 @@ msgstr "Mall '%{name}' edukalt loodud"
 msgid "Template '%{name}' deleted successfully"
 msgstr "Mall '%{name}' edukalt kustutatud"
 
-#: lib/phoenix_kit/modules/emails/web/template_editor.ex:471
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:473
 #, elixir-autogen, elixir-format
 msgid "Template '%{name}' updated successfully (v%{version})"
 msgstr "Mall '%{name}' edukalt uuendatud (v%{version})"
@@ -2294,7 +2294,7 @@ msgstr "Mall edukalt kloonitud nimega '%{name}'"
 msgid "Template not found"
 msgstr "Malli ei leitud"
 
-#: lib/phoenix_kit/modules/emails/web/template_editor.ex:417
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:407
 #, elixir-autogen, elixir-format
 msgid "Test email sent successfully to %{recipient}"
 msgstr "Testkiri edukalt saadetud aadressile %{recipient}"
@@ -3259,27 +3259,17 @@ msgstr "Malli \"%{name}\" aktiveerimine muudab andmebaasi malli selle e-kirja ja
 msgid "Archive System Template"
 msgstr "Arhiveeri süsteemimall"
 
-#: lib/phoenix_kit/modules/emails/web/templates.ex:435
-#, elixir-autogen, elixir-format
-msgid "Archiving \"%{name}\" removes it from the admin test-send lookup — sending a test email will use a built-in English template (with HTML) instead of your saved one. You can reactivate it at any time."
-msgstr "Malli \"%{name}\" arhiveerimine eemaldab selle testkirja saatmise otsingust — testkiri saadetakse sisseehitatud ingliskeelse malliga (koos HTML-iga), mitte sinu salvestatud malliga. Malli saab igal ajal uuesti aktiveerida."
-
-#: lib/phoenix_kit/modules/emails/web/templates.ex:442
-#, elixir-autogen, elixir-format
-msgid "Archiving \"%{name}\" stops sending its saved subject, body and translations for this email. It falls back to a file override (if one is configured for this name) or this module's built-in text, which may not cover every language you use and has no HTML unless a file override supplies one. You can reactivate it at any time."
-msgstr "Malli \"%{name}\" arhiveerimine peatab selle salvestatud teemarea, sisu ja tõlgete saatmise. Kasutusele võetakse failipõhine ülekirjutus (kui see on selle nime jaoks seadistatud) või mooduli sisseehitatud tekst, mis ei pruugi katta kõiki sinu kasutatavaid keeli ja millel pole HTML-vormingut, kui seda ei lisa ülekirjutus. Malli saab igal ajal uuesti aktiveerida."
-
-#: lib/phoenix_kit/modules/emails/web/templates.ex:659
+#: lib/phoenix_kit/modules/emails/web/templates.ex:707
 #, elixir-autogen, elixir-format
 msgid "Failed to clone template: %{reason}"
 msgstr "Malli kloonimine ebaõnnestus: %{reason}"
 
-#: lib/phoenix_kit/modules/emails/web/templates.ex:483
+#: lib/phoenix_kit/modules/emails/web/templates.ex:475
 #, elixir-autogen, elixir-format
 msgid "Template '%{name}' activated — the database template now wins for this email again"
 msgstr "Mall '%{name}' aktiveeritud — nüüd kasutatakse selle e-kirja jaoks taas andmebaasi malli"
 
-#: lib/phoenix_kit/modules/emails/web/templates.ex:457
+#: lib/phoenix_kit/modules/emails/web/templates.ex:464
 #, elixir-autogen, elixir-format
 msgid "Template '%{name}' archived — it now falls back to its file override or built-in default"
 msgstr "Mall '%{name}' arhiveeritud — nüüd kasutatakse failipõhist ülekirjutust või sisseehitatud vaikesisu"
@@ -3288,3 +3278,28 @@ msgstr "Mall '%{name}' arhiveeritud — nüüd kasutatakse failipõhist ülekirj
 #, elixir-autogen, elixir-format
 msgid "Use Archive/Activate on the Templates list to change a system template's status — it shows what changes first."
 msgstr "Süsteemimalli oleku muutmiseks kasuta mallide nimekirjas nuppe Arhiveeri/Aktiveeri — need näitavad enne muudatuse mõju."
+
+#: lib/phoenix_kit/modules/emails/web/templates.ex:443
+#, elixir-autogen, elixir-format
+msgid "Archiving \"%{name}\" removes it from the admin test-send lookup — sending a test email will use a built-in English template (with HTML) instead of your saved one. Newsletters campaigns that already reference this template keep using it (they load it by id, not status), but it disappears from the newsletters editor's template picker. You can reactivate it at any time."
+msgstr "Malli \"%{name}\" arhiveerimine eemaldab selle testkirja saatmise otsingust — testkiri saadetakse sisseehitatud ingliskeelse malliga (koos HTML-iga), mitte sinu salvestatud malliga. Uudiskirjade kampaaniad, mis seda malli juba kasutavad, jätkavad selle kasutamist (need laaditakse id, mitte oleku järgi), kuid mall kaob uudiskirjade redaktori mallivalikust. Malli saab igal ajal uuesti aktiveerida."
+
+#: lib/phoenix_kit/modules/emails/web/templates.ex:450
+#, elixir-autogen, elixir-format
+msgid "Archiving \"%{name}\" stops sending its saved subject, body and translations for this email. It falls back to a file override (if one is configured for this name) or the sending module's built-in text, which may not cover every language you use and has no HTML unless a file override supplies one. You can reactivate it at any time."
+msgstr "Malli \"%{name}\" arhiveerimine peatab selle salvestatud teemarea, sisu ja tõlgete saatmise. Kasutusele võetakse failipõhine ülekirjutus (kui see on selle nime jaoks seadistatud) või saatva mooduli sisseehitatud tekst, mis ei pruugi katta kõiki sinu kasutatavaid keeli ja millel pole HTML-vormingut, kui seda ei lisa ülekirjutus. Malli saab igal ajal uuesti aktiveerida."
+
+#: lib/phoenix_kit/modules/emails/web/templates.ex:511
+#, elixir-autogen, elixir-format
+msgid "Failed to activate template: %{reason}"
+msgstr "Malli aktiveerimine ebaõnnestus: %{reason}"
+
+#: lib/phoenix_kit/modules/emails/web/templates.ex:504
+#, elixir-autogen, elixir-format
+msgid "Failed to archive template: %{reason}"
+msgstr "Malli arhiveerimine ebaõnnestus: %{reason}"
+
+#: lib/phoenix_kit/modules/emails/web/templates.ex:457
+#, elixir-autogen, elixir-format
+msgid "Template '%{name}' archived — test emails will now use the built-in template instead"
+msgstr "Mall '%{name}' arhiveeritud — testkirjad kasutavad nüüd sisseehitatud malli"

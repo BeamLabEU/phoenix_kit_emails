@@ -2073,17 +2073,17 @@ msgid "Email sampling rate updated to %{rate}%"
 msgstr "Коэффициент выборки писем обновлён до %{rate}%"
 
 #: lib/phoenix_kit/modules/emails/web/emails.ex:445
-#: lib/phoenix_kit/modules/emails/web/template_editor.ex:436
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:426
 #, elixir-autogen, elixir-format
 msgid "Error sending test email: %{message}"
 msgstr "Ошибка при отправке тестового письма: %{message}"
 
-#: lib/phoenix_kit/modules/emails/web/templates.ex:500
+#: lib/phoenix_kit/modules/emails/web/templates.ex:510
 #, elixir-autogen, elixir-format
 msgid "Failed to activate template"
 msgstr "Не удалось активировать шаблон"
 
-#: lib/phoenix_kit/modules/emails/web/templates.ex:474
+#: lib/phoenix_kit/modules/emails/web/templates.ex:503
 #, elixir-autogen, elixir-format
 msgid "Failed to archive template"
 msgstr "Не удалось архивировать шаблон"
@@ -2093,7 +2093,7 @@ msgstr "Не удалось архивировать шаблон"
 msgid "Failed to block email: %{reason}"
 msgstr "Не удалось заблокировать email: %{reason}"
 
-#: lib/phoenix_kit/modules/emails/web/templates.ex:660
+#: lib/phoenix_kit/modules/emails/web/templates.ex:706
 #, elixir-autogen, elixir-format
 msgid "Failed to clone template"
 msgstr "Не удалось клонировать шаблон"
@@ -2124,7 +2124,7 @@ msgid "Failed to run compression. Please check logs for details."
 msgstr "Не удалось запустить сжатие. Проверьте логи для подробностей."
 
 #: lib/phoenix_kit/modules/emails/web/emails.ex:427
-#: lib/phoenix_kit/modules/emails/web/template_editor.ex:426
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:416
 #, elixir-autogen, elixir-format
 msgid "Failed to send test email: %{reason}"
 msgstr "Не удалось отправить тестовое письмо: %{reason}"
@@ -2238,7 +2238,7 @@ msgstr "Максимум сообщений SQS обновлён до %{count}"
 msgid "SQS visibility timeout updated to %{seconds} seconds"
 msgstr "Тайм-аут видимости SQS обновлён до %{seconds} секунд"
 
-#: lib/phoenix_kit/modules/emails/web/template_editor.ex:247
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:237
 #, elixir-autogen, elixir-format
 msgid "Something went wrong. Please try again."
 msgstr "Что-то пошло не так. Пожалуйста, попробуйте снова."
@@ -2254,17 +2254,17 @@ msgstr "Успешно импортировано %{count} заблокиров�
 msgid "System templates cannot be deleted"
 msgstr "Системные шаблоны нельзя удалить"
 
-#: lib/phoenix_kit/modules/emails/web/templates.ex:488
+#: lib/phoenix_kit/modules/emails/web/templates.ex:482
 #, elixir-autogen, elixir-format
 msgid "Template '%{name}' activated successfully"
 msgstr "Шаблон '%{name}' успешно активирован"
 
-#: lib/phoenix_kit/modules/emails/web/templates.ex:462
+#: lib/phoenix_kit/modules/emails/web/templates.ex:471
 #, elixir-autogen, elixir-format
 msgid "Template '%{name}' archived successfully"
 msgstr "Шаблон '%{name}' успешно архивирован"
 
-#: lib/phoenix_kit/modules/emails/web/template_editor.ex:450
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:452
 #, elixir-autogen, elixir-format
 msgid "Template '%{name}' created successfully"
 msgstr "Шаблон '%{name}' успешно создан"
@@ -2274,7 +2274,7 @@ msgstr "Шаблон '%{name}' успешно создан"
 msgid "Template '%{name}' deleted successfully"
 msgstr "Шаблон '%{name}' успешно удалён"
 
-#: lib/phoenix_kit/modules/emails/web/template_editor.ex:471
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:473
 #, elixir-autogen, elixir-format
 msgid "Template '%{name}' updated successfully (v%{version})"
 msgstr "Шаблон '%{name}' успешно обновлён (v%{version})"
@@ -2295,7 +2295,7 @@ msgstr "Шаблон успешно клонирован как '%{name}'"
 msgid "Template not found"
 msgstr "Шаблон не найден"
 
-#: lib/phoenix_kit/modules/emails/web/template_editor.ex:417
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:407
 #, elixir-autogen, elixir-format
 msgid "Test email sent successfully to %{recipient}"
 msgstr "Тестовое письмо успешно отправлено на %{recipient}"
@@ -3262,27 +3262,17 @@ msgstr "Активация «%{name}» снова делает приорите�
 msgid "Archive System Template"
 msgstr "Архивировать системный шаблон"
 
-#: lib/phoenix_kit/modules/emails/web/templates.ex:435
-#, elixir-autogen, elixir-format
-msgid "Archiving \"%{name}\" removes it from the admin test-send lookup — sending a test email will use a built-in English template (with HTML) instead of your saved one. You can reactivate it at any time."
-msgstr "Архивирование «%{name}» уберёт его из поиска тестовых писем — тестовое письмо отправится по встроенному английскому шаблону (с HTML) вместо сохранённого. Шаблон можно снова активировать в любой момент."
-
-#: lib/phoenix_kit/modules/emails/web/templates.ex:442
-#, elixir-autogen, elixir-format
-msgid "Archiving \"%{name}\" stops sending its saved subject, body and translations for this email. It falls back to a file override (if one is configured for this name) or this module's built-in text, which may not cover every language you use and has no HTML unless a file override supplies one. You can reactivate it at any time."
-msgstr "Архивирование «%{name}» прекращает отправку сохранённых темы, текста и переводов для этого письма. Оно переключится на файловый оверрайд (если настроен для этого имени) или на встроенный текст модуля, который может покрывать не все ваши языки и не содержит HTML, если его не добавляет оверрайд. Шаблон можно снова активировать в любой момент."
-
-#: lib/phoenix_kit/modules/emails/web/templates.ex:659
+#: lib/phoenix_kit/modules/emails/web/templates.ex:707
 #, elixir-autogen, elixir-format
 msgid "Failed to clone template: %{reason}"
 msgstr "Не удалось клонировать шаблон: %{reason}"
 
-#: lib/phoenix_kit/modules/emails/web/templates.ex:483
+#: lib/phoenix_kit/modules/emails/web/templates.ex:475
 #, elixir-autogen, elixir-format
 msgid "Template '%{name}' activated — the database template now wins for this email again"
 msgstr "Шаблон «%{name}» активирован — теперь для этого письма снова используется шаблон из базы данных"
 
-#: lib/phoenix_kit/modules/emails/web/templates.ex:457
+#: lib/phoenix_kit/modules/emails/web/templates.ex:464
 #, elixir-autogen, elixir-format
 msgid "Template '%{name}' archived — it now falls back to its file override or built-in default"
 msgstr "Шаблон «%{name}» архивирован — теперь используется файловый оверрайд или встроенный текст по умолчанию"
@@ -3291,3 +3281,28 @@ msgstr "Шаблон «%{name}» архивирован — теперь исп�
 #, elixir-autogen, elixir-format
 msgid "Use Archive/Activate on the Templates list to change a system template's status — it shows what changes first."
 msgstr "Чтобы изменить статус системного шаблона, используйте кнопки «Архивировать»/«Активировать» в списке шаблонов — там сначала показывается, что изменится."
+
+#: lib/phoenix_kit/modules/emails/web/templates.ex:443
+#, elixir-autogen, elixir-format
+msgid "Archiving \"%{name}\" removes it from the admin test-send lookup — sending a test email will use a built-in English template (with HTML) instead of your saved one. Newsletters campaigns that already reference this template keep using it (they load it by id, not status), but it disappears from the newsletters editor's template picker. You can reactivate it at any time."
+msgstr "Архивирование «%{name}» уберёт его из поиска тестовых писем — тестовое письмо отправится по встроенному английскому шаблону (с HTML) вместо сохранённого. Рассылки, уже ссылающиеся на этот шаблон, продолжат его использовать (они загружают его по id, а не по статусу), но он исчезнет из списка выбора в редакторе рассылок. Шаблон можно снова активировать в любой момент."
+
+#: lib/phoenix_kit/modules/emails/web/templates.ex:450
+#, elixir-autogen, elixir-format
+msgid "Archiving \"%{name}\" stops sending its saved subject, body and translations for this email. It falls back to a file override (if one is configured for this name) or the sending module's built-in text, which may not cover every language you use and has no HTML unless a file override supplies one. You can reactivate it at any time."
+msgstr "Архивирование «%{name}» прекращает отправку сохранённых темы, текста и переводов для этого письма. Оно переключится на файловый оверрайд (если настроен для этого имени) или на встроенный текст отправляющего модуля, который может покрывать не все ваши языки и не содержит HTML, если его не добавляет оверрайд. Шаблон можно снова активировать в любой момент."
+
+#: lib/phoenix_kit/modules/emails/web/templates.ex:511
+#, elixir-autogen, elixir-format
+msgid "Failed to activate template: %{reason}"
+msgstr "Не удалось активировать шаблон: %{reason}"
+
+#: lib/phoenix_kit/modules/emails/web/templates.ex:504
+#, elixir-autogen, elixir-format
+msgid "Failed to archive template: %{reason}"
+msgstr "Не удалось архивировать шаблон: %{reason}"
+
+#: lib/phoenix_kit/modules/emails/web/templates.ex:457
+#, elixir-autogen, elixir-format
+msgid "Template '%{name}' archived — test emails will now use the built-in template instead"
+msgstr "Шаблон «%{name}» архивирован — теперь тестовые письма будут отправляться по встроенному шаблону"

@@ -15,6 +15,9 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditorTest do
 
   use PhoenixKitEmails.DataCase, async: false
 
+  import Phoenix.LiveViewTest
+
+  alias PhoenixKit.Modules.Emails.Template
   alias PhoenixKit.Modules.Emails.Templates
   alias PhoenixKit.Modules.Emails.Web.TemplateEditor
 
@@ -127,6 +130,57 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditorTest do
                )
 
       assert Templates.get_template(custom.uuid).status == "archived"
+    end
+  end
+
+  describe "render — Status select lock" do
+    defp editor_assigns(template) do
+      %{
+        changeset: Template.changeset(template, %{}),
+        mode: :edit,
+        template: template,
+        available_locales: ["en"],
+        current_editor_locale: "en",
+        preview_mode: "html",
+        show_test_modal: false,
+        test_sending: false,
+        test_form: %{recipient: "", sample_variables: %{}, errors: %{}},
+        extracted_variables: [],
+        saving: false
+      }
+    end
+
+    test "the Status select is disabled for an existing system template" do
+      {:ok, seeded} = Templates.seed_system_templates()
+      system_template = Enum.find(seeded, & &1.is_system)
+
+      html =
+        render_component(&TemplateEditor.render/1, editor_assigns(system_template),
+          endpoint: PhoenixKitEmails.Test.StubEndpoint
+        )
+
+      assert Regex.match?(~r/name="email_template\[status\]"[^>]*disabled/, html)
+    end
+
+    test "the Status select is not disabled for a non-system template" do
+      {:ok, custom} =
+        Templates.create_template(%{
+          name: "custom_status_render_#{System.unique_integer([:positive])}",
+          slug: "custom-status-render-#{System.unique_integer([:positive])}",
+          display_name: %{"en" => "Custom"},
+          subject: %{"en" => "Subject"},
+          html_body: %{"en" => "<p>Hi</p>"},
+          text_body: %{"en" => "Hi"},
+          category: "transactional",
+          status: "active"
+        })
+
+      html =
+        render_component(&TemplateEditor.render/1, editor_assigns(custom),
+          endpoint: PhoenixKitEmails.Test.StubEndpoint
+        )
+
+      refute Regex.match?(~r/name="email_template\[status\]"[^>]*disabled/, html)
     end
   end
 end

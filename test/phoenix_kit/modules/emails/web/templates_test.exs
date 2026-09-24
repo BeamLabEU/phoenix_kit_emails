@@ -197,6 +197,29 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplatesTest do
     end
   end
 
+  describe "clone_template failure reason" do
+    test "flashes the specific reserved-name reason, not a generic message" do
+      source = create_custom_template()
+
+      socket = bare_socket(%{clone_template: source, clone_form: %{name: "", display_name: ""}})
+
+      assert {:noreply, updated} =
+               TemplatesLive.handle_event(
+                 "clone_template",
+                 %{
+                   "clone" => %{
+                     "name" => "new_login_alert",
+                     "display_name" => "New Login Alert Copy"
+                   }
+                 },
+                 socket
+               )
+
+      assert updated.assigns.flash["error"] =~ "reserved"
+      assert Templates.get_template_by_name("new_login_alert") == nil
+    end
+  end
+
   describe "render" do
     defp base_list_assigns(templates) do
       %{
