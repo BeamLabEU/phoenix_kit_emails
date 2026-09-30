@@ -32,42 +32,84 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport do
   resolution falls through to. Writing it as `subject.en.txt` would silently
   drop the operator's customization for every non-English recipient — the exact
   opposite of the point of exporting it.
+
+  ## Raw-HTML variables in the `html` part
+
+  `phoenix_kit_templates` from 0.2.0 onward escapes `{{var}}` values in an
+  `html` part, and offers `{{{var}}}` (triple braces) as the opt-out for a
+  variable, such as billing's `line_items_html`, whose value is already
+  rendered HTML. `plan/3` rewrites the names `Template.raw_html_variables/0`
+  lists into that triple-brace form when the host's loaded
+  `phoenix_kit_templates` is new enough to understand it, and reports each
+  file it touched. Below 0.2.0, that syntax is not understood at all — see
+  `rewrite_raw_html/3` — so the file is written unchanged, with a notice
+  saying it needs a manual edit once core (and `phoenix_kit_templates` with
+  it) is upgraded. `subject` and `text` are never rewritten: they are always
+  plain text there, so double and triple braces already behave identically.
   """
 
   alias PhoenixKit.Modules.Emails.Template
 
   @default_out "priv/phoenix_kit_templates"
+  @raw_html_min_version "0.2.0"
 
   # Stored field -> {file stem, extension}. Only `html` is markup.
   @parts [{:subject, "subject", "txt"}, {:text_body, "text", "txt"}, {:html_body, "html", "html"}]
+
+  # `phoenix_kit_templates` is an optional peer dependency (pulled in
+  # transitively through `phoenix_kit`, not declared directly by this
+  # package), so this cannot `alias` its `Substitution` module. The character
+  # classes and whitespace handling below are copied from
+  # `PhoenixKit.Templates.Substitution.variables/1`'s own pattern by design —
+  # they must recognize exactly the placeholders that module would — not
+  # invented independently.
+  @placeholder ~r/
+    \{\{\{\s*(?<triple>[a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}\}
+    |
+    \{\{\s*(?<double>[a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}
+  /x
 
   @typedoc "What an export would do, without having done any of it."
   @type plan :: %{
           edited: [Template.t()],
           untouched: [Template.t()],
           authored: [Template.t()],
-          files: [{Path.t(), String.t()}]
+          files: [{Path.t(), String.t()}],
+          notices: [String.t()]
         }
 
   @doc """
   Plans an export of `templates` against `shipped` (this package's own
   defaults, as `default_system_templates/0` returns them).
 
-  Options: `:out`, the target directory (default `#{@default_out}`).
+  Options:
+
+    * `:out` — the target directory (default `#{@default_out}`).
+    * `:raw_html_supported` — whether the `html` part may use `{{{var}}}` for
+      a raw-HTML variable (see `rewrite_raw_html/3`). Defaults to detecting
+      the loaded `phoenix_kit_templates` version; pass it explicitly to pin
+      the behaviour regardless of what happens to be on the load path.
   """
   @spec plan([Template.t()], [map()], keyword()) :: plan()
   def plan(templates, shipped, opts \\ []) do
     out = Keyword.get(opts, :out, @default_out)
+    raw_html_supported? = Keyword.get(opts, :raw_html_supported, default_raw_html_support?())
     by_name = Map.new(shipped, &{&1.name, &1})
 
     {system, authored} = Enum.split_with(templates, & &1.is_system)
     {edited, untouched} = Enum.split_with(system, &edited?(&1, by_name))
 
+    {files, notices} =
+      edited
+      |> Enum.flat_map(&files_for(&1, out))
+      |> Enum.map_reduce([], &rewrite_html_file(&1, &2, raw_html_supported?))
+
     %{
       edited: edited,
       untouched: untouched,
       authored: authored,
-      files: Enum.flat_map(edited, &files_for(&1, out))
+      files: files,
+      notices: notices
     }
   end
 
@@ -161,5 +203,100 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport do
       keys == [] -> nil
       true -> Enum.min(keys)
     end
+  end
+
+  @doc """
+  Rewrites `Template.raw_html_variables/0` names in an `html` part from
+  `{{var}}` to `{{{var}}}`, when `raw_html_supported?` is true — the escaping
+  opt-out `phoenix_kit_templates` understands from 0.2.0 onward. Below that
+  version the package's own `Substitution` only understands `{{var}}` and
+  treats a triple brace as literal braces around a substituted double pair
+  (see that module's moduledoc), so nothing is rewritten and a notice says why.
+
+  An already-triple-braced placeholder is left alone — this is what keeps the
+  rewrite idempotent across repeated exports. A `{{..._html}}` placeholder
+  that is *not* on `raw_html_variables/0` is also left alone, but reported: a
+  new pre-rendered-HTML variable must be added to that list before an export
+  can safely convert it, so silently leaving it as `{{var}}` (still correct
+  under `phoenix_kit_templates` < 0.2.0, still wrong under `escape: true` at
+  0.2.0+) needs a human to notice.
+
+  `path` is only used to prefix the returned notices.
+  """
+  @spec rewrite_raw_html(String.t(), Path.t(), boolean()) :: {String.t(), [String.t()]}
+  def rewrite_raw_html(content, path, raw_html_supported?) when is_binary(content) do
+    known = Template.raw_html_variables()
+
+    double_html_names =
+      @placeholder
+      |> Regex.scan(content, capture: :all_names)
+      |> Enum.flat_map(fn
+        [double, ""] when double != "" -> [double]
+        [_double, _triple] -> []
+      end)
+      |> Enum.filter(&String.ends_with?(&1, "_html"))
+      |> Enum.uniq()
+
+    {known_names, unknown_names} = Enum.split_with(double_html_names, &(&1 in known))
+
+    new_content =
+      if raw_html_supported? and known_names != [] do
+        Regex.replace(@placeholder, content, fn full, triple, double ->
+          cond do
+            triple != "" -> full
+            double in known_names -> "{{{#{double}}}}"
+            true -> full
+          end
+        end)
+      else
+        content
+      end
+
+    {new_content, notices(path, known_names, unknown_names, raw_html_supported?)}
+  end
+
+  defp notices(path, known_names, unknown_names, raw_html_supported?) do
+    Enum.map(known_names, fn name ->
+      if raw_html_supported? do
+        "#{path}: rewrote {{#{name}}} to {{{#{name}}}} (already-rendered HTML)"
+      else
+        "#{path}: {{#{name}}} holds already-rendered HTML but the loaded " <>
+          "phoenix_kit_templates does not support {{{...}}} yet — after " <>
+          "upgrading core to >= 2.40 (phoenix_kit_templates ~> 0.2.0), " <>
+          "replace {{#{name}}} with {{{#{name}}}} in this file"
+      end
+    end) ++
+      Enum.map(unknown_names, fn name ->
+        "#{path}: unknown raw-HTML placeholder {{#{name}}} — left as-is; " <>
+          "add it to Template.raw_html_variables/0 if its value is already-rendered HTML"
+      end)
+  end
+
+  defp rewrite_html_file({path, content}, notices, raw_html_supported?) do
+    if String.ends_with?(path, ".html") do
+      {new_content, file_notices} = rewrite_raw_html(content, path, raw_html_supported?)
+      {{path, new_content}, notices ++ file_notices}
+    else
+      {{path, content}, notices}
+    end
+  end
+
+  defp default_raw_html_support? do
+    case Application.spec(:phoenix_kit_templates, :vsn) do
+      nil ->
+        _ = Application.load(:phoenix_kit_templates)
+        raw_html_support?(Application.spec(:phoenix_kit_templates, :vsn))
+
+      vsn ->
+        raw_html_support?(vsn)
+    end
+  end
+
+  defp raw_html_support?(nil), do: false
+
+  defp raw_html_support?(vsn) do
+    vsn |> to_string() |> Version.match?(">= #{@raw_html_min_version}")
+  rescue
+    Version.InvalidVersionError -> false
   end
 end

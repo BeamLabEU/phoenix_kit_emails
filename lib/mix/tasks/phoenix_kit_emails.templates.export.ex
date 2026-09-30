@@ -27,6 +27,18 @@ defmodule Mix.Tasks.PhoenixKitEmails.Templates.Export do
   `PhoenixKit.Modules.Emails.TemplateExport` decides all of this and documents
   why, including the locale rule that governs the filenames.
 
+  ## Raw-HTML variables
+
+  A handful of variables — currently only `line_items_html`, billing's
+  ready-rendered line-items table — hold HTML rather than plain text. From
+  `phoenix_kit_templates` 0.2.0 onward the `html` part escapes `{{var}}`
+  values, so a variable like that must be written as `{{{var}}}` (triple
+  braces) instead. This task rewrites those names automatically when the
+  loaded `phoenix_kit_templates` is 0.2.0 or newer, and prints which files it
+  touched. On an older `phoenix_kit_templates`, the file is written unchanged
+  and a note explains it needs that manual edit once core is upgraded to
+  `>= 2.40` (see `PhoenixKit.Modules.Emails.TemplateExport`).
+
   ## Options
 
     * `--dry-run` — report what would be written, write nothing.
@@ -120,6 +132,8 @@ defmodule Mix.Tasks.PhoenixKitEmails.Templates.Export do
           shell.info(["  wrote  ", path])
       end
     end
+
+    for notice <- plan.notices, do: shell.info([:cyan, "  note   ", :reset, notice])
 
     note(shell, plan.untouched, "untouched system template(s)", [
       "core supplies these itself now, translated into every shipped locale"

@@ -188,6 +188,29 @@ defmodule PhoenixKit.Modules.Emails.Template do
   """
   def reserved_names, do: @reserved_names
 
+  @raw_html_variables ["line_items_html"]
+
+  @doc """
+  Returns template variables whose value is already-rendered HTML rather than
+  plain text.
+
+  `phoenix_kit_billing`'s `format_line_items_html/1` builds a ready
+  `<tr>...</tr>` table and hands it to this package as `line_items_html` — the
+  only variable on this list today. A renderer that escapes `{{var}}`
+  (`phoenix_kit_templates` >= 0.2.0's `html` part) must substitute a variable
+  like this raw instead, via `{{{var}}}`.
+
+  `content` on operator-authored newsletters (`is_system: false`) is
+  deliberately absent: those rows are never touched by `TemplateExport` and
+  keep being substituted by this package's own `{{var}}`-only regex, which has
+  no raw form at all.
+
+  This list exists only for `TemplateExport` to consult while the templates
+  table is still the source of truth for these rows; nothing in the send path
+  reads it.
+  """
+  def raw_html_variables, do: @raw_html_variables
+
   @doc """
   Extracts a translated string from a JSON language map field.
 
