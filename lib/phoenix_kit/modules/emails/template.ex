@@ -201,9 +201,13 @@ defmodule PhoenixKit.Modules.Emails.Template do
   like this raw instead, via `{{{var}}}`.
 
   `content` on operator-authored newsletters (`is_system: false`) is
-  deliberately absent: those rows are never touched by `TemplateExport` and
-  keep being substituted by this package's own `{{var}}`-only regex, which has
-  no raw form at all.
+  deliberately absent: those rows are never touched by `TemplateExport`, and
+  at send time it is `phoenix_kit_newsletters`'s own
+  `DeliveryWorker.compose_html/3` — not this package — that substitutes it,
+  via a `String.replace/3` for `{{content}}` itself followed by a `{{var}}`-
+  only regex for everything else. Neither has a raw form, so the outcome is
+  the same as if this package's own substitution ran: no triple-brace escape
+  hatch exists for it.
 
   This list exists only for `TemplateExport` to consult while the templates
   table is still the source of truth for these rows; nothing in the send path
