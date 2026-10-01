@@ -40,12 +40,34 @@ defmodule Mix.Tasks.PhoenixKitEmails.Templates.Export do
   explains it needs that manual edit once core is upgraded to `>= 2.40` (see
   `PhoenixKit.Modules.Emails.TemplateExport`).
 
+  ## Full document or body fragment
+
+  A stored `html_body` is a whole HTML document with its own header, footer and
+  `<style>`. From core 2.43 every email built from a file is wrapped in a shared
+  layout (header, footer, logo, accent colour — all editable without a deploy),
+  and a whole document is never wrapped. So by default this task writes the
+  **body fragment** only: what sits between the template's `.header` and
+  `.footer`, with the styles the body needs inlined. Pass `--html document` to
+  write the stored document as it is.
+
+  The header's title (`<h1>`) and a footer that holds a placeholder (a fallback
+  link, company details) are kept as part of the body — they are text, not
+  chrome — and anything of the old chrome that held text and was dropped is
+  listed. See `PhoenixKit.Modules.Emails.TemplateExport.Body`.
+
   ## Options
 
     * `--dry-run` — report what would be written, write nothing.
     * `--force` — overwrite existing files. Refused by default, so a
       hand-written override is never clobbered by a re-run.
     * `--out DIR` — target directory (default `priv/phoenix_kit_templates`).
+    * `--html MODE` — `body`, `document` or `auto` (default). `auto` is `body`
+      when the loaded core has the email layout (2.43+), `document` otherwise —
+      a fragment on an older core would be sent bare.
+    * `--accent` — with body mode, write the default blue of a button as
+      `{{accent_color}}`, so it follows the accent colour set in the admin.
+      Needs core with the layout's branding variables; without it the
+      placeholder stays literal and the button loses its colour.
   """
 
   use Mix.Task
@@ -56,7 +78,15 @@ defmodule Mix.Tasks.PhoenixKitEmails.Templates.Export do
   @impl Mix.Task
   def run(argv) do
     {opts, _rest, _invalid} =
-      OptionParser.parse(argv, strict: [dry_run: :boolean, force: :boolean, out: :string])
+      OptionParser.parse(argv,
+        strict: [
+          dry_run: :boolean,
+          force: :boolean,
+          out: :string,
+          html: :string,
+          accent: :boolean
+        ]
+      )
 
     Mix.Task.run("app.start")
 
@@ -64,12 +94,26 @@ defmodule Mix.Tasks.PhoenixKitEmails.Templates.Export do
     dry_run? = Keyword.get(opts, :dry_run, false)
     force? = Keyword.get(opts, :force, false)
 
-    plan = TemplateExport.plan(load_templates(), Templates.default_system_templates(), out: out)
+    html = html_mode!(Keyword.get(opts, :html, "auto"))
+
+    plan =
+      TemplateExport.plan(load_templates(), Templates.default_system_templates(),
+        out: out,
+        html: html,
+        accent: Keyword.get(opts, :accent, false)
+      )
 
     written = TemplateExport.write_files(plan.files, dry_run: dry_run?, force: force?)
 
     report(plan, written, out)
   end
+
+  defp html_mode!("auto"), do: TemplateExport.default_html_mode()
+  defp html_mode!("body"), do: :body
+  defp html_mode!("document"), do: :document
+
+  defp html_mode!(other),
+    do: Mix.raise("--html must be body, document or auto, got: #{inspect(other)}")
 
   # An operator runs this once, during an upgrade, and a raw Ecto stacktrace
   # is a poor way to learn the task was run from the wrong directory. A dead
@@ -111,7 +155,8 @@ defmodule Mix.Tasks.PhoenixKitEmails.Templates.Export do
       shell.info([
         :bright,
         "Exporting #{length(plan.edited)} edited template(s) to #{out}/",
-        :reset
+        :reset,
+        " (html: #{plan.html})"
       ])
     end
 

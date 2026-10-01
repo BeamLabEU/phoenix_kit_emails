@@ -64,6 +64,27 @@ priv/phoenix_kit_templates/
     └── html.html
 ```
 
+### The `html` part: a body, not a whole document
+
+A stored `html_body` is a whole HTML document with its own header, footer and
+`<style>`. Core 2.43 and later wraps every email built from a file in a shared
+layout — header, footer, logo, accent colour, all editable without a deploy —
+and never wraps a document. So on such a core the export writes the **body
+fragment** only: what sits between the template's header and footer, with the
+styles the body needs (the button, the notice boxes) inlined. The email's
+`<h1>` title and a footer that carries a placeholder (the "copy this link"
+fallback, billing's company details) are text, not chrome, and stay in the body;
+anything of the old chrome that held text and was dropped is listed in the
+output, so it can be moved into the host's `_header`/`_footer` files.
+
+```bash
+mix phoenix_kit_emails.templates.export --html document   # the stored document, as before
+mix phoenix_kit_emails.templates.export --accent          # button blue -> {{accent_color}}
+```
+
+`--html` is `auto` by default: `body` when the loaded core has the layout,
+`document` when it does not (a fragment on an older core would be sent bare).
+
 ## Installation
 
 Add `phoenix_kit_emails` to your dependencies in `mix.exs`:
