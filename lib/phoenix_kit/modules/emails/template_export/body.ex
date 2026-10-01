@@ -67,19 +67,32 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport.Body do
   the shell), `extract/1` returns everything inside `<body>`, still with the
   styles inlined, and says so. It never guesses a cut.
 
+  A placeholder in the removed `<style>` that has no element to carry it (one
+  standing between rules, or a `{{{extra_css}}}` inside a rule) is reported as
+  `:style_placeholder` — it is gone from the output.
+
   ## Implementation
 
   No HTML parser is used: the structure is known, and all that is needed is a
-  tag tokenizer with balanced-element search, in one linear pass. Every token
-  keeps its original text, so element content and attributes come through
-  verbatim; only a `style` attribute that gains rules is rewritten, and the
-  indentation the seed's nesting added (ASCII spaces and tabs, never inside
-  `<pre>`/`<textarea>`) and trailing ASCII whitespace are normalised. A tag
-  that is never closed turns the rest of the input into text rather than
-  being searched for again.
+  tag tokenizer with balanced-element search. Tokenizing, tracking ancestors and
+  looking rules up are linear, and an unterminated tag, comment or `<style>`
+  turns the rest of the input into text instead of being searched for again.
+  Two pathological inputs stay super-linear — a great many `.footer` elements
+  that are not siblings of the header, and a very large number of CSS rules
+  (capped) — and are accepted as such.
+
+  Content and attributes come through as they were, with these exceptions, all
+  deliberate:
+
+    * a `style` attribute that gains rules is rewritten, and a `"` inside one of
+      its values becomes `'` (the attribute is double-quoted);
+    * the indentation the seed's nesting added (ASCII spaces and tabs) and
+      trailing ASCII whitespace are removed, a line ending `\r\n` becomes `\n`,
+      and three or more consecutive line breaks collapse to two — none of that
+      inside `<pre>` or `<textarea>`, where only the edges of a block are trimmed.
   """
 
-  @type note :: {:body_fallback | :chrome_dropped, [String.t()]}
+  @type note :: {:body_fallback | :chrome_dropped | :style_placeholder, [String.t()]}
 
   @void ~w(area base br col embed hr img input link meta param source track wbr)
 
@@ -167,6 +180,11 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport.Body do
 
   defp do_extract(html) do
     tokens = tokenize(html)
+    {fragment, notes} = cut(tokens)
+    {fragment, notes ++ lost_style_placeholders(tokens, fragment)}
+  end
+
+  defp cut(tokens) do
     entries = annotate(tokens)
     ctx = %{rules: tokens |> style_texts() |> Enum.flat_map(&parse_css/1) |> build_index()}
     {first, last} = body_range(entries)
@@ -179,6 +197,27 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport.Body do
       {:error, reason} ->
         {inner |> render(ctx) |> tidy(), [{:body_fallback, [reason]}]}
     end
+  end
+
+  # A placeholder in the removed `<style>` that did not end up in the fragment
+  # (it stood between rules, or in a declaration that is not a `prop: value`).
+  defp lost_style_placeholders(tokens, fragment) do
+    kept = placeholder_names(fragment)
+
+    lost =
+      tokens
+      |> style_texts()
+      |> Enum.flat_map(&placeholder_names/1)
+      |> Enum.uniq()
+      |> Enum.reject(&(&1 in kept))
+
+    if lost == [], do: [], else: [{:style_placeholder, lost}]
+  end
+
+  defp placeholder_names(text) do
+    ~r/\{\{\{?\s*([a-zA-Z_][a-zA-Z0-9_]*)/
+    |> Regex.scan(text, capture: :all_but_first)
+    |> List.flatten()
   end
 
   # ── tokenizer ─────────────────────────────────────────────────────────
@@ -824,6 +863,7 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport.Body do
     cond do
       css == "" -> Enum.reverse(acc)
       String.starts_with?(css, "@") -> skip_at_rule(css, acc)
+      String.starts_with?(css, "{{") -> css |> skip_placeholder() |> parse_rules(acc)
       true -> parse_rule(css, acc)
     end
   end
@@ -846,7 +886,7 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport.Body do
   defp parse_rule(css, acc) do
     with {at, 1} <- :binary.match(css, "{"),
          rest = binary_part(css, at + 1, byte_size(css) - at - 1),
-         {close, 1} <- :binary.match(rest, "}") do
+         {:ok, close} <- rule_end(rest, 0) do
       selector = css |> binary_part(0, at) |> String.trim()
       body = binary_part(rest, 0, close)
       tail = binary_part(rest, close + 1, byte_size(rest) - close - 1)
@@ -855,6 +895,37 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport.Body do
       _ -> Enum.reverse(acc)
     end
   end
+
+  # Offset of the `}` that ends a rule body: one inside a quoted string or a
+  # `{{placeholder}}` / `{{{placeholder}}}` does not count.
+  defp rule_end(<<>>, _n), do: :error
+  defp rule_end(<<"}", _::binary>>, n), do: {:ok, n}
+
+  defp rule_end(<<"{{{", rest::binary>>, n), do: skip_to(rest, "}}}", n + 3)
+  defp rule_end(<<"{{", rest::binary>>, n), do: skip_to(rest, "}}", n + 2)
+
+  defp rule_end(<<q, rest::binary>>, n) when q in ~c"\"'", do: skip_string(rest, q, n + 1)
+  defp rule_end(<<_, rest::binary>>, n), do: rule_end(rest, n + 1)
+
+  defp skip_to(bin, marker, n) do
+    case :binary.match(bin, marker) do
+      {at, size} ->
+        len = at + size
+        rule_end(binary_part(bin, len, byte_size(bin) - len), n + len)
+
+      :nomatch ->
+        :error
+    end
+  end
+
+  defp skip_string(<<>>, _q, _n), do: :error
+  defp skip_string(<<q, rest::binary>>, q, n), do: rule_end(rest, n + 1)
+  defp skip_string(<<"\\", _, rest::binary>>, q, n), do: skip_string(rest, q, n + 2)
+  defp skip_string(<<_, rest::binary>>, q, n), do: skip_string(rest, q, n + 1)
+
+  # A placeholder standing between rules has no element to carry it.
+  defp skip_placeholder(<<"{{{", rest::binary>>), do: after_marker(rest, "}}}")
+  defp skip_placeholder(<<"{{", rest::binary>>), do: after_marker(rest, "}}")
 
   # Past the `}` that closes a block whose `{` was already consumed.
   defp skip_block(css, 0), do: css

@@ -136,6 +136,7 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport do
             | :body_fallback
             | :chrome_dropped
             | :injected_styles
+            | :style_placeholder
             | :document_on_disk,
           names: [String.t()],
           raw_html_supported: boolean()
@@ -510,6 +511,14 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport do
        "reach the reader, put it in your own `_layout`"}
   end
 
+  def notice_message(%{path: path, kind: :style_placeholder, names: names}, outcome) do
+    verb = if outcome == :written, do: "is", else: "would be"
+
+    {:warning,
+     "#{path}: the removed <style> used #{as_double(names)}, which has no element to carry " <>
+       "it — it #{verb} gone from the output"}
+  end
+
   def notice_message(%{path: path, kind: :document_on_disk}, _outcome) do
     {:warning,
      "#{path}: the existing file is a whole HTML document, which core does not wrap in its " <>
@@ -558,7 +567,7 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport do
   # Body notices describe what this run would have cut out of the stored row —
   # nothing about a file left alone, which is not this run's to report on.
   def reconcile_skipped_notice(%{kind: kind}, _raw_html_supported?)
-      when kind in [:body_fallback, :chrome_dropped, :injected_styles],
+      when kind in [:body_fallback, :chrome_dropped, :injected_styles, :style_placeholder],
       do: nil
 
   # Read off the file on disk to begin with, so there is nothing to re-derive.

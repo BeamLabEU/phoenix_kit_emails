@@ -728,8 +728,22 @@ defmodule PhoenixKit.Modules.Emails.TemplateExportTest do
       assert message =~ "{{{line_items_html}}}"
     end
 
+    test "style_placeholder is a warning naming the variable, in the conditional for a dry run" do
+      notice = %{
+        path: "out/x/html.html",
+        kind: :style_placeholder,
+        names: ["extra_css"],
+        raw_html_supported: true
+      }
+
+      assert {:warning, written} = TemplateExport.notice_message(notice, :written)
+      assert written =~ "{{extra_css}}" and written =~ "is gone"
+      assert {:warning, planned} = TemplateExport.notice_message(notice, :would_write)
+      assert planned =~ "would be gone"
+    end
+
     test "body notices say nothing about a file that was skipped" do
-      for kind <- [:body_fallback, :chrome_dropped, :injected_styles] do
+      for kind <- [:body_fallback, :chrome_dropped, :injected_styles, :style_placeholder] do
         notice = %{
           path: "does/not/exist.html",
           kind: kind,

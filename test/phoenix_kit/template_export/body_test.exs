@@ -560,6 +560,18 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport.BodyTest do
       assert fragment =~ "{{confirmation_url}}"
     end
 
+    test "a footer-classed element without a placeholder before the real footer is body" do
+      {fragment, notes} =
+        Body.extract(
+          seed_like(middle: ~s(<p class="footer">Note: nothing here</p><p>Hi {{user_email}}</p>))
+        )
+
+      # Taken for the footer it would be dropped as decoration, with a note.
+      assert notes == []
+      assert fragment =~ "Note: nothing here"
+      assert fragment =~ "{{confirmation_url}}"
+    end
+
     test "every placeholder of the whole body survives, wherever it sat" do
       doc =
         seed_like(
@@ -671,6 +683,48 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport.BodyTest do
 
       assert fragment =~ "background: url('data:image/png;base64,BBBB');"
       assert fragment =~ "color: red;"
+    end
+
+    test "a placeholder inside a rule does not end it, and the next rule still applies" do
+      css = ".b { background-color: {{accent_color}}; padding: 4px } .w { color: red }"
+      {fragment, notes} = Body.extract(styled(css, ~s(<i class="b">x</i><i class="w">y</i>)))
+
+      assert fragment =~
+               ~s(<i class="b" style="background-color: {{accent_color}}; padding: 4px;">)
+
+      assert fragment =~ ~s(<i class="w" style="color: red;">)
+      assert notes == []
+    end
+
+    test "a triple-brace placeholder between rules is skipped, the rules around it kept, and it is reported" do
+      css = ".b { margin: 1px } {{{extra_css}}} .w { color: red }"
+      {fragment, notes} = Body.extract(styled(css, ~s(<i class="b">x</i><i class="w">y</i>)))
+
+      assert fragment =~ ~s(<i class="b" style="margin: 1px;">)
+      assert fragment =~ ~s(<i class="w" style="color: red;">)
+      assert [{:style_placeholder, ["extra_css"]}] = notes
+    end
+
+    test "a double-brace placeholder between rules does not swallow the rule after it" do
+      css = ".b { margin: 1px } {{extra_css}} .w { color: red }"
+      {fragment, notes} = Body.extract(styled(css, ~s(<i class="w">y</i>)))
+
+      assert fragment =~ ~s(<i class="w" style="color: red;">)
+      assert [{:style_placeholder, ["extra_css"]}] = notes
+    end
+
+    test "a triple-brace placeholder standing in for declarations is reported when it cannot be carried" do
+      css = ".b { margin: 1px; {{{extra_css}}} }"
+      {_, notes} = Body.extract(styled(css, ~s(<i class="b">x</i>)))
+      assert [{:style_placeholder, ["extra_css"]}] = notes
+    end
+
+    test "a } inside a quoted string does not end a rule" do
+      css = ~s[.b { content: "}"; margin: 2px } .w { color: red }]
+      {fragment, _} = Body.extract(styled(css, ~s(<i class="b">x</i><i class="w">y</i>)))
+
+      assert fragment =~ ~s(<i class="b" style="content: '}'; margin: 2px;">)
+      assert fragment =~ ~s(<i class="w" style="color: red;">)
     end
 
     test "an at-rule without a block does not swallow the rule after it" do
