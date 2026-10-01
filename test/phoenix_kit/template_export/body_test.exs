@@ -444,6 +444,20 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport.BodyTest do
   end
 
   describe "extract/1 — tokenizer" do
+    test "an unquoted value ending in / is not a self-closing tag" do
+      doc = """
+      <html><head><style>a { color: red; }</style></head><body>
+      <div class="header"><h1>T</h1></div>
+      <p><a href=https://x.com/>go</a> <a href=/p/ >two</a> <br/><img src="a"/></p>
+      <div class="footer">{{u}}</div></body></html>
+      """
+
+      assert {fragment, []} = Body.extract(doc)
+      assert fragment =~ ~s(<a href=https://x.com/ style="color: red;">go</a>)
+      assert fragment =~ ~s(<a href=/p/ style="color: red;">two</a>)
+      assert fragment =~ ~s(<br/><img src="a"/>)
+    end
+
     test "a > inside a quoted attribute does not end the tag" do
       doc = """
       <html><body>

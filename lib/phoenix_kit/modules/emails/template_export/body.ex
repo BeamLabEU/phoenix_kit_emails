@@ -89,7 +89,8 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport.Body do
     * the indentation the seed's nesting added (ASCII spaces and tabs) and
       trailing ASCII whitespace are removed, a line ending `\r\n` becomes `\n`,
       and three or more consecutive line breaks collapse to two — none of that
-      inside `<pre>` or `<textarea>`, where only the edges of a block are trimmed.
+      in a block that contains a `<pre>` or `<textarea>`, where only the edges of
+      the block are trimmed (so the rest of that block keeps its indentation).
   """
 
   @type note :: {:body_fallback | :chrome_dropped | :style_placeholder, [String.t()]}
@@ -277,8 +278,7 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport.Body do
       {:ok, len} ->
         <<attrs::binary-size(len), ">", tail::binary>> = after_name
         lname = String.downcase(name, :ascii)
-        self_closing? = String.ends_with?(String.trim_trailing(attrs), "/")
-        kind = if lname in @void or self_closing?, do: :void, else: :open
+        kind = if lname in @void or self_closing?(attrs), do: :void, else: :open
         token = {kind, lname, attrs, "<" <> name <> attrs <> ">", parse_classes(attrs)}
         acc = [token | acc]
 
@@ -342,6 +342,18 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport.Body do
     do: {binary_part(bin, 0, at), binary_part(bin, at, byte_size(bin) - at)}
 
   defp split_at_close(bin, nil), do: {bin, <<>>}
+
+  # A trailing `/` closes the tag only when it is not the end of an unquoted
+  # value: `<a href=https://x.com/>` is an open `<a>` with that whole URL.
+  defp self_closing?(attrs) do
+    trimmed = String.trim_trailing(attrs)
+
+    String.ends_with?(trimmed, "/") and
+      case List.last(attr_spans(attrs)) do
+        {_, _, _, stop} -> stop < byte_size(trimmed)
+        nil -> true
+      end
+  end
 
   defp parse_classes(attrs) do
     case attr_value(attrs, "class") do
@@ -788,7 +800,7 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport.Body do
   defp split_tail(attrs) do
     trimmed = String.trim_trailing(attrs)
 
-    if String.ends_with?(trimmed, "/") do
+    if self_closing?(attrs) do
       {trimmed |> String.trim_trailing("/") |> String.trim_trailing(), " /"}
     else
       {trimmed, ""}
