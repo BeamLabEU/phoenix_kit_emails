@@ -266,30 +266,40 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport do
   pre-rendered-HTML variable must be added to that list before an export can
   safely convert it, so silently leaving it as `{{var}}` (still correct under
   `phoenix_kit_templates` < 0.2.0, still wrong under `escape: true` at
-  0.2.0+) needs a human to notice. The `_html` suffix is matched
-  case-insensitively, since a name is a name regardless of how its casing
-  happens to have been typed into a template.
+  0.2.0+) needs a human to notice.
+
+  A double-brace placeholder is a rewrite candidate either because its name
+  is on `raw_html_variables/0` (regardless of how it happens to be spelled —
+  a known name is known by being on that list, not by its casing or suffix),
+  or, failing that, because its name merely *looks* like it might belong
+  there (ends in `_html`, matched case-insensitively), which is what makes an
+  unrecognized one worth a notice instead of silent passage.
 
   Returns at most one notice per `path` for the rewritten/pending-rewrite
   names, and one more for any unrecognized ones — never one notice per
   variable, so a template with several raw-HTML variables does not flood the
   export report with a line each.
-  """
-  @spec rewrite_raw_html(String.t(), Path.t(), boolean()) :: {String.t(), [notice()]}
-  def rewrite_raw_html(content, path, raw_html_supported?) when is_binary(content) do
-    known = Template.raw_html_variables()
 
-    double_html_names =
+  `opts[:known]` overrides `Template.raw_html_variables/0` — test-only, so a
+  name's behavior can be exercised without actually adding it to that list.
+  """
+  @spec rewrite_raw_html(String.t(), Path.t(), boolean(), keyword()) :: {String.t(), [notice()]}
+  def rewrite_raw_html(content, path, raw_html_supported?, opts \\ []) when is_binary(content) do
+    known = Keyword.get(opts, :known, Template.raw_html_variables())
+
+    double_names =
       @placeholder
       |> Regex.scan(content, capture: :all_names)
       |> Enum.flat_map(fn
         [double, ""] when double != "" -> [double]
         [_double, _triple] -> []
       end)
-      |> Enum.filter(&String.ends_with?(String.downcase(&1), "_html"))
       |> Enum.uniq()
 
-    {known_names, unknown_names} = Enum.split_with(double_html_names, &(&1 in known))
+    {known_names, candidate_unknown_names} = Enum.split_with(double_names, &(&1 in known))
+
+    unknown_names =
+      Enum.filter(candidate_unknown_names, &String.ends_with?(String.downcase(&1), "_html"))
 
     new_content =
       if raw_html_supported? and known_names != [] do

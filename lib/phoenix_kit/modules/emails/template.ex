@@ -211,7 +211,11 @@ defmodule PhoenixKit.Modules.Emails.Template do
 
   This list exists only for `TemplateExport` to consult while the templates
   table is still the source of truth for these rows; nothing in the send path
-  reads it.
+  reads it. A name belongs on it by being listed here, not by any naming
+  convention — `TemplateExport.rewrite_raw_html/3`'s `_html`-suffix check is
+  a separate, looser heuristic it falls back to only for flagging a name that
+  *isn't* on this list, so a future addition here needs no particular
+  spelling to be recognized.
   """
   def raw_html_variables, do: @raw_html_variables
 

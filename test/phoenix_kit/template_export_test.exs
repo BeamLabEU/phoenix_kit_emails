@@ -265,6 +265,20 @@ defmodule PhoenixKit.Modules.Emails.TemplateExportTest do
       assert [%{kind: :unknown_placeholder, names: ["mystery_html"]}] = plan.notices
     end
 
+    test "an unrecognized _html placeholder's notice carries the plan's own raw_html_supported flag" do
+      # build_notices stamps every notice with raw_html_supported — without
+      # that, notice_message/2's unknown_placeholder wording could not tell
+      # the "convert it now" case from the "do not, it's a trap" one.
+      # Hardcoding this field to true would still pass every other test.
+      plan =
+        TemplateExport.plan([invoice("{{mystery_html}}")], invoice_shipped(),
+          out: "out",
+          raw_html_supported: false
+        )
+
+      assert [%{kind: :unknown_placeholder, raw_html_supported: false}] = plan.notices
+    end
+
     test "reports several unrecognized placeholders in one notice, not one per variable" do
       plan =
         TemplateExport.plan([invoice("{{foo_html}} {{bar_html}}")], invoice_shipped(),
@@ -370,6 +384,19 @@ defmodule PhoenixKit.Modules.Emails.TemplateExportTest do
 
       assert content == "{{total}}"
       assert notices == []
+    end
+
+    test "a known name is rewritten even without an _html suffix" do
+      # Filtering candidates by the _html suffix before checking membership
+      # in the known list would silently skip a known name spelled any other
+      # way. opts[:known] stands in for a hypothetical raw_html_variables/0
+      # entry without that suffix, without actually adding one to the real
+      # list.
+      {content, notices} =
+        TemplateExport.rewrite_raw_html("{{raw_markup}}", "x.html", true, known: ["raw_markup"])
+
+      assert content == "{{{raw_markup}}}"
+      assert [%{kind: :rewritten, names: ["raw_markup"]}] = notices
     end
 
     test "is idempotent on a part that mixes the double and triple form of the same name" do
@@ -517,6 +544,10 @@ defmodule PhoenixKit.Modules.Emails.TemplateExportTest do
         assert {:warning, message} = TemplateExport.notice_message(notice, outcome)
         assert message =~ "does not support {{{...}}}"
         assert message =~ "replace {{line_items_html}} with {{{line_items_html}}}"
+
+        # Without this clause the advice reads as "do this now" — exactly
+        # the reverse-trap case this kind exists to avoid below 0.2.0.
+        assert message =~ "after upgrading core to >= 2.40"
       end
     end
 
