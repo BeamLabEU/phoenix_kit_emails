@@ -53,6 +53,11 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport.Body do
   colours — the red of a password reset, the green of an email change — carry
   meaning and are kept.
 
+  Known limitation: a raw-HTML variable such as `{{{line_items_html}}}` inserts
+  markup built elsewhere whose cells and classes were styled by the removed
+  `<style>`. That markup renders unstyled until the module producing it styles
+  its own rows; the export task warns about it.
+
   ## When it falls back
 
   If the `.header`/`.footer` pair cannot be found as siblings (a host replaced
