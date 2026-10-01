@@ -3,11 +3,11 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport.Body do
   Turns a stored full-document `html_body` into the *body fragment* an
   `html.html` override file should hold.
 
-  Core wraps every email built from a file in a shared layout (header, footer,
-  branding — see `PhoenixKit.Email.Layout`) and never wraps a part that is
-  already a whole document. A seeded row is a whole document, so exporting it
-  verbatim keeps the old chrome forever and the host never gets the shared one.
-  `extract/2` cuts the chrome off.
+  Core wraps an email built from a file in a shared layout
+  (`PhoenixKit.Email.Layout`) and never wraps a part that is already a whole
+  document. A seeded row is a whole document, so exporting it verbatim keeps
+  its own chrome (container, header, footer, stylesheet) and the layout never
+  applies. `extract/1` cuts that chrome off and keeps the content.
 
   ## Where the body is, in the shipped seeds
 
@@ -17,41 +17,44 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport.Body do
   `reset_password`, `update_email`) — the rows hosts actually edit — have the
   body directly between the two blocks. So the cut is made on the **boundary**:
   everything after the end of the `.header` element and before the start of the
-  `.footer` element. A lone `.content` wrapper around that region is unwrapped,
-  because the layout owns the padding.
+  `.footer` element. A lone `.content` wrapper around that region is unwrapped.
+
+  The `.header` is the first element carrying that class; the `.footer` is the
+  **last** `.footer` element that is a sibling of it. The elements that wrap
+  the header (the container) are dropped, and *everything else* in `<body>` is
+  kept, in document order: a preheader before the header, an unsubscribe line
+  after the footer, text after the container. Nothing outside the header and
+  footer blocks is lost.
 
   ## What is kept of the header and footer, and why
 
-  The seeds' `.header` and `.footer` are not pure chrome — dropping them whole
-  would lose text a host translated and edited:
+  The seeds' `.header` and `.footer` are not pure decoration — dropping them
+  whole would lose text a host translated and edited:
 
     * the `.header` holds the email's **title** (`<h1>Password Reset Request</h1>`,
-      billing's `INVOICE` + number). A header with a heading in it is kept as the
-      first block of the body — its heading and whatever sits with it, without
-      the header's own background and colour — and one without a heading is
-      treated as chrome and dropped;
+      billing's `INVOICE` + number). A header holding a heading or a
+      placeholder is kept as the first block of the body: its content, with
+      only its `text-align` and margins — not its background, colour or the
+      descendant rules written for that background;
     * the `.footer` holds the fallback link under a button (`{{reset_url}}`) and
       billing's company details (`{{company_name}}`, VAT). A footer containing a
-      placeholder is kept as the last block of the body; one without any is
-      treated as chrome and dropped.
+      placeholder is kept as the last block of the body, with its own styling.
 
-  Anything dropped that held text is reported, so the operator can move it into
-  the host's `_header`/`_footer` override.
+  A header or footer with neither is treated as decoration and dropped. What
+  text it held is reported, so the operator can move it into their own layout.
 
   ## Styles
 
   The `<style>` block goes with the `<head>`, and with it every class the body
   relies on (`.button`, `.warning`, billing's tables). So the rules are
   **inlined**: each element in the fragment gets the declarations of the
-  matching simple rules in its `style` attribute, with an existing inline
-  `style` winning. Supported selectors are `tag`, `.class`, `tag.class` and
-  descendant chains of them; anything else (`:hover`, `>`, ids, `@media`) is
-  skipped — it was never reliable in email clients.
-
-  With `accent: true` the default blue of a `.button` becomes
-  `{{accent_color}}` (a variable core's layout provides from 2.44). Other
-  colours — the red of a password reset, the green of an email change — carry
-  meaning and are kept.
+  matching rules in its `style` attribute, and an existing inline `style` wins
+  (a placeholder in it, such as `style="{{button_style}}"`, is kept as is).
+  Supported selectors are `tag`, `.class`, `tag.class` and descendant chains of
+  them, ordered by specificity (classes, then tags) and source order;
+  anything else (`:hover`, `>`, ids, `*`, `@media`) is skipped — it was never
+  reliable in email clients. `!important` is not honoured: it stays part of the
+  value, and an inline declaration still wins by position.
 
   Known limitation: a raw-HTML variable such as `{{{line_items_html}}}` inserts
   markup built elsewhere whose cells and classes were styled by the removed
@@ -61,12 +64,19 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport.Body do
   ## When it falls back
 
   If the `.header`/`.footer` pair cannot be found as siblings (a host replaced
-  the shell), `extract/2` returns everything inside `<body>`, still with the
+  the shell), `extract/1` returns everything inside `<body>`, still with the
   styles inlined, and says so. It never guesses a cut.
 
+  ## Implementation
+
   No HTML parser is used: the structure is known, and all that is needed is a
-  tag tokenizer with balanced-element search. The tokenizer keeps every byte it
-  does not rewrite, so a host's edits come through untouched.
+  tag tokenizer with balanced-element search, in one linear pass. Every token
+  keeps its original text, so element content and attributes come through
+  verbatim; only a `style` attribute that gains rules is rewritten, and the
+  indentation the seed's nesting added (ASCII spaces and tabs, never inside
+  `<pre>`/`<textarea>`) and trailing ASCII whitespace are normalised. A tag
+  that is never closed turns the rest of the input into text rather than
+  being searched for again.
   """
 
   @type note :: {:body_fallback | :chrome_dropped, [String.t()]}
@@ -85,36 +95,54 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport.Body do
   # its background and colour are gone.
   @header_props ~w(text-align margin margin-top margin-bottom)
 
-  @default_blues ~w(#3b82f6 #2563eb)
+  # Bounds that keep hostile or broken input from costing more than a pass.
+  @max_depth 256
+  @pop_search 32
+  @max_rules 20_000
 
   @doc """
-  Whether `html` is a whole document — the test core's own layout applies:
-  after a BOM, whitespace, comments and an `<?xml ?>` prolog, `<!doctype` or an
-  `<html` tag.
+  Whether `html` is a whole document — the test core's own layout applies.
+
+  Delegates to `PhoenixKit.Email.Layout.document?/1` when the loaded core has
+  it, so the answer is never different from what the send will do. On an older
+  core it falls back to the same rule written out here: after a BOM,
+  whitespace, comments and an `<?xml ?>` prolog, `<!doctype` or an `<html` tag.
   """
   @spec document?(String.t()) :: boolean()
   def document?(html) when is_binary(html) do
+    # Called through a variable: this package accepts cores that predate the
+    # layout, where a literal call would be a compile warning.
+    layout = PhoenixKit.Email.Layout
+
+    if Code.ensure_loaded?(layout) and function_exported?(layout, :document?, 1),
+      # credo:disable-for-next-line Credo.Check.Refactor.Apply
+      do: apply(layout, :document?, [html]),
+      else: local_document?(html)
+  end
+
+  @doc false
+  @spec local_document?(String.t()) :: boolean()
+  def local_document?(html) when is_binary(html) do
     html |> skip_prolog() |> document_start?()
   end
 
   defp skip_prolog(<<0xEF, 0xBB, 0xBF, rest::binary>>), do: skip_prolog(rest)
-  defp skip_prolog(<<c, rest::binary>>) when c in ~c" \t\r\n", do: skip_prolog(rest)
 
-  defp skip_prolog(<<"<!--", rest::binary>> = html) do
-    case :binary.match(rest, "-->") do
-      {at, 3} -> skip_prolog(binary_part(rest, at + 3, byte_size(rest) - at - 3))
-      :nomatch -> html
+  defp skip_prolog(html) do
+    case String.trim_leading(html) do
+      "<!--" <> rest -> rest |> after_marker("-->") |> skip_prolog()
+      "<?xml" <> rest -> rest |> after_marker("?>") |> skip_prolog()
+      ^html -> html
+      trimmed -> skip_prolog(trimmed)
     end
   end
 
-  defp skip_prolog(<<"<?xml", rest::binary>> = html) do
-    case :binary.match(rest, "?>") do
-      {at, 2} -> skip_prolog(binary_part(rest, at + 2, byte_size(rest) - at - 2))
-      :nomatch -> html
+  defp after_marker(rest, marker) do
+    case :binary.match(rest, marker) do
+      {at, size} -> binary_part(rest, at + size, byte_size(rest) - at - size)
+      :nomatch -> ""
     end
   end
-
-  defp skip_prolog(html), do: html
 
   defp document_start?(html) do
     lower = html |> :binary.part(0, min(byte_size(html), 16)) |> String.downcase(:ascii)
@@ -129,44 +157,40 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport.Body do
 
     * `{:body_fallback, [reason]}` — the header/footer pair was not found as
       siblings, so the whole `<body>` was kept;
-    * `{:chrome_dropped, ["header: …", "footer: …"]}` — chrome that held text
-      and was left out.
-
-  Options: `:accent` (default `false`), see the moduledoc.
+    * `{:chrome_dropped, ["header: …", "footer: …"]}` — decoration that held
+      text and was left out.
   """
-  @spec extract(String.t(), keyword()) :: {String.t(), [note()]}
-  def extract(html, opts \\ []) when is_binary(html) do
-    if document?(html) do
-      do_extract(html, Keyword.get(opts, :accent, false))
-    else
-      {html, []}
-    end
+  @spec extract(String.t()) :: {String.t(), [note()]}
+  def extract(html) when is_binary(html) do
+    if document?(html), do: do_extract(html), else: {html, []}
   end
 
-  defp do_extract(html, accent?) do
-    tokens = html |> tokenize() |> Enum.with_index()
-    rules = tokens |> Enum.map(&elem(&1, 0)) |> style_rules()
-    {first, last} = body_range(tokens)
-    inner = Enum.slice(tokens, first..last//1)
+  defp do_extract(html) do
+    tokens = tokenize(html)
+    entries = annotate(tokens)
+    ctx = %{rules: tokens |> style_texts() |> Enum.flat_map(&parse_css/1) |> build_index()}
+    {first, last} = body_range(entries)
+    inner = Enum.slice(entries, first..last//1)
 
     case boundary(inner) do
       {:ok, header, footer} ->
-        inner |> pieces(header, footer) |> assemble(tokens, rules, accent?)
+        inner |> pieces(header, footer, first) |> assemble(ctx)
 
       {:error, reason} ->
-        fragment = inner |> render(tokens, rules, accent?) |> tidy()
-        {fragment, [{:body_fallback, [reason]}]}
+        {inner |> render(ctx) |> tidy(), [{:body_fallback, [reason]}]}
     end
   end
 
   # ── tokenizer ─────────────────────────────────────────────────────────
 
-  # Tokens: {:text, s} | {:comment, s} | {:decl, s} |
-  #         {:open, name, attrs, raw} | {:void, name, attrs, raw} | {:close, name, raw}
-  # `attrs` is everything between the name and the closing `>`.
-  defp tokenize(html), do: tokenize(html, [])
+  # Tokens: {:text, s} | {:comment, s} | {:decl, s} | {:close, name, raw} |
+  #         {:open | :void, name, attrs, raw, classes}
+  # `attrs` is everything between the name and the closing `>`. Anything that
+  # is never terminated turns the whole rest of the input into one text token,
+  # so no later tag is scanned for again.
+  defp tokenize(html), do: html |> tokenize([]) |> Enum.reverse()
 
-  defp tokenize(<<>>, acc), do: Enum.reverse(acc)
+  defp tokenize(<<>>, acc), do: acc
 
   defp tokenize(<<"<!--", rest::binary>> = html, acc) do
     case :binary.match(rest, "-->") do
@@ -176,7 +200,7 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport.Body do
         tokenize(tail, [{:comment, "<!--" <> comment} | acc])
 
       :nomatch ->
-        tokenize_text(html, acc)
+        [{:text, html} | acc]
     end
   end
 
@@ -187,7 +211,7 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport.Body do
         tokenize(tail, [{:decl, "<!" <> decl <> ">"} | acc])
 
       :nomatch ->
-        tokenize_text(html, acc)
+        [{:text, html} | acc]
     end
   end
 
@@ -197,33 +221,37 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport.Body do
     case :binary.match(rest, ">") do
       {at, 1} ->
         <<inner::binary-size(at), ">", tail::binary>> = rest
-        name = inner |> String.trim() |> String.downcase()
+        name = inner |> String.trim() |> String.downcase(:ascii)
         tokenize(tail, [{:close, name, "</" <> inner <> ">"} | acc])
 
       :nomatch ->
-        tokenize_text(html, acc)
+        [{:text, html} | acc]
     end
   end
 
   defp tokenize(<<"<", c, _::binary>> = html, acc) when c in ?a..?z or c in ?A..?Z do
     <<"<", rest::binary>> = html
+    name_len = name_length(rest, 0)
+    <<name::binary-size(name_len), after_name::binary>> = rest
 
-    with {name, after_name} <- take_name(rest),
-         {attrs, tail} <- take_attrs(after_name, nil, []) do
-      lname = String.downcase(name)
-      raw = "<" <> name <> attrs <> ">"
-      self_closing? = String.ends_with?(String.trim_trailing(attrs), "/")
-      kind = if lname in @void or self_closing?, do: :void, else: :open
-      acc = [{kind, lname, attrs, raw} | acc]
+    case scan_attrs(after_name, 0, :norm) do
+      {:ok, len} ->
+        <<attrs::binary-size(len), ">", tail::binary>> = after_name
+        lname = String.downcase(name, :ascii)
+        self_closing? = String.ends_with?(String.trim_trailing(attrs), "/")
+        kind = if lname in @void or self_closing?, do: :void, else: :open
+        token = {kind, lname, attrs, "<" <> name <> attrs <> ">", parse_classes(attrs)}
+        acc = [token | acc]
 
-      if kind == :open and lname in ~w(style script) do
-        {body, tail} = take_raw_text(tail, lname)
-        tokenize(tail, [{:text, body} | acc])
-      else
-        tokenize(tail, acc)
-      end
-    else
-      _ -> tokenize_text(html, acc)
+        if kind == :open and lname in ["style", "script"] do
+          {body, tail} = take_raw_text(tail, lname)
+          tokenize(tail, [{:text, body} | acc])
+        else
+          tokenize(tail, acc)
+        end
+
+      :error ->
+        [{:text, html} | acc]
     end
   end
 
@@ -237,15 +265,7 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport.Body do
         :nomatch -> {rest, <<>>}
       end
 
-    case acc do
-      [{:text, prev} | acc_tail] -> tokenize(tail, [{:text, prev <> <<c>> <> text} | acc_tail])
-      _ -> tokenize(tail, [{:text, <<c>> <> text} | acc])
-    end
-  end
-
-  defp take_name(bin) do
-    len = name_length(bin, 0)
-    {binary_part(bin, 0, len), binary_part(bin, len, byte_size(bin) - len)}
+    tokenize(tail, [{:text, <<c>> <> text} | acc])
   end
 
   defp name_length(<<c, rest::binary>>, n)
@@ -254,118 +274,268 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport.Body do
 
   defp name_length(_rest, n), do: n
 
-  # Up to the first `>` that is not inside a quoted attribute value.
-  defp take_attrs(<<>>, _quote, _acc), do: :error
+  # Bytes up to the first `>` that is not inside a quoted attribute value. A
+  # quote only opens a value right after `=`, so an apostrophe elsewhere in the
+  # tag does not swallow the rest of the document.
+  defp scan_attrs(<<>>, _n, _state), do: :error
+  defp scan_attrs(<<">", _::binary>>, n, state) when state in [:norm, :eq], do: {:ok, n}
 
-  defp take_attrs(<<">", rest::binary>>, nil, acc),
-    do: {acc |> Enum.reverse() |> IO.iodata_to_binary(), rest}
+  defp scan_attrs(<<"=", rest::binary>>, n, state) when state in [:norm, :eq],
+    do: scan_attrs(rest, n + 1, :eq)
 
-  defp take_attrs(<<q, rest::binary>>, nil, acc) when q in ~c"\"'",
-    do: take_attrs(rest, q, [<<q>> | acc])
+  defp scan_attrs(<<c, rest::binary>>, n, :eq) when c in ~c" \t\r\n",
+    do: scan_attrs(rest, n + 1, :eq)
 
-  defp take_attrs(<<q, rest::binary>>, q, acc), do: take_attrs(rest, nil, [<<q>> | acc])
-  defp take_attrs(<<c, rest::binary>>, quote, acc), do: take_attrs(rest, quote, [<<c>> | acc])
+  defp scan_attrs(<<q, rest::binary>>, n, :eq) when q in ~c"\"'", do: scan_attrs(rest, n + 1, q)
+  defp scan_attrs(<<_, rest::binary>>, n, :eq), do: scan_attrs(rest, n + 1, :norm)
+  defp scan_attrs(<<q, rest::binary>>, n, q), do: scan_attrs(rest, n + 1, :norm)
+  defp scan_attrs(<<_, rest::binary>>, n, state), do: scan_attrs(rest, n + 1, state)
 
-  defp take_raw_text(bin, name) do
-    lower = String.downcase(bin)
+  # The text of a `<style>`/`<script>`: up to the next closing tag of that
+  # name, found without copying or lowercasing what follows it.
+  defp take_raw_text(bin, "style"),
+    do: split_at_close(bin, Regex.run(~r{</style}i, bin, return: :index))
 
-    case :binary.match(lower, "</" <> name) do
-      {at, _} -> {binary_part(bin, 0, at), binary_part(bin, at, byte_size(bin) - at)}
-      :nomatch -> {bin, <<>>}
+  defp take_raw_text(bin, "script"),
+    do: split_at_close(bin, Regex.run(~r{</script}i, bin, return: :index))
+
+  defp split_at_close(bin, [{at, _}]),
+    do: {binary_part(bin, 0, at), binary_part(bin, at, byte_size(bin) - at)}
+
+  defp split_at_close(bin, nil), do: {bin, <<>>}
+
+  defp parse_classes(attrs) do
+    case attr_value(attrs, "class") do
+      nil -> []
+      value -> String.split(value)
     end
   end
 
+  # ── attributes ────────────────────────────────────────────────────────
+
+  # The value of the first attribute called `name` (lowercase), or nil. Written
+  # by hand rather than with a regular expression: it runs for every tag, and a
+  # literal regex is recompiled on every call under OTP 28.
+  defp attr_value(attrs, name) do
+    case Enum.find(attr_spans(attrs), &(elem(&1, 0) == name)) do
+      {_, value, _, _} -> value
+      nil -> nil
+    end
+  end
+
+  # `{lowercase name, value | nil, start, stop}` for each attribute, with
+  # offsets into `attrs`.
+  defp attr_spans(attrs), do: attr_spans(attrs, attrs, 0, [])
+
+  defp attr_spans(<<>>, _whole, _pos, acc), do: Enum.reverse(acc)
+
+  defp attr_spans(<<c, rest::binary>>, whole, pos, acc) when c in ~c" \t\r\n/",
+    do: attr_spans(rest, whole, pos + 1, acc)
+
+  defp attr_spans(bin, whole, pos, acc) do
+    case attr_name_length(bin, 0) do
+      0 ->
+        <<_, rest::binary>> = bin
+        attr_spans(rest, whole, pos + 1, acc)
+
+      len ->
+        <<name::binary-size(len), rest::binary>> = bin
+        {value, used} = take_attr_value(rest)
+        <<_::binary-size(len), _::binary-size(used), tail::binary>> = bin
+        span = {String.downcase(name, :ascii), value, pos, pos + len + used}
+        attr_spans(tail, whole, pos + len + used, [span | acc])
+    end
+  end
+
+  defp attr_name_length(<<c, _::binary>>, n) when c in ~c" \t\r\n/=", do: n
+  defp attr_name_length(<<_, rest::binary>>, n), do: attr_name_length(rest, n + 1)
+  defp attr_name_length(<<>>, n), do: n
+
+  # After a name: `= value` (quoted or not) -> {value, bytes used}, else {nil, 0}.
+  defp take_attr_value(bin) do
+    blanks = leading_blanks(bin, ~c" \t\r\n")
+    after_blanks = binary_part(bin, blanks, byte_size(bin) - blanks)
+
+    case after_blanks do
+      <<"=", rest::binary>> ->
+        more = leading_blanks(rest, ~c" \t\r\n")
+        value_part = binary_part(rest, more, byte_size(rest) - more)
+        {value, value_used} = take_value(value_part)
+        {value, blanks + 1 + more + value_used}
+
+      _ ->
+        {nil, 0}
+    end
+  end
+
+  defp take_value(<<q, rest::binary>>) when q in ~c"\"'" do
+    case :binary.match(rest, <<q>>) do
+      {at, 1} -> {binary_part(rest, 0, at), at + 2}
+      :nomatch -> {rest, byte_size(rest) + 1}
+    end
+  end
+
+  defp take_value(bin) do
+    len = unquoted_length(bin, 0)
+    {binary_part(bin, 0, len), len}
+  end
+
+  defp unquoted_length(<<c, _::binary>>, n) when c in ~c" \t\r\n", do: n
+  defp unquoted_length(<<_, rest::binary>>, n), do: unquoted_length(rest, n + 1)
+  defp unquoted_length(<<>>, n), do: n
+
   # ── structure ─────────────────────────────────────────────────────────
 
+  # Entries are {token, index, ancestors}; ancestors are the open elements
+  # around the token, nearest first, as {name, classes, index}. One forward
+  # pass, so no token is ever scanned for its ancestors again.
+  defp annotate(tokens) do
+    {entries, _state} =
+      tokens
+      |> Enum.with_index()
+      |> Enum.map_reduce({[], 0, 0}, fn
+        {{:open, name, _, _, classes} = token, i}, {stack, _, _} = state ->
+          {{token, i, stack}, push(state, {name, classes, i})}
+
+        {{:close, name, _} = token, i}, {stack, _, _} = state ->
+          {{token, i, stack}, pop(state, name)}
+
+        {token, i}, {stack, _, _} = state ->
+          {{token, i, stack}, state}
+      end)
+
+    entries
+  end
+
+  # Past the depth cap an element is counted but not remembered as an ancestor.
+  defp push({stack, depth, over}, _entry) when depth >= @max_depth, do: {stack, depth, over + 1}
+  defp push({stack, depth, over}, entry), do: {[entry | stack], depth + 1, over}
+
+  # A closing tag closes the nearest open element of its name — but only looks
+  # a few levels up, so a run of stray closing tags stays cheap.
+  defp pop({stack, depth, over}, _name) when over > 0, do: {stack, depth, over - 1}
+
+  defp pop({stack, depth, over}, name) do
+    case drop_through(stack, name, @pop_search, 0) do
+      {rest, removed} -> {rest, depth - removed, over}
+      :none -> {stack, depth, over}
+    end
+  end
+
+  defp drop_through([], _name, _limit, _n), do: :none
+  defp drop_through(_stack, _name, 0, _n), do: :none
+  defp drop_through([{name, _, _} | rest], name, _limit, n), do: {rest, n + 1}
+  defp drop_through([_ | rest], name, limit, n), do: drop_through(rest, name, limit - 1, n + 1)
+
+  defp idx({_token, i, _ancestors}), do: i
+
   # Index range of what is inside <body>; with no body, after </head>.
-  defp body_range(tokens) do
-    last_index = length(tokens) - 1
+  defp body_range(entries) do
+    last_index = length(entries) - 1
 
     first =
-      case Enum.find(tokens, &open?(&1, "body")) do
-        {_, i} -> i + 1
-        nil -> head_end(tokens)
+      case Enum.find(entries, &open?(&1, "body")) do
+        {_, i, _} -> i + 1
+        nil -> head_end(entries)
       end
 
     last =
-      case tokens |> Enum.reverse() |> Enum.find(&close?(&1, "body")) do
-        {_, i} -> i - 1
-        nil -> closing_html(tokens, last_index)
+      case entries |> Enum.reverse() |> Enum.find(&close?(&1, "body")) do
+        {_, i, _} -> i - 1
+        nil -> closing_html(entries, last_index)
       end
 
     {first, last}
   end
 
-  defp head_end(tokens) do
-    case Enum.find(tokens, &close?(&1, "head")) do
-      {_, i} -> i + 1
+  defp head_end(entries) do
+    case Enum.find(entries, &close?(&1, "head")) do
+      {_, i, _} -> i + 1
       nil -> 0
     end
   end
 
-  defp closing_html(tokens, last_index) do
-    case tokens |> Enum.reverse() |> Enum.find(&close?(&1, "html")) do
-      {_, i} -> i - 1
+  defp closing_html(entries, last_index) do
+    case entries |> Enum.reverse() |> Enum.find(&close?(&1, "html")) do
+      {_, i, _} -> i - 1
       nil -> last_index
     end
   end
 
-  defp open?({{:open, name, _, _}, _}, name), do: true
+  defp open?({{:open, name, _, _, _}, _, _}, name), do: true
   defp open?(_, _), do: false
-  defp close?({{:close, name, _}, _}, name), do: true
+  defp close?({{:close, name, _}, _, _}, name), do: true
   defp close?(_, _), do: false
 
   # The header and footer as {open_index, close_index} pairs, only when both
   # exist and the region between them is balanced, i.e. they are siblings.
   defp boundary(inner) do
-    with {:header, {:ok, header}} <- {:header, element_with_class(inner, "header", 0)},
-         {:footer, {:ok, footer}} <-
-           {:footer, element_with_class(inner, "footer", elem(header, 1))},
-         true <- balanced?(inner, elem(header, 1) + 1, elem(footer, 0) - 1) do
-      {:ok, header, footer}
-    else
-      {:header, :error} -> {:error, "no .header element found"}
-      {:footer, :error} -> {:error, "no .footer element found after the .header"}
-      false -> {:error, "the .header and .footer are not siblings"}
+    case element_with_class(inner, "header") do
+      :none -> {:error, "no .header element found"}
+      :unclosed -> {:error, "the .header element is never closed"}
+      {:ok, header} -> footer_after(inner, header)
     end
   end
 
-  # {open_index, close_index} (absolute token indexes) of the first element
-  # carrying `class`, searching from absolute index `from`.
-  defp element_with_class(inner, class, from) do
+  # The last `.footer` that is a sibling of the header: an earlier element that
+  # merely carries the class (a "footer note" in the middle of the body) is
+  # body, not the footer.
+  defp footer_after(inner, {_, h_close} = header) do
+    candidates =
+      inner
+      |> Enum.filter(fn
+        {{:open, _, _, _, classes}, i, _} -> i > h_close and "footer" in classes
+        _ -> false
+      end)
+      |> Enum.reverse()
+
+    case candidates do
+      [] ->
+        {:error, "no .footer element found after the .header"}
+
+      _ ->
+        Enum.find_value(
+          candidates,
+          {:error, "the .header and .footer are not siblings"},
+          fn {{:open, name, _, _, _}, i, _} ->
+            with j when is_integer(j) <- matching_close(inner, i, name),
+                 true <- balanced?(inner, h_close + 1, i - 1) do
+              {:ok, header, {i, j}}
+            else
+              _ -> nil
+            end
+          end
+        )
+    end
+  end
+
+  defp element_with_class(inner, class) do
     found =
       Enum.find(inner, fn
-        {{:open, _name, attrs, _raw}, i} -> i >= from and class in classes(attrs)
+        {{:open, _, _, _, classes}, _, _} -> class in classes
         _ -> false
       end)
 
     case found do
-      {{:open, name, _, _}, i} ->
+      {{:open, name, _, _, _}, i, _} ->
         case matching_close(inner, i, name) do
-          nil -> :error
+          nil -> :unclosed
           j -> {:ok, {i, j}}
         end
 
       nil ->
-        :error
+        :none
     end
   end
 
-  defp matching_close(inner, open_index, name) do
-    inner
-    |> Enum.filter(fn {_, i} -> i > open_index end)
+  defp matching_close(entries, open_index, name) do
+    entries
+    |> Enum.drop_while(&(idx(&1) <= open_index))
     |> Enum.reduce_while(1, fn
-      {{:open, ^name, _, _}, _}, depth ->
-        {:cont, depth + 1}
-
-      {{:close, ^name, _}, i}, 1 ->
-        {:halt, {:found, i}}
-
-      {{:close, ^name, _}, _}, depth ->
-        {:cont, depth - 1}
-
-      _, depth ->
-        {:cont, depth}
+      {{:open, ^name, _, _, _}, _, _}, depth -> {:cont, depth + 1}
+      {{:close, ^name, _}, i, _}, 1 -> {:halt, {:found, i}}
+      {{:close, ^name, _}, _, _}, depth -> {:cont, depth - 1}
+      _, depth -> {:cont, depth}
     end)
     |> case do
       {:found, i} -> i
@@ -378,12 +548,12 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport.Body do
   defp balanced?(inner, from, to) do
     result =
       inner
-      |> Enum.filter(fn {_, i} -> i >= from and i <= to end)
+      |> Enum.filter(fn {_, i, _} -> i >= from and i <= to end)
       |> Enum.reduce_while(%{}, fn
-        {{:open, name, _, _}, _}, depths when name in @strict ->
+        {{:open, name, _, _, _}, _, _}, depths when name in @strict ->
           {:cont, Map.update(depths, name, 1, &(&1 + 1))}
 
-        {{:close, name, _}, _}, depths when name in @strict ->
+        {{:close, name, _}, _, _}, depths when name in @strict ->
           case Map.get(depths, name, 0) do
             0 -> {:halt, :unbalanced}
             n -> {:cont, Map.put(depths, name, n - 1)}
@@ -396,25 +566,50 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport.Body do
     result != :unbalanced and Enum.all?(result, fn {_, n} -> n == 0 end)
   end
 
-  defp pieces(inner, {h_open, h_close}, {f_open, f_close}) do
-    slice = fn from, to -> Enum.filter(inner, fn {_, i} -> i >= from and i <= to end) end
+  # The wrapper elements around the header (the container) are dropped, and
+  # everything else in the body is kept, before the header and after the
+  # footer included.
+  defp pieces(inner, {h_open, h_close}, {f_open, f_close}, body_first) do
+    {_, _, ancestors} = Enum.find(inner, &(idx(&1) == h_open))
+
+    dropped =
+      ancestors
+      |> Enum.filter(fn {_, _, i} -> i >= body_first end)
+      |> Enum.reduce(MapSet.new(), fn {name, _, i}, acc ->
+        acc = MapSet.put(acc, i)
+
+        case matching_close(inner, i, name) do
+          nil -> acc
+          j -> MapSet.put(acc, j)
+        end
+      end)
+
+    kept = fn entries -> Enum.reject(entries, &MapSet.member?(dropped, idx(&1))) end
+    slice = fn from, to -> Enum.filter(inner, fn {_, i, _} -> i >= from and i <= to end) end
 
     %{
+      pre: kept.(slice.(0, h_open - 1)),
       header: slice.(h_open, h_close),
       middle: slice.(h_close + 1, f_open - 1),
-      footer: slice.(f_open, f_close)
+      footer: slice.(f_open, f_close),
+      post: kept.(slice.(f_close + 1, length(inner) + body_first))
     }
   end
 
   # ── assembly ──────────────────────────────────────────────────────────
 
-  defp assemble(%{header: header, middle: middle, footer: footer}, tokens, rules, accent?) do
-    {header_part, header_note} = header_part(header, tokens, rules, accent?)
-    {footer_part, footer_note} = footer_part(footer, tokens, rules, accent?)
-    middle_part = middle |> unwrap_content() |> render(tokens, rules, accent?)
+  defp assemble(%{pre: pre, header: header, middle: middle, footer: footer, post: post}, ctx) do
+    {header_part, header_note} = header_part(header, ctx)
+    {footer_part, footer_note} = footer_part(footer, ctx)
 
     fragment =
-      [header_part, middle_part, footer_part]
+      [
+        render(pre, ctx),
+        header_part,
+        middle |> unwrap_content() |> render(ctx),
+        footer_part,
+        render(post, ctx)
+      ]
       |> Enum.map(&tidy/1)
       |> Enum.reject(&(&1 == ""))
       |> Enum.join("\n\n")
@@ -429,63 +624,62 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport.Body do
     {fragment, notes}
   end
 
-  # The header's contents are the email's title when it holds a heading.
-  defp header_part(header, tokens, rules, accent?) do
-    [{open_token, _} | rest] = header
-    interior = rest |> Enum.drop(-1)
+  # A header holding a heading (the email's title) or a placeholder is content.
+  defp header_part([header_entry | rest], ctx) do
+    interior = Enum.drop(rest, -1)
 
-    if Enum.any?(interior, fn {t, _} -> heading?(t) end) do
-      {render_wrapped(open_token, header, interior, tokens, rules, accent?), nil}
+    if Enum.any?(interior, &(heading?(&1) or placeholder?(&1))) do
+      {render_header(header_entry, interior, ctx), nil}
     else
       {"", dropped_text("header", interior)}
     end
   end
 
-  defp heading?({:open, name, _, _}), do: name in @headings
+  defp heading?({{:open, name, _, _, _}, _, _}), do: name in @headings
   defp heading?(_), do: false
 
-  defp footer_part(footer, tokens, rules, accent?) do
+  defp footer_part(footer, ctx) do
     interior = footer |> Enum.drop(1) |> Enum.drop(-1)
 
-    if Enum.any?(interior, fn {t, _} -> placeholder?(t) end) do
-      {render(footer, tokens, rules, accent?), nil}
+    if Enum.any?(interior, &placeholder?/1) do
+      {render(footer, ctx), nil}
     else
       {"", dropped_text("footer", interior)}
     end
   end
 
-  defp placeholder?({:text, text}), do: String.contains?(text, "{{")
-  defp placeholder?({:open, _, attrs, _}), do: String.contains?(attrs, "{{")
-  defp placeholder?({:void, _, attrs, _}), do: String.contains?(attrs, "{{")
+  defp placeholder?({{:text, text}, _, _}), do: String.contains?(text, "{{")
+
+  defp placeholder?({{kind, _, attrs, _, _}, _, _}) when kind in [:open, :void],
+    do: String.contains?(attrs, "{{")
+
   defp placeholder?(_), do: false
 
   defp dropped_text(label, interior) do
     text =
       interior
       |> Enum.flat_map(fn
-        {{:text, t}, _} -> [t]
+        {{:text, t}, _, _} -> [t]
         _ -> []
       end)
-      |> Enum.join(" ")
+      |> Enum.join()
       |> String.split()
       |> Enum.join(" ")
 
     if text == "", do: nil, else: "#{label}: #{text}"
   end
 
-  # Header kept for its heading: its own box reduced to alignment and margins.
-  defp render_wrapped(
-         {:open, _name, _attrs, _raw} = open,
-         header,
-         interior,
-         tokens,
-         rules,
-         accent?
-       ) do
-    {_, header_index} = hd(header)
-    decls = declarations_for(open, header_index, tokens, rules, accent?)
-    props = Enum.filter(decls, fn {prop, _} -> prop in @header_props end)
-    body = interior |> render(tokens, rules, accent?) |> tidy()
+  # Header kept for its content: its own box reduced to alignment and margins
+  # (its inline style winning over the stylesheet), and none of the rules
+  # written for the header as a background reaching the children.
+  defp render_header({{:open, _, attrs, _, _}, h_index, _} = entry, interior, ctx) do
+    css = entry |> declarations(ctx, nil) |> Enum.filter(&header_prop?/1)
+
+    inline =
+      attrs |> inline_style() |> Enum.filter(&header_prop?/1)
+
+    props = Enum.reduce(inline, css, fn {p, v}, acc -> List.keystore(acc, p, 0, {p, v}) end)
+    body = interior |> render(ctx, h_index) |> tidy()
 
     case props do
       [] -> body
@@ -493,61 +687,63 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport.Body do
     end
   end
 
+  defp header_prop?({prop, _}) when is_binary(prop), do: prop in @header_props
+  defp header_prop?(_), do: false
+
   defp indent(text), do: "  " <> String.replace(text, "\n", "\n  ")
 
   # A lone `.content` wrapper around the region is unwrapped.
   defp unwrap_content(middle) do
-    significant = Enum.reject(middle, fn {t, _} -> blank?(t) end)
+    case Enum.reject(middle, &blank?/1) do
+      [{{:open, name, _, _, classes}, first, _} | _] = all ->
+        {_, last, _} = List.last(all)
 
-    case significant do
-      [{{:open, name, attrs, _}, first} | _] = all ->
-        {_, last} = List.last(all)
-
-        if "content" in classes(attrs) and matching_close(all, first, name) == last do
-          Enum.filter(middle, fn {_, i} -> i > first and i < last end)
-        else
-          middle
-        end
+        if "content" in classes and matching_close(all, first, name) == last,
+          do: Enum.filter(middle, fn {_, i, _} -> i > first and i < last end),
+          else: middle
 
       _ ->
         middle
     end
   end
 
-  defp blank?({:text, t}), do: String.trim(t) == ""
-  defp blank?({:comment, _}), do: true
+  defp blank?({{:text, t}, _, _}), do: String.trim(t) == ""
+  defp blank?({{:comment, _}, _, _}), do: true
   defp blank?(_), do: false
 
   # ── rendering with inlined styles ─────────────────────────────────────
 
-  defp render(indexed, tokens, rules, accent?) do
-    Enum.map_join(indexed, fn
-      {{:open, _, _, raw} = token, i} -> restyle(token, raw, i, tokens, rules, accent?)
-      {{:void, _, _, raw} = token, i} -> restyle(token, raw, i, tokens, rules, accent?)
-      {{:text, t}, _} -> t
-      {{:comment, t}, _} -> t
-      {{:decl, t}, _} -> t
-      {{:close, _, raw}, _} -> raw
+  # `exclude` is the index of an element whose own rules must not reach what is
+  # rendered inside it (a kept header).
+  defp render(entries, ctx, exclude \\ nil) do
+    Enum.map_join(entries, fn
+      {{kind, name, attrs, raw, _}, _, _} = entry when kind in [:open, :void] ->
+        case declarations(entry, ctx, exclude) do
+          [] -> raw
+          decls -> rebuild(binary_part(raw, 1, byte_size(name)), attrs, decls)
+        end
+
+      {{:text, t}, _, _} ->
+        t
+
+      {{:comment, t}, _, _} ->
+        t
+
+      {{:decl, t}, _, _} ->
+        t
+
+      {{:close, _, raw}, _, _} ->
+        raw
     end)
-  end
-
-  defp restyle({_kind, name, attrs, raw}, raw, index, tokens, rules, accent?) do
-    decls = declarations_for({:open, name, attrs, raw}, index, tokens, rules, accent?)
-
-    case decls do
-      [] -> raw
-      _ -> rebuild(binary_part(raw, 1, byte_size(name)), attrs, decls)
-    end
   end
 
   defp rebuild(name, attrs, css) do
     inline = inline_style(attrs)
-    inline_props = Enum.map(inline, &elem(&1, 0))
+    inline_props = for {prop, _} <- inline, is_binary(prop), do: prop
     own = Enum.reject(css, fn {prop, _} -> prop in inline_props end)
-    style = format_decls(own ++ inline)
 
     {without_style, tail} = split_tail(strip_style(attrs))
-    "<#{name}#{without_style} style=\"#{style}\"#{tail}>"
+    "<#{name}#{without_style} style=\"#{format_decls(own ++ inline)}\"#{tail}>"
   end
 
   defp split_tail(attrs) do
@@ -561,79 +757,106 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport.Body do
   end
 
   defp format_decls(decls) do
-    Enum.map_join(decls, "; ", fn {prop, val} -> "#{prop}: #{String.replace(val, "\"", "'")}" end) <>
-      ";"
+    Enum.map_join(decls, " ", fn
+      {:raw, text} -> text |> String.trim_trailing(";") |> Kernel.<>(";")
+      {prop, val} -> "#{prop}: #{String.replace(val, "\"", "'")};"
+    end)
   end
 
-  defp strip_style(attrs), do: Regex.replace(~r/\sstyle\s*=\s*("[^"]*"|'[^']*')/i, attrs, "")
+  defp strip_style(attrs) do
+    case Enum.find(attr_spans(attrs), &(elem(&1, 0) == "style")) do
+      {_, _, start, stop} ->
+        rtrim(binary_part(attrs, 0, start), ~c" \t\r\n") <>
+          binary_part(attrs, stop, byte_size(attrs) - stop)
 
-  defp inline_style(attrs) do
-    case Regex.run(~r/\sstyle\s*=\s*(?:"([^"]*)"|'([^']*)')/i, attrs) do
-      nil -> []
-      [_, value] -> parse_declarations(value)
-      [_, "", value] -> parse_declarations(value)
-      [_, value | _] -> parse_declarations(value)
+      nil ->
+        attrs
     end
   end
 
-  defp classes(attrs) do
-    case Regex.run(~r/\sclass\s*=\s*(?:"([^"]*)"|'([^']*)')/i, attrs) do
+  # The element's own `style`: `{prop, value}` pairs, and `{:raw, text}` for
+  # whatever is not one — a placeholder standing in for declarations.
+  defp inline_style(attrs) do
+    case attr_value(attrs, "style") do
       nil -> []
-      [_, value] -> String.split(value)
-      [_, "", value] -> String.split(value)
-      [_, value | _] -> String.split(value)
+      value -> parse_declarations(value, true)
     end
   end
 
   # ── CSS ───────────────────────────────────────────────────────────────
 
-  defp style_rules(tokens) do
+  defp style_texts(tokens) do
     tokens
-    |> Enum.chunk_while(
-      nil,
-      fn
-        {:open, "style", _, _}, _ -> {:cont, :style}
-        {:text, css}, :style -> {:cont, css, nil}
-        _, state -> {:cont, state}
-      end,
-      fn _ -> {:cont, nil} end
-    )
-    |> Enum.filter(&is_binary/1)
-    |> Enum.flat_map(&parse_css/1)
-    |> Enum.with_index()
-    |> Enum.map(fn {rule, order} -> Map.put(rule, :order, order) end)
+    |> Enum.chunk_every(2, 1, :discard)
+    |> Enum.flat_map(fn
+      [{:open, "style", _, _, _}, {:text, css}] -> [css]
+      _ -> []
+    end)
   end
 
-  defp parse_css(css) do
-    css |> String.replace(~r{/\*.*?\*/}s, "") |> parse_rules([])
-  end
+  defp parse_css(css), do: css |> strip_comments([]) |> parse_rules([])
 
-  defp parse_rules(css, acc) do
-    case :binary.match(css, "{") do
+  # A comment that is never closed runs to the end, as in CSS itself.
+  defp strip_comments(css, acc) do
+    case :binary.match(css, "/*") do
       :nomatch ->
-        Enum.reverse(acc)
+        [css | acc] |> Enum.reverse() |> IO.iodata_to_binary()
 
-      {at, 1} ->
-        selector = css |> binary_part(0, at) |> String.trim()
-        rest = binary_part(css, at + 1, byte_size(css) - at - 1)
+      {at, 2} ->
+        before = binary_part(css, 0, at)
+        rest = binary_part(css, at + 2, byte_size(css) - at - 2)
 
-        if String.starts_with?(selector, "@") do
-          parse_rules(skip_block(rest, 1), acc)
-        else
-          case :binary.match(rest, "}") do
-            :nomatch ->
-              Enum.reverse(acc)
+        case :binary.match(rest, "*/") do
+          :nomatch ->
+            [before | acc] |> Enum.reverse() |> IO.iodata_to_binary()
 
-            {close, 1} ->
-              body = binary_part(rest, 0, close)
-              tail = binary_part(rest, close + 1, byte_size(rest) - close - 1)
-              parse_rules(tail, rules_for(selector, parse_declarations(body)) ++ acc)
-          end
+          {close, 2} ->
+            strip_comments(binary_part(rest, close + 2, byte_size(rest) - close - 2), [
+              before | acc
+            ])
         end
     end
   end
 
-  # Past the `}` that closes an at-rule block whose `{` was already consumed.
+  defp parse_rules(css, acc) do
+    css = String.trim_leading(css)
+
+    cond do
+      css == "" -> Enum.reverse(acc)
+      String.starts_with?(css, "@") -> skip_at_rule(css, acc)
+      true -> parse_rule(css, acc)
+    end
+  end
+
+  # `@charset "utf-8";` ends at its `;`, `@media … { … }` at its block's end.
+  defp skip_at_rule(css, acc) do
+    case :binary.match(css, [";", "{"]) do
+      {at, 1} ->
+        rest = binary_part(css, at + 1, byte_size(css) - at - 1)
+
+        if binary_part(css, at, 1) == ";",
+          do: parse_rules(rest, acc),
+          else: rest |> skip_block(1) |> parse_rules(acc)
+
+      :nomatch ->
+        Enum.reverse(acc)
+    end
+  end
+
+  defp parse_rule(css, acc) do
+    with {at, 1} <- :binary.match(css, "{"),
+         rest = binary_part(css, at + 1, byte_size(css) - at - 1),
+         {close, 1} <- :binary.match(rest, "}") do
+      selector = css |> binary_part(0, at) |> String.trim()
+      body = binary_part(rest, 0, close)
+      tail = binary_part(rest, close + 1, byte_size(rest) - close - 1)
+      parse_rules(tail, rules_for(selector, parse_declarations(body, false)) ++ acc)
+    else
+      _ -> Enum.reverse(acc)
+    end
+  end
+
+  # Past the `}` that closes a block whose `{` was already consumed.
   defp skip_block(css, 0), do: css
   defp skip_block(<<>>, _depth), do: <<>>
   defp skip_block(<<"{", rest::binary>>, depth), do: skip_block(rest, depth + 1)
@@ -656,88 +879,122 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport.Body do
   defp parse_selector(""), do: nil
 
   defp parse_selector(selector) do
-    parts = String.split(selector)
-    parsed = Enum.map(parts, &parse_compound/1)
+    parsed = selector |> String.split() |> Enum.map(&parse_compound/1)
     if Enum.any?(parsed, &is_nil/1), do: nil, else: parsed
   end
 
   defp parse_compound(part) do
-    if Regex.match?(~r/\A[a-zA-Z0-9]*(?:\.[a-zA-Z_][a-zA-Z0-9_-]*)*\z/, part) and part != "" do
+    if part != "" and Regex.match?(~r/\A[a-zA-Z0-9]*(?:\.[a-zA-Z_][a-zA-Z0-9_-]*)*\z/, part) do
       [tag | classes] = String.split(part, ".")
-      {if(tag == "", do: nil, else: String.downcase(tag)), classes}
+      {if(tag == "", do: nil, else: String.downcase(tag, :ascii)), classes}
     end
   end
 
+  # {classes, tags}: compared in that order, so no number of tag selectors
+  # outweighs a class.
   defp specificity(compounds) do
-    Enum.reduce(compounds, 0, fn {tag, classes}, acc ->
-      acc + length(classes) * 10 + if(tag, do: 1, else: 0)
+    Enum.reduce(compounds, {0, 0}, fn {tag, classes}, {c, t} ->
+      {c + length(classes), t + if(tag, do: 1, else: 0)}
     end)
   end
 
-  defp parse_declarations(body) do
+  # Rules by what the last compound asks for, so an element is only tested
+  # against the few rules that could apply to it.
+  defp build_index(rules) do
+    rules
+    |> Enum.take(@max_rules)
+    |> Enum.with_index()
+    |> Enum.reduce(%{}, fn {rule, order}, acc ->
+      rule = Map.put(rule, :order, order)
+      Map.update(acc, index_key(rule.compounds), [rule], &[rule | &1])
+    end)
+  end
+
+  defp index_key(compounds) do
+    case List.last(compounds) do
+      {_tag, [class | _]} -> {:class, class}
+      {tag, []} -> {:tag, tag}
+    end
+  end
+
+  # Declarations as {prop, value}; with `keep_raw?`, a chunk that is not one
+  # (a placeholder, say) comes back as {:raw, text} instead of being lost.
+  defp parse_declarations(body, keep_raw?) do
     body
-    |> String.split(";")
-    |> Enum.flat_map(fn decl ->
-      case String.split(decl, ":", parts: 2) do
+    |> split_declarations()
+    |> Enum.flat_map(fn chunk ->
+      chunk = String.trim(chunk)
+
+      case :binary.split(chunk, ":") do
+        _ when chunk == "" ->
+          []
+
         [prop, val] ->
-          prop = prop |> String.trim() |> String.downcase()
+          prop = prop |> String.trim() |> String.downcase(:ascii)
           val = String.trim(val)
-          if prop == "" or val == "", do: [], else: [{prop, val}]
+
+          if prop == "" or val == "" or String.contains?(prop, "{"),
+            do: raw(chunk, keep_raw?),
+            else: [{prop, val}]
 
         _ ->
-          []
+          raw(chunk, keep_raw?)
       end
     end)
   end
 
-  # The merged declarations of every rule matching the element at `index`,
-  # lowest specificity first so the strongest wins.
-  defp declarations_for({:open, name, attrs, _raw}, index, tokens, rules, accent?) do
-    element = {name, classes(attrs)}
-    ancestors = ancestors(tokens, index)
+  defp raw(chunk, true), do: [{:raw, chunk}]
+  defp raw(_chunk, false), do: []
 
-    rules
+  # Splits on `;` outside quotes and parentheses, so
+  # `url('data:image/png;base64,…')` stays whole.
+  defp split_declarations(bin), do: split_declarations(bin, bin, 0, 0, nil, 0, [])
+
+  defp split_declarations(<<>>, whole, start, pos, _quote, _depth, acc),
+    do: Enum.reverse([binary_part(whole, start, pos - start) | acc])
+
+  defp split_declarations(<<";", rest::binary>>, whole, start, pos, nil, 0, acc),
+    do:
+      split_declarations(rest, whole, pos + 1, pos + 1, nil, 0, [
+        binary_part(whole, start, pos - start) | acc
+      ])
+
+  defp split_declarations(<<q, rest::binary>>, whole, start, pos, nil, depth, acc)
+       when q in ~c"\"'",
+       do: split_declarations(rest, whole, start, pos + 1, q, depth, acc)
+
+  defp split_declarations(<<q, rest::binary>>, whole, start, pos, q, depth, acc),
+    do: split_declarations(rest, whole, start, pos + 1, nil, depth, acc)
+
+  defp split_declarations(<<"(", rest::binary>>, whole, start, pos, nil, depth, acc),
+    do: split_declarations(rest, whole, start, pos + 1, nil, depth + 1, acc)
+
+  defp split_declarations(<<")", rest::binary>>, whole, start, pos, nil, depth, acc)
+       when depth > 0,
+       do: split_declarations(rest, whole, start, pos + 1, nil, depth - 1, acc)
+
+  defp split_declarations(<<_, rest::binary>>, whole, start, pos, quote, depth, acc),
+    do: split_declarations(rest, whole, start, pos + 1, quote, depth, acc)
+
+  # The merged declarations of every rule matching the element, lowest
+  # specificity first so the strongest wins.
+  defp declarations({{kind, name, _, _, classes}, _, ancestors}, ctx, exclude)
+       when kind in [:open, :void] do
+    ancestors =
+      if exclude, do: Enum.reject(ancestors, fn {_, _, i} -> i == exclude end), else: ancestors
+
+    element = {name, classes}
+
+    [
+      Map.get(ctx.rules, {:tag, name}, [])
+      | Enum.map(classes, &Map.get(ctx.rules, {:class, &1}, []))
+    ]
+    |> Enum.concat()
+    |> Enum.uniq_by(& &1.order)
     |> Enum.filter(&matches?(&1.compounds, element, ancestors))
     |> Enum.sort_by(&{&1.specificity, &1.order})
     |> Enum.flat_map(& &1.decls)
     |> Enum.reduce([], fn {prop, val}, acc -> List.keystore(acc, prop, 0, {prop, val}) end)
-    |> accent(element, accent?)
-  end
-
-  defp accent(decls, {_name, classes}, true) do
-    if "button" in classes do
-      Enum.map(decls, fn
-        {"background-color", val} = decl ->
-          if String.downcase(val) in @default_blues,
-            do: {"background-color", "{{accent_color}}"},
-            else: decl
-
-        decl ->
-          decl
-      end)
-    else
-      decls
-    end
-  end
-
-  defp accent(decls, _element, _accent?), do: decls
-
-  # Open ancestors of the token at `index`, nearest first, as {name, classes}.
-  defp ancestors(tokens, index) do
-    tokens
-    |> Enum.take(index)
-    |> Enum.reduce([], fn
-      {{:open, name, attrs, _}, _}, stack -> [{name, classes(attrs)} | stack]
-      {{:close, name, _}, _}, stack -> pop(stack, name)
-      _, stack -> stack
-    end)
-  end
-
-  defp pop(stack, name) do
-    case Enum.split_while(stack, fn {n, _} -> n != name end) do
-      {_skipped, [_ | rest]} -> rest
-      {_all, []} -> stack
-    end
   end
 
   defp matches?(compounds, element, ancestors) do
@@ -748,8 +1005,8 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport.Body do
   defp ancestors_match?([], _ancestors), do: true
   defp ancestors_match?(_compounds, []), do: false
 
-  defp ancestors_match?([compound | more] = compounds, [ancestor | up]) do
-    if compound_matches?(compound, ancestor),
+  defp ancestors_match?([compound | more] = compounds, [{name, classes, _} | up]) do
+    if compound_matches?(compound, {name, classes}),
       do: ancestors_match?(more, up),
       else: ancestors_match?(compounds, up)
   end
@@ -762,24 +1019,49 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport.Body do
 
   # Trim blank edges and remove the indentation the seed's nesting added. A
   # piece starts at a tag, so its first line carries none of that indentation:
-  # it is the lines after it that say how deep the piece sat.
+  # it is the lines after it that say how deep the piece sat. Only ASCII spaces
+  # and tabs are touched, and nothing inside `<pre>` or `<textarea>`.
   defp tidy(text) do
-    [first | rest] = text |> String.split("\n") |> Enum.map(&String.trim_trailing/1)
+    if preformatted?(text), do: trim_edges(text), else: tidy_lines(text)
+  end
+
+  defp tidy_lines(text) do
+    [first | rest] = text |> String.split("\n") |> Enum.map(&rtrim/1)
 
     indent =
       rest
       |> Enum.reject(&(&1 == ""))
-      |> Enum.map(&(byte_size(&1) - byte_size(String.trim_leading(&1))))
+      |> Enum.map(&leading_blanks/1)
       |> Enum.min(fn -> 0 end)
 
-    rest = Enum.map(rest, &drop_indent(&1, indent))
-
-    [String.trim_leading(first) | rest]
+    [ltrim(first) | Enum.map(rest, &drop_blanks(&1, indent))]
     |> Enum.join("\n")
     |> String.replace(~r/\n{3,}/, "\n\n")
-    |> String.trim()
+    |> trim_edges()
   end
 
-  defp drop_indent("", _indent), do: ""
-  defp drop_indent(line, indent), do: binary_part(line, indent, byte_size(line) - indent)
+  defp preformatted?(text), do: Regex.match?(~r/<(?:pre|textarea)[\s>]/i, text)
+
+  defp trim_edges(text), do: text |> ltrim(~c" \t\r\n") |> rtrim(~c" \t\r\n")
+
+  defp ltrim(bin, set \\ ~c" \t"), do: drop_blanks(bin, leading_blanks(bin, set))
+
+  defp rtrim(bin, set \\ ~c" \t\r") do
+    size = byte_size(bin)
+
+    if size > 0 and :binary.last(bin) in set,
+      do: rtrim(binary_part(bin, 0, size - 1), set),
+      else: bin
+  end
+
+  defp leading_blanks(bin, set \\ ~c" \t"), do: leading_blanks(bin, set, 0)
+
+  defp leading_blanks(<<c, rest::binary>>, set, n) do
+    if c in set, do: leading_blanks(rest, set, n + 1), else: n
+  end
+
+  defp leading_blanks(<<>>, _set, n), do: n
+
+  defp drop_blanks("", _n), do: ""
+  defp drop_blanks(bin, n), do: binary_part(bin, n, byte_size(bin) - n)
 end

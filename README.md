@@ -66,24 +66,27 @@ priv/phoenix_kit_templates/
 
 ### The `html` part: a body, not a whole document
 
-A stored `html_body` is a whole HTML document with its own header, footer and
-`<style>`. Core 2.43 and later wraps every email built from a file in a shared
-layout — header, footer, logo, accent colour, all editable without a deploy —
-and never wraps a document. So on such a core the export writes the **body
-fragment** only: what sits between the template's header and footer, with the
-styles the body needs (the button, the notice boxes) inlined. The email's
-`<h1>` title and a footer that carries a placeholder (the "copy this link"
-fallback, billing's company details) are text, not chrome, and stay in the body;
-anything of the old chrome that held text and was dropped is listed in the
-output, so it can be moved into the host's `_header`/`_footer` files.
+A stored `html_body` is a whole HTML document with its own container, header,
+footer and `<style>`. Core wraps an email built from a file in a shared layout
+(`PhoenixKit.Email.Layout`) but never wraps a document, so a document exported
+verbatim keeps its old chrome and the layout never applies. Where core has the
+layout, the export writes the **body fragment** only: what sits between the
+template's header and footer, with the styles the body needs (the button, the
+notice boxes) inlined. The email's `<h1>` title, a footer that carries a
+placeholder (the "copy this link" fallback, billing's company details) and
+anything outside the header and footer blocks are content, not decoration, and
+stay in the body. Only the decorative wrapping goes; any text it held is listed
+in the output so it can be moved into your own `_layout`.
 
 ```bash
 mix phoenix_kit_emails.templates.export --html document   # the stored document, as before
-mix phoenix_kit_emails.templates.export --accent          # button blue -> {{accent_color}}
 ```
 
 `--html` is `auto` by default: `body` when the loaded core has the layout,
-`document` when it does not (a fragment on an older core would be sent bare).
+`document` when it does not (a fragment on such a core would be sent bare). One
+known gap: billing's `{{{line_items_html}}}` inserts rows styled by classes from
+the removed `<style>`, so they render unstyled until billing styles its own rows;
+the task warns about it.
 
 ## Installation
 

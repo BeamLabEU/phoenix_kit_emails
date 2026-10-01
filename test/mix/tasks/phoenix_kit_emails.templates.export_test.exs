@@ -245,14 +245,45 @@ defmodule Mix.Tasks.PhoenixKitEmails.Templates.ExportTest do
     end
 
     @tag :tmp_dir
-    test "--accent writes the default blue of a button as {{accent_color}}", %{tmp_dir: dir} do
+    test "a body export that skips an existing whole-document file says core will not wrap it",
+         %{tmp_dir: dir} do
       edit_invoice_title()
+      path = Path.join([dir, "billing_invoice", "html.html"])
+      File.mkdir_p!(Path.dirname(path))
+      File.write!(path, "<!DOCTYPE html><html><body><p>old</p></body></html>")
 
-      Export.run(["--html", "body", "--accent", "--out", dir])
+      Export.run(["--html", "body", "--out", dir])
+      output = shell_messages() |> Enum.join("\n")
 
-      written = File.read!(Path.join([dir, "billing_invoice", "html.html"]))
-      assert written =~ "background-color: {{accent_color}}"
-      refute written =~ "#2563eb"
+      assert output =~ "  skip   "
+      assert output =~ "whole HTML document"
+      assert File.read!(path) =~ "<p>old</p>"
+    end
+
+    @tag :tmp_dir
+    test "a dry run speaks of what it would do, a real run of what it did", %{tmp_dir: dir} do
+      {:ok, _} = Templates.seed_system_templates()
+      template = Templates.get_template_by_name("register")
+
+      html =
+        String.replace(
+          template.html_body["en"],
+          ~r/<div class="footer">.*?<\/div>/s,
+          ~s(<div class="footer"><p>Acme, Tallinn</p></div>)
+        )
+
+      {:ok, _} = Templates.update_template(template, %{html_body: %{"en" => html}})
+
+      Export.run(["--html", "body", "--out", dir, "--dry-run"])
+      dry = shell_messages() |> Enum.join("\n")
+      refute File.exists?(Path.join([dir, "register", "html.html"]))
+      assert dry =~ "would remove as decoration — footer: Acme, Tallinn"
+      assert dry =~ "own `_layout`"
+
+      Export.run(["--html", "body", "--out", dir])
+      real = shell_messages() |> Enum.join("\n")
+      assert real =~ "removed as decoration — footer: Acme, Tallinn"
+      refute real =~ "would remove"
     end
 
     test "an unknown mode is refused" do

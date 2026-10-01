@@ -596,14 +596,106 @@ defmodule PhoenixKit.Modules.Emails.TemplateExportTest do
       assert file(plan, "register/subject.txt") == seed.subject["en"]
       assert file(plan, "register/text.txt") == seed.text_body["en"]
     end
+  end
 
-    test "accent: true is passed through to the buttons" do
-      row = seed_row("register", [{"en", &(&1 <> "<!-- edited -->")}])
+  describe "plan/3 — html: :body, on the shipped seeds" do
+    defp visible_text(html) do
+      html
+      |> String.replace("{{{", "{{")
+      |> String.replace("}}}", "}}")
+      |> String.replace(~r/<style.*?<\/style>/s, "")
+      |> String.replace(~r/<[^>]*>/s, " ")
+      |> String.replace(~r/\s+/, " ")
+      |> String.trim()
+    end
 
-      assert file(body_plan(row, accent: true), "register/html.html") =~
-               "background-color: {{accent_color}}"
+    defp body_of_seed(name) do
+      seed = Enum.find(Templates.default_system_templates(), &(&1.name == name))
+      html = seed.html_body["en"]
 
-      refute file(body_plan(row), "register/html.html") =~ "accent_color"
+      row =
+        struct(
+          %Template{is_system: true},
+          Map.put(seed, :html_body, %{"en" => html <> "<!-- e -->"})
+        )
+
+      plan =
+        TemplateExport.plan([row], Templates.default_system_templates(),
+          out: "out",
+          html: :body,
+          raw_html_supported: true
+        )
+
+      {html, file(plan, "#{name}/html.html")}
+    end
+
+    test "no visible text is lost on any seed, not only placeholders" do
+      for seed <- Templates.default_system_templates() do
+        {html, fragment} = body_of_seed(seed.name)
+        [_, body] = Regex.run(~r/<body>(.*)<\/body>/s, html)
+
+        assert visible_text(fragment) == visible_text(body), "#{seed.name}: text differs"
+      end
+    end
+
+    test "descendant rules reach the cells and headings of the billing seeds" do
+      {_, invoice} = body_of_seed("billing_invoice")
+
+      # `.line-items th` and `.bank-details td` / `.bank-details h3`
+      assert invoice =~ ~r/<th style="[^"]*background: #f3f4f6/
+      assert invoice =~ ~r/<td class="label" style="[^"]*color: #6b7280; width: 120px/
+      assert invoice =~ ~r/<h3 style="[^"]*color: #0369a1/
+    end
+
+    test "a row that was already a fragment gets no warning about styles it never lost" do
+      row =
+        template(%{
+          name: "custom",
+          html_body: %{"en" => "<table>{{line_items_html}}</table>"},
+          subject: %{"en" => "S"}
+        })
+
+      plan = body_plan(row)
+      refute Enum.any?(plan.notices, &(&1.kind == :injected_styles))
+      assert file(plan, "custom/html.html") =~ "{{{line_items_html}}}"
+    end
+  end
+
+  describe "existing_document_notice/3" do
+    @describetag :tmp_dir
+
+    test "a skipped file that is a whole document is reported in body mode", %{tmp_dir: dir} do
+      path = Path.join(dir, "html.html")
+      File.write!(path, "<!DOCTYPE html><html><body>x</body></html>")
+
+      assert %{kind: :document_on_disk, path: ^path} =
+               TemplateExport.existing_document_notice(path, :body, true)
+
+      assert {:warning, message} =
+               TemplateExport.notice_message(
+                 TemplateExport.existing_document_notice(path, :body, true),
+                 :skipped
+               )
+
+      assert message =~ "does not wrap"
+    end
+
+    test "nothing to say for a fragment, document mode, a non-html path or a missing file", %{
+      tmp_dir: dir
+    } do
+      fragment = Path.join(dir, "f.html")
+      document = Path.join(dir, "d.html")
+      text = Path.join(dir, "t.txt")
+      File.write!(fragment, "<p>x</p>")
+      File.write!(document, "<html></html>")
+      File.write!(text, "<html></html>")
+
+      assert TemplateExport.existing_document_notice(fragment, :body, true) == nil
+      assert TemplateExport.existing_document_notice(document, :document, true) == nil
+      assert TemplateExport.existing_document_notice(text, :body, true) == nil
+
+      assert TemplateExport.existing_document_notice(Path.join(dir, "none.html"), :body, true) ==
+               nil
     end
   end
 
@@ -618,7 +710,10 @@ defmodule PhoenixKit.Modules.Emails.TemplateExportTest do
 
       assert {:info, message} = TemplateExport.notice_message(notice, :written)
       assert message =~ "header: Acme | footer: Tallinn"
-      assert message =~ "_header/_footer"
+      assert message =~ "own `_layout`"
+      assert message =~ "removed as decoration"
+      assert {:info, planned} = TemplateExport.notice_message(notice, :would_write)
+      assert planned =~ "would remove"
     end
 
     test "injected_styles is a warning naming the variable" do
