@@ -40,12 +40,16 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
 
   alias PhoenixKit.Modules.Emails.Template
   alias PhoenixKit.Modules.Emails.Templates
+  alias PhoenixKit.Modules.Emails.Utils
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Routes
 
   @default_per_page 25
   @max_per_page 100
+  # Same ceiling core's UrlState puts on integer params: past it the SQL
+  # OFFSET ((page - 1) * per_page) no longer fits a bigint.
+  @max_page 1_000_000
 
   ## --- Lifecycle Callbacks ---
 
@@ -585,8 +589,8 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
       is_system: params["is_system"] || ""
     }
 
-    page = String.to_integer(params["page"] || "1")
-    per_page = min(String.to_integer(params["per_page"] || "#{@default_per_page}"), @max_per_page)
+    page = Utils.parse_int(params["page"], 1, min: 1, max: @max_page)
+    per_page = Utils.parse_int(params["per_page"], @default_per_page, min: 1, max: @max_per_page)
 
     sort_by = validate_sort_by(params["sort_by"])
     sort_dir = validate_sort_dir(params["sort_dir"])

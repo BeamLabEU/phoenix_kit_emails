@@ -105,4 +105,54 @@ defmodule PhoenixKit.Modules.Emails.Utils do
       config_module: mailer
     }
   end
+
+  @doc """
+  Reads an integer out of a URL or event param without ever raising.
+
+  Params are whatever the address bar or a crafted event says, so
+  `String.to_integer/1` on them is a crash waiting for `?page=abc`. This
+  accepts a whole integer string (surrounding whitespace allowed) or an
+  integer; anything else — `nil`, `""`, `"abc"`, `"2abc"`, `"1.5"` — is
+  `default`.
+
+  ## Options
+
+    * `:min` — a value below it is `default` (`?page=0` is page 1, not page 0)
+    * `:max` — a value above it is clamped to it (`?per_page=1000000` is the
+      largest allowed page size, and a 30-digit page number cannot overflow
+      an SQL `OFFSET`)
+
+  ## Examples
+
+      iex> PhoenixKit.Modules.Emails.Utils.parse_int("3", 1, min: 1)
+      3
+
+      iex> PhoenixKit.Modules.Emails.Utils.parse_int("abc", 1, min: 1)
+      1
+
+      iex> PhoenixKit.Modules.Emails.Utils.parse_int("500", 25, min: 1, max: 100)
+      100
+  """
+  @spec parse_int(term(), integer(), keyword()) :: integer()
+  def parse_int(value, default, opts \\ []) when is_integer(default) do
+    case to_int(value) do
+      nil -> default
+      int -> bound(int, default, Keyword.get(opts, :min), Keyword.get(opts, :max))
+    end
+  end
+
+  defp to_int(value) when is_integer(value), do: value
+
+  defp to_int(value) when is_binary(value) do
+    case Integer.parse(String.trim(value)) do
+      {int, ""} -> int
+      _ -> nil
+    end
+  end
+
+  defp to_int(_value), do: nil
+
+  defp bound(int, default, min, _max) when is_integer(min) and int < min, do: default
+  defp bound(int, _default, _min, max) when is_integer(max) and int > max, do: max
+  defp bound(int, _default, _min, _max), do: int
 end
