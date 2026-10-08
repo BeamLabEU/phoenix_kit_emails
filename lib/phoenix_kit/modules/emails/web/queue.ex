@@ -123,7 +123,8 @@ defmodule PhoenixKit.Modules.Emails.Web.Queue do
   end
 
   @impl true
-  def handle_event("toggle_email_selection", %{"email_uuid" => email_uuid}, socket) do
+  def handle_event("toggle_email_selection", %{"email_uuid" => email_uuid}, socket)
+      when is_binary(email_uuid) do
     selected = socket.assigns.selected_emails
 
     new_selected =
@@ -135,6 +136,11 @@ defmodule PhoenixKit.Modules.Emails.Web.Queue do
 
     {:noreply, assign(socket, :selected_emails, new_selected)}
   end
+
+  # A crafted uuid that is not a string would sit in the selection until a bulk
+  # action interpolated it into a log line and raised there. Ignore it.
+  @impl true
+  def handle_event("toggle_email_selection", _params, socket), do: {:noreply, socket}
 
   @impl true
   def handle_event("select_all_failed", _params, socket) do

@@ -708,6 +708,146 @@ defmodule PhoenixKit.Modules.Emails.Web.EventPayloadTest do
     end
   end
 
+  describe "Template editor variables and preview" do
+    for params <- [
+          %{"name" => "name", "value" => %{"a" => "b"}},
+          %{"name" => %{"a" => "b"}, "value" => "desc"},
+          %{"name" => ["x"], "value" => ["y"]},
+          %{"name" => "name"},
+          %{}
+        ] do
+      test "update_variable_description #{inspect(params)} keeps the variables" do
+        socket =
+          editor_socket()
+          |> Phoenix.Component.assign(
+            :changeset,
+            Template.changeset(%Template{}, %{"variables" => %{"name" => "kept"}})
+          )
+          |> then(
+            &event!(
+              TemplateEditor,
+              &1,
+              "update_variable_description",
+              unquote(Macro.escape(params))
+            )
+          )
+
+        assert Ecto.Changeset.get_field(socket.assigns.changeset, :variables) == %{
+                 "name" => "kept"
+               }
+
+        render!(TemplateEditor, socket)
+      end
+    end
+
+    test "update_variable_description with strings still updates" do
+      socket =
+        event!(TemplateEditor, editor_socket(), "update_variable_description", %{
+          "name" => "name",
+          "value" => "The name"
+        })
+
+      assert Ecto.Changeset.get_field(socket.assigns.changeset, :variables) == %{
+               "name" => "The name"
+             }
+
+      render!(TemplateEditor, socket)
+    end
+
+    for mode <- ["pdf", 42, %{"a" => "b"}] do
+      test "switch_preview to #{inspect(mode)} keeps the current mode" do
+        socket =
+          event!(TemplateEditor, editor_socket(), "switch_preview", %{
+            "mode" => unquote(Macro.escape(mode))
+          })
+
+        assert socket.assigns.preview_mode == "html"
+        render!(TemplateEditor, socket)
+      end
+    end
+
+    test "switch_preview without a mode keeps the current mode" do
+      socket = event!(TemplateEditor, editor_socket(), "switch_preview", %{})
+
+      assert socket.assigns.preview_mode == "html"
+    end
+  end
+
+  describe "Template editor save in :edit mode" do
+    # validate drops a non-string translation so the form can render; save must
+    # not, or a crafted "en" => %{} quietly saves a new version without English.
+    test "a non-string translation is refused and nothing is saved" do
+      {:ok, template} =
+        Templates.create_template(%{
+          name: "payload_save_#{System.unique_integer([:positive])}",
+          display_name: %{"en" => "Payload"},
+          subject: %{"en" => "English subject", "et" => "Eesti"},
+          html_body: %{"en" => "<p>Hi</p>"},
+          text_body: %{"en" => "Hi"},
+          category: "transactional",
+          status: "active"
+        })
+
+      socket =
+        editor_socket()
+        |> Phoenix.Component.assign(:mode, :edit)
+        |> Phoenix.Component.assign(:template, template)
+        |> Phoenix.Component.assign(:changeset, Template.changeset(template, %{}))
+        |> then(
+          &event!(TemplateEditor, &1, "save", %{
+            "email_template" => %{
+              "subject" => %{"en" => %{}, "et" => "Uus"},
+              "html_body" => %{"en" => "<p>Hi</p>"},
+              "text_body" => %{"en" => "Hi"}
+            }
+          })
+        )
+
+      assert socket.assigns.flash["error"]
+      refute socket.assigns.saving
+
+      stored = Templates.get_template(template.uuid)
+      assert stored.subject == %{"en" => "English subject", "et" => "Eesti"}
+      assert stored.version == template.version
+      render!(TemplateEditor, socket)
+    end
+  end
+
+  describe "Queue selection" do
+    defp queue_socket do
+      {:ok, socket} = Queue.mount(%{}, %{}, bare_socket())
+      socket
+    end
+
+    for uuid <- @crafted do
+      test "toggle_email_selection with #{inspect(uuid)} leaves the selection alone" do
+        socket =
+          event!(Queue, queue_socket(), "toggle_email_selection", %{
+            "email_uuid" => unquote(Macro.escape(uuid))
+          })
+
+        assert socket.assigns.selected_emails == []
+
+        socket =
+          socket
+          |> Phoenix.Component.assign(:bulk_action, "delete")
+          |> then(&event!(Queue, &1, "execute_bulk_action", %{}))
+
+        render!(Queue, socket)
+      end
+
+      test "retry_email with #{inspect(uuid)} is refused with a flash" do
+        socket =
+          event!(Queue, queue_socket(), "retry_email", %{
+            "email_uuid" => unquote(Macro.escape(uuid))
+          })
+
+        assert socket.assigns.flash["error"]
+        render!(Queue, socket)
+      end
+    end
+  end
+
   ## --- Navigation events that interpolate the payload into a path ---
 
   describe "navigation events" do
