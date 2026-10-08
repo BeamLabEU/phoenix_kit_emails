@@ -88,6 +88,33 @@ known gap: billing's `{{{line_items_html}}}` inserts rows styled by classes from
 the removed `<style>`, so they render unstyled until billing styles its own rows;
 the task warns about it.
 
+### Variables in a template
+
+A database template follows the same rules as a `phoenix_kit_templates` file:
+
+- `{{name}}` is HTML-escaped in the HTML body; `{{{name}}}` is inserted raw, for
+  a value that is already rendered HTML. Subject and text body are plain text
+  and never escaped.
+- `{{ name }}` is `{{name}}`. A name is an identifier — `{{user.name}}` or an
+  unclosed `{{name` is literal text — and an unbound placeholder is left as written.
+- A value is a string, number, atom or a `String.Chars` struct (`Date`,
+  `Decimal`, ...). A map or list used by a placeholder raises `ArgumentError`.
+
+When upgrading:
+
+- `mix phoenix_kit.update` runs this package's V3 migration, which rewrites
+  billing's `{{line_items_html}}` and `{{line_items_table_html}}` to the raw form
+  in stored HTML bodies. Those two names are inserted raw in either form anyway.
+- A template you wrote yourself that passes ready-made HTML in another variable
+  needs `{{{name}}}` now — otherwise the markup arrives escaped.
+- A list or charlist value that a placeholder uses is an `ArgumentError` now;
+  before, it was silently turned into text.
+- A name with a dot or a dash (`{{user.name}}`, `{{a-b}}`) is literal text, not a
+  variable.
+- Code up to 0.5.4 renders `{{{x}}}` as `{` + value + `}`. If you roll back,
+  `mix phoenix_kit.update` to a version below V3 restores the double braces for
+  the two billing names, but a `{{{name}}}` you wrote yourself stays as written.
+
 ## Installation
 
 Add `phoenix_kit_emails` to your dependencies in `mix.exs`:
