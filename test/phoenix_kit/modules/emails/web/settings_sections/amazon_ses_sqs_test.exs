@@ -346,4 +346,49 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqsTest do
                        {{DeliveryEventTracking, "delivery-panel"}, %{id: "delivery-panel"}}}
     end
   end
+
+  # These handlers used to hand the payload straight to Integer.parse/1, which
+  # raises on nil (neither key sent) and on an integer (a crafted event). Each
+  # one must read both shapes without taking the LiveView down.
+  describe "the SQS number handlers never raise on the payload shape" do
+    test "update_max_messages accepts an integer" do
+      assert {:noreply, socket} =
+               SesSection.handle_event(
+                 "update_max_messages",
+                 %{"max_messages" => 5},
+                 bare_socket()
+               )
+
+      assert socket.assigns.sqs_max_messages_per_poll == 5
+      assert Emails.get_sqs_config().max_messages_per_poll == 5
+    end
+
+    test "update_max_messages rejects a missing value with a flash" do
+      assert {:noreply, socket} =
+               SesSection.handle_event("update_max_messages", %{"value" => nil}, bare_socket())
+
+      assert socket.assigns.flash["error"]
+      refute Map.has_key?(socket.assigns, :sqs_max_messages_per_poll)
+    end
+
+    test "update_visibility_timeout accepts an integer" do
+      assert {:noreply, socket} =
+               SesSection.handle_event(
+                 "update_visibility_timeout",
+                 %{"timeout" => 60},
+                 bare_socket()
+               )
+
+      assert socket.assigns.sqs_visibility_timeout == 60
+      assert Emails.get_sqs_config().visibility_timeout == 60
+    end
+
+    test "update_visibility_timeout rejects a missing value with a flash" do
+      assert {:noreply, socket} =
+               SesSection.handle_event("update_visibility_timeout", %{}, bare_socket())
+
+      assert socket.assigns.flash["error"]
+      refute Map.has_key?(socket.assigns, :sqs_visibility_timeout)
+    end
+  end
 end

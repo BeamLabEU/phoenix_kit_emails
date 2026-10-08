@@ -254,4 +254,41 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTrackingTest do
       assert Emails.get_config().archive_to_s3 == true
     end
   end
+
+  # These handlers used to hand the payload straight to Integer.parse/1, which
+  # raises on nil (neither key sent) and on an integer (a crafted event).
+  describe "the number handlers never raise on the payload shape" do
+    defp number_socket do
+      %Phoenix.LiveView.Socket{
+        assigns: %{__changed__: %{}, flash: %{}},
+        private: %{live_temp: %{}}
+      }
+    end
+
+    for {event, key, value, assign} <- [
+          {"update_email_sampling_rate", "sampling_rate", 50, :email_sampling_rate},
+          {"update_email_retention", "retention_days", 30, :email_retention_days},
+          {"update_compress_days", "compress_days", 14, :email_compress_body}
+        ] do
+      test "#{event} accepts an integer" do
+        assert {:noreply, socket} =
+                 EmailTracking.handle_event(
+                   unquote(event),
+                   %{unquote(key) => unquote(value)},
+                   number_socket()
+                 )
+
+        assert socket.assigns[unquote(assign)] == unquote(value)
+        refute socket.assigns.flash["error"]
+      end
+
+      test "#{event} rejects a missing value with a flash" do
+        assert {:noreply, socket} =
+                 EmailTracking.handle_event(unquote(event), %{"value" => nil}, number_socket())
+
+        assert socket.assigns.flash["error"]
+        refute Map.has_key?(socket.assigns, unquote(assign))
+      end
+    end
+  end
 end

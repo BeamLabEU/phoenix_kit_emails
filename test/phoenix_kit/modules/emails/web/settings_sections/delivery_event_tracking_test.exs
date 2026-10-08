@@ -648,4 +648,31 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTrackingTe
       assert Emails.ses_events_enabled?()
     end
   end
+
+  # `value || ""` covered a missing value but not an integer from a crafted
+  # event, which Integer.parse/1 raised on just the same.
+  describe "handle_event(\"update_interval\", ...) payload shapes" do
+    test "accepts an integer" do
+      assert {:noreply, socket} =
+               Panel.handle_event(
+                 "update_interval",
+                 %{"provider" => "aws_ses", "interval" => 7_000},
+                 bare_socket()
+               )
+
+      assert Emails.get_sqs_config().polling_interval_ms == 7_000
+      assert socket.assigns.flash["error"] == nil
+    end
+
+    test "rejects a missing value with a flash" do
+      assert {:noreply, socket} =
+               Panel.handle_event(
+                 "update_interval",
+                 %{"provider" => "aws_ses", "value" => nil},
+                 bare_socket()
+               )
+
+      assert socket.assigns.flash["error"]
+    end
+  end
 end

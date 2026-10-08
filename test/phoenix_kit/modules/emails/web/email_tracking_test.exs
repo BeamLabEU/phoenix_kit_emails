@@ -101,4 +101,34 @@ defmodule PhoenixKit.Modules.Emails.Web.EmailTrackingTest do
       private: %{live_temp: %{}}
     }
   end
+
+  # `|| ""` covered a missing value but not an integer from a crafted event,
+  # which Integer.parse/1 raised on just the same.
+  describe "update_email_tracking_retention payload shapes" do
+    test "accepts an integer" do
+      {:ok, _} = Emails.set_retention_days(90)
+
+      assert {:noreply, socket} =
+               EmailTracking.handle_event(
+                 "update_email_tracking_retention",
+                 %{"value" => 42},
+                 bare_socket(%{email_tracking_retention_days: 90})
+               )
+
+      assert socket.assigns.email_tracking_retention_days == 42
+      assert Emails.get_retention_days() == 42
+    end
+
+    test "rejects a missing value with a flash" do
+      assert {:noreply, socket} =
+               EmailTracking.handle_event(
+                 "update_email_tracking_retention",
+                 %{"value" => nil},
+                 bare_socket(%{email_tracking_retention_days: 90})
+               )
+
+      assert socket.assigns.flash["error"]
+      assert socket.assigns.email_tracking_retention_days == 90
+    end
+  end
 end
