@@ -45,6 +45,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Emails do
   alias PhoenixKit.Modules.Emails
   alias PhoenixKit.Modules.Emails.BrevoOnDemandSync
   alias PhoenixKit.Modules.Emails.TableColumns
+  alias PhoenixKit.Modules.Emails.Utils
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.Routes
 
@@ -125,8 +126,11 @@ defmodule PhoenixKit.Modules.Emails.Web.Emails do
     # Extract search parameters
     combined_params =
       case Map.get(params, "search") do
-        %{"query" => query} -> Map.put(combined_params, "search", String.trim(query || ""))
-        _ -> combined_params
+        %{"query" => query} ->
+          Map.put(combined_params, "search", String.trim(Utils.string_param(query)))
+
+        _ ->
+          combined_params
       end
 
     # Extract filter parameters
@@ -315,7 +319,8 @@ defmodule PhoenixKit.Modules.Emails.Web.Emails do
   end
 
   @impl true
-  def handle_event("update_table_columns", %{"column_order" => column_order}, socket) do
+  def handle_event("update_table_columns", %{"column_order" => column_order}, socket)
+      when is_binary(column_order) do
     # Persist the order coming from the hidden input. save_and_close_column_modal
     # drops any unknown ids and keeps "actions" last.
     columns = String.split(column_order, ",", trim: true)
@@ -324,8 +329,8 @@ defmodule PhoenixKit.Modules.Emails.Web.Emails do
 
   @impl true
   def handle_event("update_table_columns", _params, socket) do
-    # Fallback: submitted without an order (no reordering happened) — persist
-    # whatever is currently in the working copy.
+    # Fallback: submitted without an order (no reordering happened), or with
+    # one that is not a string — persist whatever is in the working copy.
     columns = socket.assigns.temp_selected_columns || []
     {:noreply, save_and_close_column_modal(socket, columns)}
   end
@@ -769,7 +774,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Emails do
 
     # Validate recipient email
     errors =
-      case String.trim(recipient || "") do
+      case String.trim(Utils.string_param(recipient)) do
         "" ->
           Map.put(errors, :recipient, "Email address is required")
 

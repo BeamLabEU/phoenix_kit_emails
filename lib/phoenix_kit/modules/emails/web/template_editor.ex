@@ -30,6 +30,7 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditor do
 
   alias PhoenixKit.Modules.Emails.Template
   alias PhoenixKit.Modules.Emails.Templates
+  alias PhoenixKit.Modules.Emails.Utils
   alias PhoenixKit.Modules.Languages
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Date, as: UtilsDate
@@ -540,7 +541,7 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditor do
 
     # Validate recipient email
     errors =
-      case String.trim(params["recipient"] || "") do
+      case String.trim(Utils.string_param(params["recipient"])) do
         "" ->
           Map.put(errors, :recipient, "Email address is required")
 

@@ -403,52 +403,50 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTracking do
     # `phx-blur` sends the element's value under "value", not under its name —
     # reading only "s3_bucket" got `nil` on every blur and cleared the setting
     # the operator had just typed. The three fields above this one already read
-    # both keys; this one has to as well.
-    bucket =
-      (Map.get(params, "s3_bucket") || Map.get(params, "value") || "")
-      |> String.trim()
-
-    case Emails.set_s3_bucket(bucket) do
-      {:ok, _} ->
-        socket =
-          socket
-          |> assign(:email_s3_bucket, bucket)
-          |> put_flash(
-            :info,
-            if(bucket == "",
-              do: gettext("S3 bucket cleared"),
-              else: gettext("S3 bucket set to %{bucket}", bucket: bucket)
-            )
+    # both keys; this one has to as well. A non-string (crafted) payload is
+    # refused like a failed write rather than read as blank, which would clear
+    # the stored bucket.
+    with bucket when is_binary(bucket) <-
+           Map.get(params, "s3_bucket") || Map.get(params, "value") || "",
+         bucket = String.trim(bucket),
+         {:ok, _} <- Emails.set_s3_bucket(bucket) do
+      socket =
+        socket
+        |> assign(:email_s3_bucket, bucket)
+        |> put_flash(
+          :info,
+          if(bucket == "",
+            do: gettext("S3 bucket cleared"),
+            else: gettext("S3 bucket set to %{bucket}", bucket: bucket)
           )
+        )
 
-        {:noreply, socket}
-
-      {:error, _} ->
-        {:noreply, put_flash(socket, :error, gettext("Failed to update S3 bucket"))}
+      {:noreply, socket}
+    else
+      _ -> {:noreply, put_flash(socket, :error, gettext("Failed to update S3 bucket"))}
     end
   end
 
   def handle_event("update_s3_integration", params, socket) do
     # Same shape problem: a `phx-change` on a <select> outside a form sends
-    # `%{"value" => uuid}`.
-    uuid = Map.get(params, "s3_integration") || Map.get(params, "value") || ""
-
-    case Emails.set_s3_integration(uuid) do
-      {:ok, _} ->
-        socket =
-          socket
-          |> assign(:email_s3_integration, uuid)
-          |> put_flash(
-            :info,
-            if(uuid == "",
-              do: gettext("Archive uploads will use the ambient AWS credentials"),
-              else: gettext("Archive uploads will use the selected connection")
-            )
+    # `%{"value" => uuid}`. Same refusal of a non-string payload, too.
+    with uuid when is_binary(uuid) <-
+           Map.get(params, "s3_integration") || Map.get(params, "value") || "",
+         {:ok, _} <- Emails.set_s3_integration(uuid) do
+      socket =
+        socket
+        |> assign(:email_s3_integration, uuid)
+        |> put_flash(
+          :info,
+          if(uuid == "",
+            do: gettext("Archive uploads will use the ambient AWS credentials"),
+            else: gettext("Archive uploads will use the selected connection")
           )
+        )
 
-        {:noreply, socket}
-
-      {:error, _} ->
+      {:noreply, socket}
+    else
+      _ ->
         {:noreply, put_flash(socket, :error, gettext("Failed to update the archive connection"))}
     end
   end

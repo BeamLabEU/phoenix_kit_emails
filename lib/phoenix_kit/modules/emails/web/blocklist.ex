@@ -221,7 +221,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Blocklist do
 
     opts =
       if expires_at && expires_at != "" do
-        case Date.from_iso8601(expires_at) do
+        case Date.from_iso8601(Utils.string_param(expires_at)) do
           {:ok, date} ->
             expires_datetime = DateTime.new!(date, ~T[23:59:59])
             [expires_at: expires_datetime] ++ opts
@@ -233,7 +233,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Blocklist do
         opts
       end
 
-    case RateLimiter.add_to_blocklist(email, reason, opts) do
+    case RateLimiter.add_to_blocklist(Utils.string_param(email), reason, opts) do
       :ok ->
         {:noreply,
          socket

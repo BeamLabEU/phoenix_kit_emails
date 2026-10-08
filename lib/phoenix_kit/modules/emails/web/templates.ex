@@ -40,6 +40,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
 
   alias PhoenixKit.Modules.Emails.Template
   alias PhoenixKit.Modules.Emails.Templates
+  alias PhoenixKit.Modules.Emails.Utils
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Routes
@@ -95,8 +96,11 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
     # Extract search parameters
     combined_params =
       case Map.get(params, "search") do
-        %{"query" => query} -> Map.put(combined_params, "search", String.trim(query || ""))
-        _ -> combined_params
+        %{"query" => query} ->
+          Map.put(combined_params, "search", String.trim(Utils.string_param(query)))
+
+        _ ->
+          combined_params
       end
 
     # Extract filter parameters
@@ -722,7 +726,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
 
     # Validate name
     errors =
-      case String.trim(params["name"] || "") do
+      case String.trim(Utils.string_param(params["name"])) do
         "" ->
           Map.put(errors, :name, "Name is required")
 
@@ -750,7 +754,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
 
     # Validate display_name
     errors =
-      case String.trim(params["display_name"] || "") do
+      case String.trim(Utils.string_param(params["display_name"])) do
         "" ->
           Map.put(errors, :display_name, "Display name is required")
 

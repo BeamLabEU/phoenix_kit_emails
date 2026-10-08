@@ -43,6 +43,31 @@ defmodule PhoenixKit.Modules.Emails.Utils do
   end
 
   @doc """
+  A string from a LiveView event payload, or `default` when it holds anything
+  else.
+
+  A payload is whatever the client sends: a crafted event can put an integer,
+  `nil`, a map or a list where the template puts a string, and `String.*`
+  or `Date.from_iso8601/1` on that raises and takes the LiveView down. Callers
+  that treat `""` as "nothing entered" get that for free from the default.
+
+  ## Examples
+
+      iex> PhoenixKit.Modules.Emails.Utils.string_param(" a ")
+      " a "
+
+      iex> PhoenixKit.Modules.Emails.Utils.string_param(42)
+      ""
+
+      iex> PhoenixKit.Modules.Emails.Utils.string_param(%{}, nil)
+      nil
+  """
+  @spec string_param(term(), default) :: String.t() | default when default: term()
+  def string_param(value, default \\ "")
+  def string_param(value, _default) when is_binary(value), do: value
+  def string_param(_value, default), do: default
+
+  @doc """
   Detects email provider from application configuration.
 
   Analyzes the configured mailer adapter to determine which email
