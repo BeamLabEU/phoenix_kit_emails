@@ -116,8 +116,8 @@ defmodule PhoenixKit.Modules.Emails.TableColumns do
   def reorder_columns(current_columns, %{"from" => from_idx, "to" => to_idx})
       when is_list(current_columns) do
     # A non-numeric index becomes -1, which the bounds check below rejects.
-    from_index = Utils.parse_int(from_idx, -1, min: 0)
-    to_index = Utils.parse_int(to_idx, -1, min: 0)
+    from_index = Utils.parse_int(from_idx, -1)
+    to_index = Utils.parse_int(to_idx, -1)
 
     if from_index >= 0 and from_index < length(current_columns) and
          to_index >= 0 and to_index < length(current_columns) do

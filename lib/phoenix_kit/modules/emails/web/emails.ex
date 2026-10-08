@@ -51,9 +51,6 @@ defmodule PhoenixKit.Modules.Emails.Web.Emails do
 
   @default_per_page 25
   @max_per_page 100
-  # Same ceiling core's UrlState puts on integer params: past it the SQL
-  # OFFSET ((page - 1) * per_page) no longer fits a bigint.
-  @max_page 1_000_000
 
   ## --- Lifecycle Callbacks ---
 
@@ -489,8 +486,14 @@ defmodule PhoenixKit.Modules.Emails.Web.Emails do
       to_date: params["to_date"] || ""
     }
 
-    page = Utils.parse_int(params["page"], 1, min: 1, max: @max_page)
-    per_page = Utils.parse_int(params["per_page"], @default_per_page, min: 1, max: @max_per_page)
+    page = Utils.parse_page(params["page"])
+
+    per_page =
+      Utils.parse_int(params["per_page"], @default_per_page,
+        min: 1,
+        max: @max_per_page,
+        above_max: :clamp
+      )
 
     sort_by = validate_sort_by(params["sort_by"])
     sort_dir = validate_sort_dir(params["sort_dir"])
@@ -507,8 +510,18 @@ defmodule PhoenixKit.Modules.Emails.Web.Emails do
   defp load_email_logs(socket) do
     %{filters: filters, page: page, per_page: per_page} = socket.assigns
 
+    # Get total count for pagination (efficient count without loading all records)
+    total_count =
+      Emails.count_logs(build_query_filters(filters, 1, 1) |> Map.drop([:limit, :offset]))
+
+    # Floor of 1 so an empty list still has a page to sit on. A ?page past the
+    # end (a stale bookmark, a hand-edited URL) lands on the last page instead
+    # of an empty one with no pagination left to get back — same as Blocklist.
+    total_pages = max(ceil(total_count / per_page), 1)
+    page = Utils.clamp_page(page, total_pages)
+
     # Build filters for EmailLog query, adding sort order (list only — the count
-    # query below intentionally omits ordering).
+    # query above intentionally omits ordering).
     query_filters =
       build_query_filters(filters, page, per_page)
       |> Map.put(:order_by, socket.assigns.sort_by)
@@ -516,13 +529,8 @@ defmodule PhoenixKit.Modules.Emails.Web.Emails do
 
     logs = Emails.list_logs(query_filters)
 
-    # Get total count for pagination (efficient count without loading all records)
-    total_count =
-      Emails.count_logs(build_query_filters(filters, 1, 1) |> Map.drop([:limit, :offset]))
-
-    total_pages = ceil(total_count / per_page)
-
     socket
+    |> assign(:page, page)
     |> assign(:logs, logs)
     |> assign(:total_count, total_count)
     |> assign(:total_pages, total_pages)

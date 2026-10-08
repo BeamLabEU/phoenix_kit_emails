@@ -63,11 +63,19 @@ defmodule PhoenixKit.Modules.Emails.Web.EmailsTest do
       end
     end
 
-    test "a page number too large for an SQL offset is capped instead of raising" do
+    test "a page number past the 1_000_000 ceiling falls back to the first page" do
       {assigns, _html} = visit(%{"page" => String.duplicate("9", 30)})
 
-      assert assigns.page == 1_000_000
-      assert assigns.logs == []
+      assert assigns.page == 1
+      assert length(assigns.logs) == 3
+    end
+
+    test "a page past the end lands on the last page" do
+      {assigns, _html} = visit(%{"page" => "5", "per_page" => "2"})
+
+      assert assigns.total_pages == 2
+      assert assigns.page == 2
+      assert length(assigns.logs) == 1
     end
   end
 

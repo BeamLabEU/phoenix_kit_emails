@@ -110,17 +110,21 @@ defmodule PhoenixKit.Modules.Emails.Utils do
   Reads an integer out of a URL or event param without ever raising.
 
   Params are whatever the address bar or a crafted event says, so
-  `String.to_integer/1` on them is a crash waiting for `?page=abc`. This
+  `String.to_integer/1` on them is a crash waiting for `?page=abc`, and
+  `Integer.parse/1` is one waiting for a `nil` or an integer payload. This
   accepts a whole integer string (surrounding whitespace allowed) or an
   integer; anything else — `nil`, `""`, `"abc"`, `"2abc"`, `"1.5"` — is
-  `default`.
+  `default`, which may be any term (`nil` lets a caller tell "no valid number"
+  apart from every number).
 
   ## Options
 
     * `:min` — a value below it is `default` (`?page=0` is page 1, not page 0)
-    * `:max` — a value above it is clamped to it (`?per_page=1000000` is the
-      largest allowed page size, and a 30-digit page number cannot overflow
-      an SQL `OFFSET`)
+    * `:max` — a value above it is `default` too, the same rule core's
+      `PhoenixKitWeb.Live.UrlState` applies to out-of-range integers
+    * `:above_max` — `:clamp` turns a value above `:max` into `:max` instead
+      (`?per_page=1000000` is the largest allowed page size); `:default`, the
+      default, keeps the rule above
 
   ## Examples
 
@@ -131,13 +135,16 @@ defmodule PhoenixKit.Modules.Emails.Utils do
       1
 
       iex> PhoenixKit.Modules.Emails.Utils.parse_int("500", 25, min: 1, max: 100)
+      25
+
+      iex> PhoenixKit.Modules.Emails.Utils.parse_int("500", 25, min: 1, max: 100, above_max: :clamp)
       100
   """
-  @spec parse_int(term(), integer(), keyword()) :: integer()
-  def parse_int(value, default, opts \\ []) when is_integer(default) do
+  @spec parse_int(term(), default, keyword()) :: integer() | default when default: term()
+  def parse_int(value, default, opts \\ []) do
     case to_int(value) do
       nil -> default
-      int -> bound(int, default, Keyword.get(opts, :min), Keyword.get(opts, :max))
+      int -> bound(int, default, opts)
     end
   end
 
@@ -152,7 +159,56 @@ defmodule PhoenixKit.Modules.Emails.Utils do
 
   defp to_int(_value), do: nil
 
-  defp bound(int, default, min, _max) when is_integer(min) and int < min, do: default
-  defp bound(int, _default, _min, max) when is_integer(max) and int > max, do: max
-  defp bound(int, _default, _min, _max), do: int
+  defp bound(int, default, opts) do
+    min = Keyword.get(opts, :min)
+    max = Keyword.get(opts, :max)
+
+    cond do
+      is_integer(min) and int < min ->
+        default
+
+      is_integer(max) and int > max ->
+        above_max(Keyword.get(opts, :above_max, :default), max, default)
+
+      true ->
+        int
+    end
+  end
+
+  defp above_max(:clamp, max, _default), do: max
+  defp above_max(:default, _max, default), do: default
+
+  # The farthest page a list URL may name. Not an overflow guard — offset tops
+  # out near 1e8 here — but a bound on pointlessly distant pages, kept equal to
+  # the ceiling core's UrlState puts on integer params so every list in this
+  # module (Blocklist reads its page through UrlState) rejects the same URLs.
+  @max_page 1_000_000
+
+  @doc """
+  The page number carried by a list's `?page` param: a whole number from 1 to
+  #{@max_page}, or 1.
+
+      iex> PhoenixKit.Modules.Emails.Utils.parse_page("3")
+      3
+
+      iex> PhoenixKit.Modules.Emails.Utils.parse_page("2000000")
+      1
+  """
+  @spec parse_page(term()) :: pos_integer()
+  def parse_page(value), do: parse_int(value, 1, min: 1, max: @max_page)
+
+  @doc """
+  The page a request can actually land on: `page` pulled into
+  `1..max(total_pages, 1)`, so `?page=5` on a two-page list shows page 2.
+
+      iex> PhoenixKit.Modules.Emails.Utils.clamp_page(5, 2)
+      2
+
+      iex> PhoenixKit.Modules.Emails.Utils.clamp_page(1, 0)
+      1
+  """
+  @spec clamp_page(integer(), integer()) :: pos_integer()
+  def clamp_page(page, total_pages) when is_integer(page) and is_integer(total_pages) do
+    page |> max(1) |> min(max(total_pages, 1))
+  end
 end

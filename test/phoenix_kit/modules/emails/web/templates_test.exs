@@ -431,13 +431,24 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplatesTest do
       end
     end
 
-    test "a page number too large for an SQL offset is capped instead of raising" do
-      create_custom_template()
+    test "a page number past the 1_000_000 ceiling falls back to the first page" do
+      template = create_custom_template()
 
-      {assigns, _html} = visit(%{"page" => String.duplicate("9", 30)})
+      {assigns, html} = visit(%{"page" => String.duplicate("9", 30)})
 
-      assert assigns.page == 1_000_000
-      assert assigns.templates == []
+      assert assigns.page == 1
+      assert html =~ template.name
+    end
+
+    test "a page past the end lands on the last page" do
+      for _ <- 1..3, do: create_custom_template()
+
+      {assigns, _html} =
+        visit(%{"page" => "5", "per_page" => "2", "is_system" => "false"})
+
+      assert assigns.total_pages == 2
+      assert assigns.page == 2
+      assert length(assigns.templates) == 1
     end
 
     for per_page <- ["abc", "", "0", "-5"] do

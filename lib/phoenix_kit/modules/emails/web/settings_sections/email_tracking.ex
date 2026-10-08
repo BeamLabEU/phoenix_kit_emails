@@ -17,6 +17,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTracking do
   alias PhoenixKit.Modules.Emails
   alias PhoenixKit.Modules.Emails.Queue
   alias PhoenixKit.Modules.Emails.Status
+  alias PhoenixKit.Modules.Emails.Utils
 
   @dialyzer {:nowarn_function, handle_event: 3}
 
@@ -162,8 +163,8 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTracking do
   def handle_event("update_email_sampling_rate", params, socket) do
     value = Map.get(params, "sampling_rate") || Map.get(params, "value")
 
-    case Integer.parse(value) do
-      {sampling_rate, _} when sampling_rate >= 0 and sampling_rate <= 100 ->
+    case Utils.parse_int(value, nil, min: 0, max: 100) do
+      sampling_rate when is_integer(sampling_rate) ->
         case Emails.set_sampling_rate(sampling_rate) do
           {:ok, _setting} ->
             socket =
@@ -193,8 +194,8 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTracking do
   def handle_event("update_email_retention", params, socket) do
     value = Map.get(params, "retention_days") || Map.get(params, "value")
 
-    case Integer.parse(value) do
-      {retention_days, _} when retention_days > 0 and retention_days <= 365 ->
+    case Utils.parse_int(value, nil, min: 1, max: 365) do
+      retention_days when is_integer(retention_days) ->
         case Emails.set_retention_days(retention_days) do
           {:ok, _setting} ->
             socket =
@@ -225,8 +226,8 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTracking do
 
     socket = assign(socket, :updating_compress_days, true)
 
-    case Integer.parse(value) do
-      {compress_days, _} when compress_days >= 7 and compress_days <= 365 ->
+    case Utils.parse_int(value, nil, min: 7, max: 365) do
+      compress_days when is_integer(compress_days) ->
         case Emails.set_compress_after_days(compress_days) do
           {:ok, _setting} ->
             socket =
