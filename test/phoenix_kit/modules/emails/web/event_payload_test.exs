@@ -776,7 +776,9 @@ defmodule PhoenixKit.Modules.Emails.Web.EventPayloadTest do
   describe "Template editor save in :edit mode" do
     # validate drops a non-string translation so the form can render; save must
     # not, or a crafted "en" => %{} quietly saves a new version without English.
-    test "a non-string translation is refused and nothing is saved" do
+    # nil is in the list on purpose: the form sends an emptied locale as "",
+    # never nil, so a nil only comes from a crafted event.
+    defp edit_socket do
       {:ok, template} =
         Templates.create_template(%{
           name: "payload_save_#{System.unique_integer([:positive])}",
@@ -793,23 +795,45 @@ defmodule PhoenixKit.Modules.Emails.Web.EventPayloadTest do
         |> Phoenix.Component.assign(:mode, :edit)
         |> Phoenix.Component.assign(:template, template)
         |> Phoenix.Component.assign(:changeset, Template.changeset(template, %{}))
-        |> then(
-          &event!(TemplateEditor, &1, "save", %{
-            "email_template" => %{
-              "subject" => %{"en" => %{}, "et" => "Uus"},
-              "html_body" => %{"en" => "<p>Hi</p>"},
-              "text_body" => %{"en" => "Hi"}
-            }
-          })
-        )
 
-      assert socket.assigns.flash["error"]
-      refute socket.assigns.saving
+      {template, socket}
+    end
+
+    defp save_subject(socket, subject) do
+      event!(TemplateEditor, socket, "save", %{
+        "email_template" => %{
+          "subject" => subject,
+          "html_body" => %{"en" => "<p>Hi</p>"},
+          "text_body" => %{"en" => "Hi"}
+        }
+      })
+    end
+
+    for value <- [%{}, 42, ["x"], nil] do
+      test "an \"en\" translation of #{inspect(value)} is refused and nothing is saved" do
+        {template, socket} = edit_socket()
+
+        socket = save_subject(socket, %{"en" => unquote(Macro.escape(value)), "et" => "Uus"})
+
+        assert socket.assigns.flash["error"]
+        refute socket.assigns.saving
+
+        stored = Templates.get_template(template.uuid)
+        assert stored.subject == %{"en" => "English subject", "et" => "Eesti"}
+        assert stored.version == template.version
+        render!(TemplateEditor, socket)
+      end
+    end
+
+    test "string translations are still saved" do
+      {template, socket} = edit_socket()
+
+      socket = save_subject(socket, %{"en" => "New subject", "et" => "Uus"})
+
+      refute socket.assigns.flash["error"]
 
       stored = Templates.get_template(template.uuid)
-      assert stored.subject == %{"en" => "English subject", "et" => "Eesti"}
-      assert stored.version == template.version
-      render!(TemplateEditor, socket)
+      assert stored.subject == %{"en" => "New subject", "et" => "Uus"}
     end
   end
 
