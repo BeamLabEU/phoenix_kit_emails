@@ -94,7 +94,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Queue do
   end
 
   @impl true
-  def handle_event("view_details", %{"uuid" => email_uuid}, socket) do
+  def handle_event("view_details", %{"uuid" => email_uuid}, socket) when is_binary(email_uuid) do
     # Row click navigates to the email Details page (same target as the Emails
     # list). Action controls inside the row (checkbox, Retry) have their own
     # phx-click and are handled by their dedicated events.
@@ -102,6 +102,9 @@ defmodule PhoenixKit.Modules.Emails.Web.Queue do
      socket
      |> push_navigate(to: Routes.path("/admin/emails/email/#{email_uuid}"))}
   end
+
+  @impl true
+  def handle_event("view_details", _params, socket), do: {:noreply, socket}
 
   @impl true
   def handle_event("retry_email", %{"email_uuid" => email_uuid}, socket) do

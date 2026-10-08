@@ -128,7 +128,9 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditor do
   ## --- Event Handlers ---
 
   @impl true
-  def handle_event("validate", %{"email_template" => template_params}, socket) do
+  def handle_event("validate", %{"email_template" => template_params}, socket)
+      when is_map(template_params) do
+    template_params = drop_unrenderable_values(template_params)
     template = socket.assigns.template || %Template{}
 
     # Extract variables from current content
@@ -175,7 +177,9 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditor do
   end
 
   @impl true
-  def handle_event("save", %{"email_template" => template_params, "save_as" => save_as}, socket) do
+  def handle_event("save", %{"email_template" => template_params, "save_as" => save_as}, socket)
+      when is_map(template_params) do
+    template_params = drop_unrenderable_values(template_params)
     socket = assign(socket, :saving, true)
 
     # Extract variables and auto-add them before saving
@@ -240,9 +244,17 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditor do
   end
 
   @impl true
-  def handle_event("save", %{"email_template" => template_params}, socket) do
+  def handle_event("save", %{"email_template" => template_params}, socket)
+      when is_map(template_params) do
     # Default save without save_as parameter
     handle_event("save", %{"email_template" => template_params, "save_as" => "active"}, socket)
+  end
+
+  # A crafted event without a map under "email_template" has nothing to
+  # validate or save; the form stays as it was.
+  @impl true
+  def handle_event(event, _params, socket) when event in ["validate", "save"] do
+    {:noreply, socket}
   end
 
   @impl true
@@ -296,7 +308,7 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditor do
       sample_variables(test_params, socket.assigns.test_form.sample_variables)
 
     test_form = %{
-      recipient: test_params["recipient"] || "",
+      recipient: Utils.string_param(test_params["recipient"]),
       sample_variables: sample_variables,
       errors: errors
     }
@@ -327,7 +339,7 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditor do
       {:noreply, socket}
     else
       test_form = %{
-        recipient: test_params["recipient"] || "",
+        recipient: Utils.string_param(test_params["recipient"]),
         sample_variables: sample_variables(test_params, %{}),
         errors: errors
       }
@@ -538,10 +550,30 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditor do
   defp test_params(%{"test" => test_params}) when is_map(test_params), do: test_params
   defp test_params(_params), do: %{}
 
-  # Sample variables go to Templates.render_template/3 as a map; anything else
-  # (absent, or a crafted non-map) falls back to `default`.
-  defp sample_variables(%{"sample_variables" => vars}, _default) when is_map(vars), do: vars
+  # Sample variables go to Templates.render_template/3 and back into the form's
+  # inputs, so only string names with string values are kept; a crafted
+  # non-map falls back to `default`.
+  defp sample_variables(%{"sample_variables" => vars}, _default) when is_map(vars),
+    do: string_entries(vars)
+
   defp sample_variables(_test_params, default), do: default
+
+  # The i18n fields and the variable descriptions are rendered back into the
+  # editor's inputs, and the i18n values are also scanned for {{variables}}.
+  # A crafted value that is not a string (a nested map, a list, a number)
+  # raises in both, so it is dropped here, before either sees it.
+  @i18n_fields ~w(display_name description subject html_body text_body)
+
+  defp drop_unrenderable_values(template_params) do
+    Enum.reduce(["variables" | @i18n_fields], template_params, fn field, acc ->
+      case acc do
+        %{^field => map} when is_map(map) -> Map.put(acc, field, string_entries(map))
+        _ -> acc
+      end
+    end)
+  end
+
+  defp string_entries(map), do: Map.filter(map, fn {k, v} -> is_binary(k) and is_binary(v) end)
 
   defp validate_test_form(params) do
     errors = %{}

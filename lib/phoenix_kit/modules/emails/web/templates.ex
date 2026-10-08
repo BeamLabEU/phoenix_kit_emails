@@ -143,13 +143,19 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
   end
 
   @impl true
-  def handle_event("set_filter", %{"field" => field, "value" => value}, socket) do
+  def handle_event("set_filter", %{"field" => field, "value" => value}, socket)
+      when is_binary(field) and is_binary(value) do
     # Dropdown filter selection (category/status/is_system): set the chosen
     # filter, reset to page 1, and patch. Empty value clears that filter.
     new_params = build_url_params(socket.assigns, %{field => value, "page" => "1"})
 
     {:noreply, push_patch(socket, to: Routes.path("/admin/emails/templates?#{new_params}"))}
   end
+
+  # A crafted field or value that is not a string would reach
+  # URI.encode_query/1 and raise; keep the current filters instead.
+  @impl true
+  def handle_event("set_filter", _params, socket), do: {:noreply, socket}
 
   @impl true
   def handle_event("toggle_sort", %{"by" => by}, socket) do
@@ -215,12 +221,13 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
   end
 
   @impl true
-  def handle_event("validate_clone", %{"clone" => clone_params}, socket) do
+  def handle_event("validate_clone", params, socket) do
+    clone_params = clone_params(params)
     errors = validate_clone_form(clone_params)
 
     form = %{
-      name: clone_params["name"] || "",
-      display_name: clone_params["display_name"] || "",
+      name: clone_params["name"],
+      display_name: clone_params["display_name"],
       errors: errors
     }
 
@@ -228,7 +235,8 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
   end
 
   @impl true
-  def handle_event("clone_template", %{"clone" => clone_params}, socket) do
+  def handle_event("clone_template", params, socket) do
+    clone_params = clone_params(params)
     errors = validate_clone_form(clone_params)
 
     if map_size(errors) == 0 and socket.assigns.clone_template do
@@ -256,8 +264,8 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
     else
       # Show validation errors
       form = %{
-        name: clone_params["name"] || "",
-        display_name: clone_params["display_name"] || "",
+        name: clone_params["name"],
+        display_name: clone_params["display_name"],
         errors: errors
       }
 
@@ -266,11 +274,15 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
   end
 
   @impl true
-  def handle_event("edit_template", %{"uuid" => template_uuid}, socket) do
+  def handle_event("edit_template", %{"uuid" => template_uuid}, socket)
+      when is_binary(template_uuid) do
     {:noreply,
      socket
      |> push_navigate(to: Routes.path("/admin/emails/templates/#{template_uuid}/edit"))}
   end
+
+  @impl true
+  def handle_event("edit_template", _params, socket), do: {:noreply, socket}
 
   @impl true
   def handle_event("request_archive", %{"uuid" => template_uuid}, socket) do
@@ -353,7 +365,8 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
   end
 
   @impl true
-  def handle_event("request_delete", %{"uuid" => uuid, "name" => name}, socket) do
+  def handle_event("request_delete", %{"uuid" => uuid, "name" => name}, socket)
+      when is_binary(uuid) and is_binary(name) do
     modal = %{
       show: true,
       title: "Confirm Delete",
@@ -366,6 +379,10 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
 
     {:noreply, assign(socket, :confirmation_modal, modal)}
   end
+
+  # A crafted name or uuid that is not a string cannot go into the message.
+  @impl true
+  def handle_event("request_delete", _params, socket), do: {:noreply, socket}
 
   @impl true
   def handle_event("cancel_confirmation", _params, socket) do
@@ -725,13 +742,26 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
     end
   end
 
+  # The clone form's name and display name, as strings. A crafted event can
+  # send a non-map form or non-string fields; they read as blank, so validation
+  # reports them and the form re-renders with strings, not raw values (which
+  # the template cannot render).
+  defp clone_params(%{"clone" => clone}) when is_map(clone) do
+    %{
+      "name" => Utils.string_param(clone["name"]),
+      "display_name" => Utils.string_param(clone["display_name"])
+    }
+  end
+
+  defp clone_params(_params), do: %{"name" => "", "display_name" => ""}
+
   # Validate clone form
   defp validate_clone_form(params) do
     errors = %{}
 
     # Validate name
     errors =
-      case String.trim(Utils.string_param(params["name"])) do
+      case String.trim(params["name"]) do
         "" ->
           Map.put(errors, :name, "Name is required")
 
@@ -759,7 +789,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
 
     # Validate display_name
     errors =
-      case String.trim(Utils.string_param(params["display_name"])) do
+      case String.trim(params["display_name"]) do
         "" ->
           Map.put(errors, :display_name, "Display name is required")
 

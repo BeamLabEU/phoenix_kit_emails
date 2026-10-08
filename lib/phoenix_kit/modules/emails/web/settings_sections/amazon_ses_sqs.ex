@@ -166,14 +166,16 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
     attrs = Map.get(params, "tracking", %{})
 
     if known_connection?(socket, uuid) do
-      case Emails.set_aws_tracking(uuid, attrs) do
+      # A crafted non-map "tracking" is a failed save, not a FunctionClauseError
+      # out of set_aws_tracking/2.
+      case is_map(attrs) && Emails.set_aws_tracking(uuid, attrs) do
         {:ok, _setting} ->
           {:noreply,
            socket
            |> after_tracking_change()
            |> put_flash(:info, gettext("Account tracking settings saved"))}
 
-        {:error, _reason} ->
+        _failed ->
           {:noreply, put_flash(socket, :error, gettext("Failed to save account settings"))}
       end
     else

@@ -146,6 +146,12 @@ defmodule PhoenixKit.Modules.Emails.Web.Metrics do
     end
   end
 
+  # Either date left out of a crafted event: same answer as a bad date.
+  @impl true
+  def handle_event("apply_custom_range", _params, socket) do
+    {:noreply, put_flash(socket, :error, gettext("Invalid date range"))}
+  end
+
   @impl true
   def handle_event("export_metrics", %{"format" => format}, socket) do
     case format do

@@ -153,18 +153,28 @@ defmodule PhoenixKit.Modules.Emails.Web.Blocklist do
   # instead of leaving the page. The clear-search button also fires this event
   # with search="" and inherits the same replace: true behaviour.
   @impl true
-  def handle_event("filter_search", %{"search" => search_term}, socket) do
+  def handle_event("filter_search", %{"search" => search_term}, socket)
+      when is_binary(search_term) do
     {:noreply, push_url_state(socket, [search_term: search_term], replace: true)}
   end
 
   @impl true
-  def handle_event("filter_reason", %{"reason" => reason}, socket) do
+  def handle_event("filter_reason", %{"reason" => reason}, socket) when is_binary(reason) do
     {:noreply, push_url_state(socket, reason_filter: reason)}
   end
 
   @impl true
-  def handle_event("filter_status", %{"status" => status}, socket) do
+  def handle_event("filter_status", %{"status" => status}, socket) when is_binary(status) do
     {:noreply, push_url_state(socket, status_filter: status)}
+  end
+
+  # A crafted filter value that is not a string: UrlState would to_string/1 it
+  # into the URL (raising on a map) or quietly reset the filter. Keep the
+  # current filters instead.
+  @impl true
+  def handle_event(event, _params, socket)
+      when event in ["filter_search", "filter_reason", "filter_status"] do
+    {:noreply, socket}
   end
 
   @impl true
@@ -211,11 +221,11 @@ defmodule PhoenixKit.Modules.Emails.Web.Blocklist do
 
   @impl true
   def handle_event("add_block", params, socket) do
-    %{
-      "email" => email,
-      "reason" => reason,
-      "expires_at" => expires_at
-    } = params
+    # Read, not matched: a crafted event can leave any of these out. A missing
+    # reason is the form's own default.
+    email = Utils.string_param(params["email"])
+    reason = Utils.string_param(params["reason"], "manual_block")
+    expires_at = params["expires_at"]
 
     opts = []
 
@@ -233,7 +243,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Blocklist do
         opts
       end
 
-    case RateLimiter.add_to_blocklist(Utils.string_param(email), reason, opts) do
+    case RateLimiter.add_to_blocklist(email, reason, opts) do
       :ok ->
         {:noreply,
          socket
@@ -249,7 +259,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Blocklist do
   end
 
   @impl true
-  def handle_event("remove_block", %{"email" => email}, socket) do
+  def handle_event("remove_block", %{"email" => email}, socket) when is_binary(email) do
     RateLimiter.remove_from_blocklist(email)
 
     {:noreply,
@@ -259,7 +269,8 @@ defmodule PhoenixKit.Modules.Emails.Web.Blocklist do
   end
 
   @impl true
-  def handle_event("toggle_email_selection", %{"email" => email}, socket) do
+  def handle_event("toggle_email_selection", %{"email" => email}, socket)
+      when is_binary(email) do
     selected = socket.assigns.selected_emails
 
     new_selected =
@@ -272,6 +283,14 @@ defmodule PhoenixKit.Modules.Emails.Web.Blocklist do
     {:noreply,
      socket
      |> assign(:selected_emails, new_selected)}
+  end
+
+  # A crafted email that is not a string: RateLimiter would raise on it, and a
+  # selected one would reach the bulk remove later. Ignore it.
+  @impl true
+  def handle_event(event, _params, socket)
+      when event in ["remove_block", "toggle_email_selection"] do
+    {:noreply, socket}
   end
 
   @impl true

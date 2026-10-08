@@ -1,26 +1,47 @@
 defmodule PhoenixKit.Modules.Emails.Web.EventPayloadTest do
   @moduledoc """
   A LiveView event payload is whatever the client sends, and a crafted event
-  can put an integer, `nil` or a map where the template would put a string.
-  These handlers used to pass the value straight to `String.*`,
-  `Date.from_iso8601/1` or `String.to_atom/1`, so the wrong shape raised and
-  took the LiveView down — and `String.to_atom/1` grew the atom table with
-  every new value. Each one must now refuse the payload and carry on.
+  can put an integer, `nil`, a map or a list where the template would put a
+  string, send a string where it expects a map, or leave a key out. These
+  handlers used to pass the value straight to `String.*`,
+  `Date.from_iso8601/1`, `URI.encode_query/1`, string interpolation or
+  `String.to_atom/1`, so the wrong shape raised and took the LiveView down —
+  and `String.to_atom/1` grew the atom table with every new value.
+
+  Each test sends the crafted event and then RENDERS the page from the
+  resulting assigns: a handler that survives but stores the raw value in a
+  form assign only moves the crash into the template (`Phoenix.HTML.Safe` is
+  not implemented for maps), and a handler-only assertion stays green on it.
   """
 
   use PhoenixKitEmails.DataCase, async: false
 
+  import Phoenix.LiveViewTest
+
+  alias PhoenixKit.Integrations
   alias PhoenixKit.Modules.Emails
   alias PhoenixKit.Modules.Emails.RateLimiter
   alias PhoenixKit.Modules.Emails.Template
+  alias PhoenixKit.Modules.Emails.Templates
   alias PhoenixKit.Modules.Emails.Web.Blocklist
+  alias PhoenixKit.Modules.Emails.Web.Details
   alias PhoenixKit.Modules.Emails.Web.Emails, as: EmailsLive
   alias PhoenixKit.Modules.Emails.Web.Metrics
+  alias PhoenixKit.Modules.Emails.Web.Queue
+  alias PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs
   alias PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTracking
   alias PhoenixKit.Modules.Emails.Web.TemplateEditor
   alias PhoenixKit.Modules.Emails.Web.Templates, as: TemplatesLive
 
   @non_strings [42, nil, %{"a" => "b"}, ["x"]]
+  @crafted [42, %{"a" => "b"}, ["x"]]
+
+  setup do
+    {:ok, _} = Emails.enable_system()
+    :ok
+  end
+
+  ## --- Helpers ---
 
   defp bare_socket(assigns \\ %{}) do
     %Phoenix.LiveView.Socket{
@@ -29,232 +50,386 @@ defmodule PhoenixKit.Modules.Emails.Web.EventPayloadTest do
     }
   end
 
-  setup do
-    {:ok, _} = Emails.enable_system()
-    :ok
+  # Renders `module` from the socket's assigns, the way LiveView would after
+  # the event. `:myself` is only read by LiveComponents.
+  defp render!(module, socket) do
+    assigns =
+      socket.assigns
+      |> Map.delete(:__changed__)
+      |> Map.put_new(:myself, %Phoenix.LiveComponent.CID{cid: 1})
+
+    html =
+      render_component(&module.render/1, assigns, endpoint: PhoenixKitEmails.Test.StubEndpoint)
+
+    assert is_binary(html)
+    html
   end
 
-  describe "Metrics change_period" do
-    defp metrics_socket do
-      {:ok, socket} = Metrics.mount(%{}, %{}, bare_socket())
-      socket
-    end
+  defp event!(module, socket, event, params) do
+    assert {:noreply, socket} = module.handle_event(event, params, socket)
+    socket
+  end
 
+  defp patched_to(socket) do
+    case socket.redirected do
+      {:live, :patch, %{to: to}} -> to
+      _ -> nil
+    end
+  end
+
+  defp metrics_socket do
+    {:ok, socket} = Metrics.mount(%{}, %{}, bare_socket())
+    socket
+  end
+
+  defp emails_socket do
+    {:ok, socket} = EmailsLive.mount(%{}, %{}, bare_socket())
+    {:noreply, socket} = EmailsLive.handle_params(%{}, "http://localhost/admin/emails", socket)
+
+    socket
+    |> Phoenix.Component.assign(:show_test_email_modal, true)
+    |> Phoenix.Component.assign(:show_column_modal, true)
+    |> Phoenix.Component.assign(:temp_selected_columns, ["to", "actions"])
+  end
+
+  defp templates_socket do
+    {:ok, template} =
+      Templates.create_template(%{
+        name: "payload_#{System.unique_integer([:positive])}",
+        display_name: %{"en" => "Payload"},
+        subject: %{"en" => "Subject"},
+        html_body: %{"en" => "<p>Hi</p>"},
+        text_body: %{"en" => "Hi"},
+        category: "transactional",
+        status: "active"
+      })
+
+    {:ok, socket} = TemplatesLive.mount(%{}, %{}, bare_socket())
+
+    {:noreply, socket} =
+      TemplatesLive.handle_params(%{}, "http://localhost/admin/emails/templates", socket)
+
+    socket
+    |> Phoenix.Component.assign(:show_clone_modal, true)
+    |> Phoenix.Component.assign(:clone_template, template)
+  end
+
+  defp editor_socket do
+    bare_socket(%{
+      changeset: Template.changeset(%Template{}, %{}),
+      mode: :new,
+      template: nil,
+      available_locales: ["en"],
+      current_editor_locale: "en",
+      preview_mode: "html",
+      show_test_modal: true,
+      test_sending: false,
+      test_form: %{recipient: "", sample_variables: %{"name" => "kept"}, errors: %{}},
+      extracted_variables: ["name"],
+      saving: false
+    })
+  end
+
+  # What UrlState's on_mount hook leaves behind, then the list load it
+  # triggers — enough to render the page and push URL state.
+  defp blocklist_socket do
+    {:ok, socket} =
+      Blocklist.mount(
+        %{},
+        %{},
+        bare_socket(%{
+          __phoenix_kit_url_cfg__: Blocklist.__phoenix_kit_url_state__(),
+          __phoenix_kit_url_path__: "/admin/emails/blocklist",
+          search_term: "",
+          reason_filter: "",
+          status_filter: "all",
+          sort_by: :inserted_at,
+          sort_dir: :desc,
+          page: 1
+        })
+      )
+
+    %{}
+    |> Blocklist.handle_url_state(socket)
+    |> Phoenix.Component.assign(:show_add_form, true)
+    |> Phoenix.Component.assign(:show_import_form, true)
+  end
+
+  defp tracking_section_socket do
+    {:ok, socket} = EmailTracking.update(%{id: "email-tracking"}, bare_socket())
+    socket
+  end
+
+  ## --- Metrics ---
+
+  describe "Metrics change_period" do
     test "a listed period is applied" do
-      {:noreply, socket} =
-        Metrics.handle_event("change_period", %{"period" => "last_30_days"}, metrics_socket())
+      socket = event!(Metrics, metrics_socket(), "change_period", %{"period" => "last_30_days"})
 
       assert socket.assigns.period == :last_30_days
+      render!(Metrics, socket)
     end
 
     test "an unknown period keeps the current one and creates no atom" do
       name = "no_such_period_#{System.unique_integer([:positive])}"
 
-      {:noreply, socket} =
-        Metrics.handle_event("change_period", %{"period" => name}, metrics_socket())
+      socket = event!(Metrics, metrics_socket(), "change_period", %{"period" => name})
 
       assert socket.assigns.period == :last_7_days
       assert_raise ArgumentError, fn -> String.to_existing_atom(name) end
+      render!(Metrics, socket)
     end
 
     test "\"custom\" is not a period this event can pick" do
-      {:noreply, socket} =
-        Metrics.handle_event("change_period", %{"period" => "custom"}, metrics_socket())
+      socket = event!(Metrics, metrics_socket(), "change_period", %{"period" => "custom"})
 
       assert socket.assigns.period == :last_7_days
+      render!(Metrics, socket)
     end
 
     for value <- @non_strings do
       test "a #{inspect(value)} period keeps the current one" do
-        {:noreply, socket} =
-          Metrics.handle_event(
-            "change_period",
-            %{"period" => unquote(Macro.escape(value))},
-            metrics_socket()
-          )
+        socket =
+          event!(Metrics, metrics_socket(), "change_period", %{
+            "period" => unquote(Macro.escape(value))
+          })
 
         assert socket.assigns.period == :last_7_days
+        render!(Metrics, socket)
       end
     end
 
-    test "a non-string custom range is refused with a flash" do
-      {:noreply, socket} =
-        Metrics.handle_event(
-          "apply_custom_range",
-          %{"start_date" => 20_260_101, "end_date" => nil},
-          metrics_socket()
-        )
+    test "a missing period keeps the current one" do
+      socket = event!(Metrics, metrics_socket(), "change_period", %{})
 
-      assert socket.assigns.flash["error"]
       assert socket.assigns.period == :last_7_days
     end
   end
 
-  describe "S3 settings" do
-    defp s3_socket do
-      bare_socket(%{
-        email_archive_to_s3: false,
-        email_s3_bucket: "kept-bucket",
-        email_s3_integration: "kept-uuid"
-      })
-    end
+  describe "Metrics apply_custom_range" do
+    for params <- [
+          %{"start_date" => 20_260_101, "end_date" => nil},
+          %{"start_date" => %{"a" => "b"}, "end_date" => ["x"]},
+          %{"start_date" => "2026-10-01"},
+          %{}
+        ] do
+      test "#{inspect(params)} is refused with a flash" do
+        socket =
+          event!(Metrics, metrics_socket(), "apply_custom_range", unquote(Macro.escape(params)))
 
-    for value <- [42, %{"a" => "b"}, ["x"]] do
+        assert socket.assigns.flash["error"]
+        assert socket.assigns.period == :last_7_days
+        render!(Metrics, socket)
+      end
+    end
+  end
+
+  ## --- Settings sections ---
+
+  describe "S3 settings" do
+    for value <- @crafted do
       test "a #{inspect(value)} bucket is refused and the stored one kept" do
         {:ok, _} = Emails.set_s3_bucket("kept-bucket")
 
-        {:noreply, socket} =
-          EmailTracking.handle_event(
-            "update_s3_bucket",
-            %{"value" => unquote(Macro.escape(value))},
-            s3_socket()
-          )
+        socket =
+          event!(EmailTracking, tracking_section_socket(), "update_s3_bucket", %{
+            "value" => unquote(Macro.escape(value))
+          })
 
         assert socket.assigns.flash["error"]
         assert socket.assigns.email_s3_bucket == "kept-bucket"
         assert Emails.get_s3_bucket() == "kept-bucket"
+        render!(EmailTracking, socket)
       end
 
       test "a #{inspect(value)} connection is refused and the stored one kept" do
         {:ok, _} = Emails.set_s3_integration("kept-uuid")
 
-        {:noreply, socket} =
-          EmailTracking.handle_event(
-            "update_s3_integration",
-            %{"value" => unquote(Macro.escape(value))},
-            s3_socket()
-          )
+        socket =
+          event!(EmailTracking, tracking_section_socket(), "update_s3_integration", %{
+            "value" => unquote(Macro.escape(value))
+          })
 
         assert socket.assigns.flash["error"]
         assert socket.assigns.email_s3_integration == "kept-uuid"
         assert Emails.get_s3_integration() == "kept-uuid"
+        render!(EmailTracking, socket)
       end
     end
   end
 
-  describe "Blocklist" do
+  describe "SES per-account tracking settings" do
+    for value <- ["x", 42, ["a"]] do
+      test "tracking=#{inspect(value)} for a known connection is refused with a flash" do
+        {:ok, %{uuid: uuid} = connection} = Integrations.add_connection("aws_ses", "payload")
+
+        socket = bare_socket(%{aws_ses_connections: [connection]})
+
+        socket =
+          event!(AmazonSesSqs, socket, "save_tracking_account", %{
+            "uuid" => uuid,
+            "tracking" => unquote(Macro.escape(value))
+          })
+
+        assert socket.assigns.flash["error"]
+      end
+    end
+  end
+
+  ## --- Blocklist ---
+
+  describe "Blocklist add_block" do
     test "a non-string email is refused with a flash and nothing is blocked" do
-      {:noreply, socket} =
-        Blocklist.handle_event(
-          "add_block",
-          %{"email" => 42, "reason" => "manual", "expires_at" => ""},
-          bare_socket()
-        )
+      socket =
+        event!(Blocklist, blocklist_socket(), "add_block", %{
+          "email" => 42,
+          "reason" => "manual",
+          "expires_at" => ""
+        })
 
       assert socket.assigns.flash["error"]
       assert RateLimiter.list_blocklist(%{}) == []
+      render!(Blocklist, socket)
     end
 
-    test "a non-string expiry is ignored and the address blocked without one" do
-      email = "payload-#{System.unique_integer([:positive])}@example.com"
+    for expires_at <- [20_260_101, %{"a" => "b"}, ["2026-12-31"]] do
+      test "a #{inspect(expires_at)} expiry is ignored and the address blocked without one" do
+        email = "payload-#{System.unique_integer([:positive])}@example.com"
 
-      {:noreply, _socket} =
-        Blocklist.handle_event(
-          "add_block",
-          %{"email" => email, "reason" => "manual", "expires_at" => 20_260_101},
-          blocklist_socket()
-        )
+        socket =
+          event!(Blocklist, blocklist_socket(), "add_block", %{
+            "email" => email,
+            "reason" => "manual",
+            "expires_at" => unquote(Macro.escape(expires_at))
+          })
 
-      assert [%{email: ^email, expires_at: nil}] = RateLimiter.list_blocklist(%{})
+        assert [%{email: ^email, expires_at: nil}] = RateLimiter.list_blocklist(%{})
+        render!(Blocklist, socket)
+      end
+    end
+
+    for params <- [%{"email" => "a@example.com"}, %{"reason" => "manual"}, %{}] do
+      test "a payload missing keys (#{inspect(params)}) does not raise" do
+        socket = event!(Blocklist, blocklist_socket(), "add_block", unquote(Macro.escape(params)))
+
+        render!(Blocklist, socket)
+      end
     end
 
     # Already safe — import_blocklist_csv/1 rescues — but pinned with the rest.
     test "a non-string CSV import is refused with a flash" do
-      {:noreply, socket} =
-        Blocklist.handle_event("import_csv", %{"csv_content" => 42}, blocklist_socket())
+      socket = event!(Blocklist, blocklist_socket(), "import_csv", %{"csv_content" => 42})
 
       assert socket.assigns.flash["error"]
       refute socket.assigns.flash["info"]
+      render!(Blocklist, socket)
     end
   end
 
+  describe "Blocklist remove and selection" do
+    for email <- @crafted do
+      test "remove_block with #{inspect(email)} does nothing" do
+        socket =
+          event!(Blocklist, blocklist_socket(), "remove_block", %{
+            "email" => unquote(Macro.escape(email))
+          })
+
+        refute socket.assigns.flash["info"]
+        render!(Blocklist, socket)
+      end
+
+      test "toggle_email_selection with #{inspect(email)} leaves the selection alone" do
+        socket =
+          event!(Blocklist, blocklist_socket(), "toggle_email_selection", %{
+            "email" => unquote(Macro.escape(email))
+          })
+
+        assert socket.assigns.selected_emails == []
+
+        # ...so a bulk remove after it has nothing crafted to pass on.
+        socket =
+          socket
+          |> Phoenix.Component.assign(:bulk_action, "remove")
+          |> then(&event!(Blocklist, &1, "execute_bulk_action", %{}))
+
+        render!(Blocklist, socket)
+      end
+    end
+  end
+
+  describe "Blocklist filters" do
+    for {event, key} <- [
+          {"filter_search", "search"},
+          {"filter_reason", "reason"},
+          {"filter_status", "status"}
+        ],
+        value <- @crafted do
+      test "#{event} with #{inspect(value)} keeps the current filter" do
+        socket =
+          event!(Blocklist, blocklist_socket(), unquote(event), %{
+            unquote(key) => unquote(Macro.escape(value))
+          })
+
+        assert patched_to(socket) == nil
+        render!(Blocklist, socket)
+      end
+    end
+  end
+
+  ## --- Emails list ---
+
   describe "Emails list" do
     test "a non-string search query is dropped, not trimmed" do
-      {:noreply, socket} =
-        EmailsLive.handle_event("filter", %{"search" => %{"query" => 42}}, emails_socket())
+      socket = event!(EmailsLive, emails_socket(), "filter", %{"search" => %{"query" => 42}})
 
-      assert {:live, :patch, %{to: to}} = socket.redirected
-      refute to =~ "search="
+      refute patched_to(socket) =~ "search="
+      render!(EmailsLive, socket)
     end
 
-    test "a non-string test recipient is a validation error" do
-      {:noreply, socket} =
-        EmailsLive.handle_event(
-          "validate_test_email",
-          %{"test_email" => %{"recipient" => 42}},
-          emails_socket()
-        )
+    for event <- ["validate_test_email", "send_test_email"],
+        recipient <- @non_strings do
+      test "#{event} with recipient #{inspect(recipient)} is a validation error" do
+        socket =
+          event!(EmailsLive, emails_socket(), unquote(event), %{
+            "test_email" => %{"recipient" => unquote(Macro.escape(recipient))}
+          })
 
-      assert socket.assigns.test_email_form.errors.recipient
+        assert socket.assigns.test_email_form.errors.recipient
+        refute_received {:send_test_email, _, _}
+        render!(EmailsLive, socket)
+      end
+    end
+
+    for event <- ["validate_test_email", "send_test_email"],
+        params <- [%{"test_email" => "x"}, %{"test_email" => 42}, %{}] do
+      test "#{event} with #{inspect(params)} is a validation error" do
+        socket =
+          event!(EmailsLive, emails_socket(), unquote(event), unquote(Macro.escape(params)))
+
+        assert socket.assigns.test_email_form.errors.recipient
+        refute_received {:send_test_email, _, _}
+        render!(EmailsLive, socket)
+      end
     end
 
     test "a non-string column order keeps the working copy" do
       socket =
         emails_socket()
         |> Phoenix.Component.assign(:temp_selected_columns, ["to", "status", "actions"])
-
-      {:noreply, socket} =
-        EmailsLive.handle_event("update_table_columns", %{"column_order" => 42}, socket)
+        |> then(&event!(EmailsLive, &1, "update_table_columns", %{"column_order" => 42}))
 
       assert socket.assigns.selected_columns == ["to", "status", "actions"]
-    end
-  end
-
-  describe "Templates list" do
-    test "a non-string search query is dropped, not trimmed" do
-      {:noreply, socket} =
-        TemplatesLive.handle_event("filter", %{"search" => %{"query" => 42}}, templates_socket())
-
-      assert {:live, :patch, %{to: to}} = socket.redirected
-      refute to =~ "search="
+      render!(EmailsLive, socket)
     end
 
-    test "a non-string clone name and display name are validation errors" do
-      {:noreply, socket} =
-        TemplatesLive.handle_event(
-          "validate_clone",
-          %{"clone" => %{"name" => 42, "display_name" => %{"en" => "x"}}},
-          templates_socket()
-        )
+    for uuid <- @crafted do
+      test "view_details with #{inspect(uuid)} stays on the page" do
+        socket =
+          event!(EmailsLive, emails_socket(), "view_details", %{
+            "uuid" => unquote(Macro.escape(uuid))
+          })
 
-      assert socket.assigns.clone_form.errors.name
-      assert socket.assigns.clone_form.errors.display_name
-    end
-  end
-
-  describe "Template editor" do
-    test "a non-string test recipient is a validation error" do
-      socket =
-        bare_socket(%{test_form: %{recipient: "", sample_variables: %{}, errors: %{}}})
-
-      {:noreply, socket} =
-        TemplateEditor.handle_event("validate_test", %{"test" => %{"recipient" => 42}}, socket)
-
-      assert socket.assigns.test_form.errors.recipient
-    end
-  end
-
-  describe "filter payloads that are not flat strings" do
-    for {live, socket_fun} <- [{EmailsLive, :emails_socket}, {TemplatesLive, :templates_socket}] do
-      test "#{inspect(live)}: a nested filter value is dropped, the rest kept" do
-        {:noreply, socket} =
-          unquote(live).handle_event(
-            "filter",
-            %{
-              "filter" => %{
-                "status" => %{"a" => "b"},
-                "category" => ["x"],
-                "search" => 5,
-                "is_system" => "true"
-              }
-            },
-            unquote(socket_fun)()
-          )
-
-        assert {:live, :patch, %{to: to}} = socket.redirected
-        assert to =~ "is_system=true"
-        refute to =~ "status="
-        refute to =~ "category="
+        assert socket.redirected == nil
       end
     end
   end
@@ -263,111 +438,295 @@ defmodule PhoenixKit.Modules.Emails.Web.EventPayloadTest do
     for ids <- [42, "to,status", %{"0" => "to"}, [1, 2], ["to", nil]] do
       test "ordered_ids=#{inspect(ids)} leaves the working copy alone" do
         socket =
-          emails_socket()
-          |> Phoenix.Component.assign(:temp_selected_columns, ["to", "actions"])
-
-        {:noreply, socket} =
-          EmailsLive.handle_event(
-            "reorder_selected_columns",
-            %{"ordered_ids" => unquote(Macro.escape(ids))},
-            socket
-          )
+          event!(EmailsLive, emails_socket(), "reorder_selected_columns", %{
+            "ordered_ids" => unquote(Macro.escape(ids))
+          })
 
         assert socket.assigns.temp_selected_columns == ["to", "actions"]
+        render!(EmailsLive, socket)
       end
     end
 
     test "a list of ids is still applied" do
-      {:noreply, socket} =
-        EmailsLive.handle_event(
-          "reorder_selected_columns",
-          %{"ordered_ids" => ["status", "to"]},
-          emails_socket()
-        )
+      socket =
+        event!(EmailsLive, emails_socket(), "reorder_selected_columns", %{
+          "ordered_ids" => ["status", "to"]
+        })
 
       assert socket.assigns.temp_selected_columns == ["status", "to", "actions"]
+      render!(EmailsLive, socket)
     end
   end
 
-  describe "Template editor test form" do
-    defp editor_socket do
-      bare_socket(%{
-        test_form: %{recipient: "", sample_variables: %{"kept" => "1"}, errors: %{}},
-        changeset: Template.changeset(%Template{}, %{}),
-        current_editor_locale: "en"
-      })
-    end
+  ## --- Both lists ---
 
-    for test_params <- [42, "x", ["a"]] do
-      test "validate_test with test=#{inspect(test_params)} is a validation error" do
-        {:noreply, socket} =
-          TemplateEditor.handle_event(
-            "validate_test",
-            %{"test" => unquote(Macro.escape(test_params))},
-            editor_socket()
-          )
+  describe "list filter payloads that are not flat strings" do
+    for {live, socket_fun} <- [{EmailsLive, :emails_socket}, {TemplatesLive, :templates_socket}] do
+      test "#{inspect(live)}: a nested filter value is dropped, the rest kept" do
+        socket =
+          event!(unquote(live), unquote(socket_fun)(), "filter", %{
+            "filter" => %{
+              "status" => %{"a" => "b"},
+              "category" => ["x"],
+              "search" => 5,
+              "is_system" => "true"
+            }
+          })
 
-        assert socket.assigns.test_form.errors.recipient
-        assert socket.assigns.test_form.sample_variables == %{"kept" => "1"}
+        to = patched_to(socket)
+        assert to =~ "is_system=true"
+        refute to =~ "status="
+        refute to =~ "category="
+        render!(unquote(live), socket)
       end
 
-      test "send_test with test=#{inspect(test_params)} sends nothing" do
-        {:noreply, socket} =
-          TemplateEditor.handle_event(
-            "send_test",
-            %{"test" => unquote(Macro.escape(test_params))},
-            editor_socket()
-          )
+      for params <- [
+            %{"field" => %{"a" => "b"}, "value" => "sent"},
+            %{"field" => "status", "value" => %{"a" => "b"}},
+            %{"field" => "status", "value" => ["x"]},
+            %{"field" => 42, "value" => 42}
+          ] do
+        test "#{inspect(live)}: set_filter #{inspect(params)} keeps the current filters" do
+          socket =
+            event!(
+              unquote(live),
+              unquote(socket_fun)(),
+              "set_filter",
+              unquote(Macro.escape(params))
+            )
+
+          assert patched_to(socket) == nil
+          render!(unquote(live), socket)
+        end
+      end
+
+      test "#{inspect(live)}: set_filter with strings still patches" do
+        socket =
+          event!(unquote(live), unquote(socket_fun)(), "set_filter", %{
+            "field" => "status",
+            "value" => "active"
+          })
+
+        assert patched_to(socket) =~ "status=active"
+      end
+    end
+  end
+
+  ## --- Templates list ---
+
+  describe "Templates list" do
+    test "a non-string search query is dropped, not trimmed" do
+      socket =
+        event!(TemplatesLive, templates_socket(), "filter", %{"search" => %{"query" => 42}})
+
+      refute patched_to(socket) =~ "search="
+      render!(TemplatesLive, socket)
+    end
+
+    for event <- ["validate_clone", "clone_template"],
+        clone <- [
+          %{"name" => 42, "display_name" => %{"en" => "x"}},
+          %{"name" => %{"a" => "b"}, "display_name" => ["x"]},
+          %{"other" => "x"}
+        ] do
+      test "#{event} with #{inspect(clone)} is a validation error" do
+        socket =
+          event!(TemplatesLive, templates_socket(), unquote(event), %{
+            "clone" => unquote(Macro.escape(clone))
+          })
+
+        assert socket.assigns.clone_form.errors.name
+        assert socket.assigns.clone_form.errors.display_name
+        assert socket.redirected == nil
+        render!(TemplatesLive, socket)
+      end
+    end
+
+    for event <- ["validate_clone", "clone_template"],
+        params <- [%{"clone" => "x"}, %{"clone" => 42}, %{}] do
+      test "#{event} with #{inspect(params)} is a validation error" do
+        socket =
+          event!(TemplatesLive, templates_socket(), unquote(event), unquote(Macro.escape(params)))
+
+        assert socket.assigns.clone_form.errors.name
+        assert socket.redirected == nil
+        render!(TemplatesLive, socket)
+      end
+    end
+
+    for uuid <- @crafted do
+      test "edit_template with #{inspect(uuid)} stays on the page" do
+        socket =
+          event!(TemplatesLive, templates_socket(), "edit_template", %{
+            "uuid" => unquote(Macro.escape(uuid))
+          })
+
+        assert socket.redirected == nil
+      end
+
+      test "request_delete with #{inspect(uuid)} opens no modal" do
+        socket =
+          event!(TemplatesLive, templates_socket(), "request_delete", %{
+            "uuid" => "a-uuid",
+            "name" => unquote(Macro.escape(uuid))
+          })
+
+        refute socket.assigns.confirmation_modal.show
+        render!(TemplatesLive, socket)
+      end
+    end
+
+    test "request_delete with strings still opens the modal" do
+      socket =
+        event!(TemplatesLive, templates_socket(), "request_delete", %{
+          "uuid" => "a-uuid",
+          "name" => "welcome"
+        })
+
+      assert socket.assigns.confirmation_modal.show
+      assert render!(TemplatesLive, socket) =~ "welcome"
+    end
+  end
+
+  ## --- Template editor ---
+
+  describe "Template editor test form" do
+    for event <- ["validate_test", "send_test"],
+        test_params <- [42, "x", ["a"]] do
+      test "#{event} with test=#{inspect(test_params)} is a validation error" do
+        socket =
+          event!(TemplateEditor, editor_socket(), unquote(event), %{
+            "test" => unquote(Macro.escape(test_params))
+          })
 
         assert socket.assigns.test_form.errors.recipient
         refute_received {:send_test_email, _, _, _, _}
+        render!(TemplateEditor, socket)
       end
     end
 
+    for event <- ["validate_test", "send_test"],
+        recipient <- @non_strings do
+      test "#{event} with recipient #{inspect(recipient)} is a validation error" do
+        socket =
+          event!(TemplateEditor, editor_socket(), unquote(event), %{
+            "test" => %{"recipient" => unquote(Macro.escape(recipient))}
+          })
+
+        assert socket.assigns.test_form.errors.recipient
+        refute_received {:send_test_email, _, _, _, _}
+        render!(TemplateEditor, socket)
+      end
+    end
+
+    test "validate_test keeps only string sample values" do
+      socket =
+        event!(TemplateEditor, editor_socket(), "validate_test", %{
+          "test" => %{
+            "recipient" => "a@example.com",
+            "sample_variables" => %{"name" => %{"x" => "y"}, "other" => "ok", "list" => ["z"]}
+          }
+        })
+
+      assert socket.assigns.test_form.sample_variables == %{"other" => "ok"}
+      render!(TemplateEditor, socket)
+    end
+
     test "non-map sample variables are not handed to the renderer" do
-      {:noreply, socket} =
-        TemplateEditor.handle_event(
-          "validate_test",
-          %{"test" => %{"recipient" => "a@example.com", "sample_variables" => "x"}},
-          editor_socket()
-        )
+      socket =
+        event!(TemplateEditor, editor_socket(), "validate_test", %{
+          "test" => %{"recipient" => "a@example.com", "sample_variables" => "x"}
+        })
 
-      assert socket.assigns.test_form.sample_variables == %{"kept" => "1"}
+      assert socket.assigns.test_form.sample_variables == %{"name" => "kept"}
+      render!(TemplateEditor, socket)
 
-      {:noreply, _socket} =
-        TemplateEditor.handle_event(
-          "send_test",
-          %{"test" => %{"recipient" => "a@example.com", "sample_variables" => "x"}},
-          editor_socket()
-        )
+      event!(TemplateEditor, editor_socket(), "send_test", %{
+        "test" => %{
+          "recipient" => "a@example.com",
+          "sample_variables" => %{"name" => %{"x" => "y"}, "other" => "ok"}
+        }
+      })
 
       assert_received {:send_test_email, "a@example.com", _, vars, "en"}
-      assert vars == %{}
+      assert vars == %{"other" => "ok"}
     end
   end
 
-  defp blocklist_socket do
-    bare_socket(%{
-      search_term: "",
-      reason_filter: "",
-      status_filter: "all",
-      sort_by: :inserted_at,
-      sort_dir: :desc,
-      page: 1,
-      per_page: 50,
-      selected_emails: [],
-      show_add_form: true,
-      show_import_form: true
-    })
+  describe "Template editor form" do
+    for event <- ["validate", "save"],
+        params <- [%{"email_template" => "x"}, %{"email_template" => 42}, %{}] do
+      test "#{event} with #{inspect(params)} keeps the form as it was" do
+        socket =
+          event!(TemplateEditor, editor_socket(), unquote(event), unquote(Macro.escape(params)))
+
+        refute socket.assigns.saving
+        render!(TemplateEditor, socket)
+      end
+    end
+
+    for event <- ["validate", "save"] do
+      test "#{event} drops translations and descriptions that are not strings" do
+        socket =
+          event!(TemplateEditor, editor_socket(), unquote(event), %{
+            "email_template" => %{
+              "name" => "payload_editor",
+              "display_name" => %{"en" => %{"a" => "b"}},
+              "description" => %{"en" => ["x"]},
+              "subject" => %{"en" => %{}, "et" => "Tere {{name}}"},
+              "html_body" => %{"en" => 42},
+              "text_body" => %{"en" => nil},
+              "category" => "transactional",
+              "status" => "draft",
+              "variables" => %{"name" => %{"a" => "b"}, "other" => ["x"]}
+            }
+          })
+
+        if unquote(event) == "validate" do
+          assert socket.assigns.extracted_variables == ["name"]
+        end
+
+        render!(TemplateEditor, socket)
+      end
+    end
   end
 
-  defp emails_socket do
-    {:ok, socket} = EmailsLive.mount(%{}, %{}, bare_socket())
-    socket
-  end
+  ## --- Navigation events that interpolate the payload into a path ---
 
-  defp templates_socket do
-    {:ok, socket} = TemplatesLive.mount(%{}, %{}, bare_socket())
-    socket
+  describe "navigation events" do
+    for value <- @crafted do
+      test "Queue view_details with #{inspect(value)} stays on the page" do
+        socket =
+          event!(Queue, bare_socket(), "view_details", %{"uuid" => unquote(Macro.escape(value))})
+
+        assert socket.redirected == nil
+      end
+
+      test "Details view_related campaign_id=#{inspect(value)} stays on the page" do
+        socket =
+          event!(Details, bare_socket(), "view_related", %{
+            "campaign_id" => unquote(Macro.escape(value))
+          })
+
+        assert socket.redirected == nil
+      end
+
+      test "Details view_related template_name=#{inspect(value)} stays on the page" do
+        socket =
+          event!(Details, bare_socket(), "view_related", %{
+            "template_name" => unquote(Macro.escape(value))
+          })
+
+        assert socket.redirected == nil
+      end
+    end
+
+    test "Details view_related encodes the value into the query string" do
+      socket =
+        event!(Details, bare_socket(), "view_related", %{"campaign_id" => "spring sale&x=1"})
+
+      assert {:live, :redirect, %{to: to}} = socket.redirected
+      assert to =~ "campaign_id=spring+sale%26x%3D1"
+    end
   end
 end

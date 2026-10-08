@@ -173,13 +173,19 @@ defmodule PhoenixKit.Modules.Emails.Web.Emails do
   end
 
   @impl true
-  def handle_event("set_filter", %{"field" => field, "value" => value}, socket) do
+  def handle_event("set_filter", %{"field" => field, "value" => value}, socket)
+      when is_binary(field) and is_binary(value) do
     # Dropdown filter selection (status/category/source_module): set the chosen
     # filter, reset to page 1, and patch. Empty value clears that filter.
     new_params = build_url_params(socket.assigns, %{field => value, "page" => "1"})
 
     {:noreply, push_patch(socket, to: Routes.path("/admin/emails?#{new_params}"))}
   end
+
+  # A crafted field or value that is not a string would reach
+  # URI.encode_query/1 and raise; keep the current filters instead.
+  @impl true
+  def handle_event("set_filter", _params, socket), do: {:noreply, socket}
 
   @impl true
   def handle_event("toggle_sort", %{"by" => by}, socket) do
@@ -206,11 +212,14 @@ defmodule PhoenixKit.Modules.Emails.Web.Emails do
   end
 
   @impl true
-  def handle_event("view_details", %{"uuid" => log_uuid}, socket) do
+  def handle_event("view_details", %{"uuid" => log_uuid}, socket) when is_binary(log_uuid) do
     {:noreply,
      socket
      |> push_navigate(to: Routes.path("/admin/emails/email/#{log_uuid}"))}
   end
+
+  @impl true
+  def handle_event("view_details", _params, socket), do: {:noreply, socket}
 
   @impl true
   def handle_event("sync_log", %{"uuid" => uuid}, socket) do
@@ -263,7 +272,8 @@ defmodule PhoenixKit.Modules.Emails.Web.Emails do
   end
 
   @impl true
-  def handle_event("validate_test_email", %{"test_email" => %{"recipient" => recipient}}, socket) do
+  def handle_event("validate_test_email", params, socket) do
+    recipient = test_email_recipient(params)
     errors = validate_test_email_form(recipient)
 
     form = %{
@@ -275,7 +285,8 @@ defmodule PhoenixKit.Modules.Emails.Web.Emails do
   end
 
   @impl true
-  def handle_event("send_test_email", %{"test_email" => %{"recipient" => recipient}}, socket) do
+  def handle_event("send_test_email", params, socket) do
+    recipient = test_email_recipient(params)
     errors = validate_test_email_form(recipient)
 
     if map_size(errors) == 0 do
@@ -779,13 +790,22 @@ defmodule PhoenixKit.Modules.Emails.Web.Emails do
   defp validate_sort_dir("desc"), do: :desc
   defp validate_sort_dir(_), do: :desc
 
+  # The recipient typed into the test-email form, as a string. A crafted event
+  # can send a non-map form or a non-string recipient; both read as blank, so
+  # validation reports it and the form re-renders with a string, not the raw
+  # value (which the template cannot render).
+  defp test_email_recipient(%{"test_email" => %{"recipient" => recipient}}),
+    do: Utils.string_param(recipient)
+
+  defp test_email_recipient(_params), do: ""
+
   # Validate test email form
   defp validate_test_email_form(recipient) do
     errors = %{}
 
     # Validate recipient email
     errors =
-      case String.trim(Utils.string_param(recipient)) do
+      case String.trim(recipient) do
         "" ->
           Map.put(errors, :recipient, "Email address is required")
 
