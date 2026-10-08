@@ -136,8 +136,13 @@ defmodule PhoenixKit.Modules.Emails.Web.Emails do
     # Extract filter parameters
     combined_params =
       case Map.get(params, "filter") do
-        filter_params when is_map(filter_params) -> Map.merge(combined_params, filter_params)
-        _ -> combined_params
+        # Only flat string values: a crafted event can nest a map or list here,
+        # which URI.encode_query/1 raises on when the URL is built below.
+        filter_params when is_map(filter_params) ->
+          Map.merge(combined_params, Map.filter(filter_params, fn {_k, v} -> is_binary(v) end))
+
+        _ ->
+          combined_params
       end
 
     # Reset to first page when filtering
@@ -336,9 +341,15 @@ defmodule PhoenixKit.Modules.Emails.Web.Emails do
   end
 
   @impl true
-  def handle_event("reorder_selected_columns", %{"ordered_ids" => ids}, socket) do
-    # Draggable list emits the new order (minus "actions"); re-append it.
-    {:noreply, assign(socket, :temp_selected_columns, ensure_actions_column(ids))}
+  def handle_event("reorder_selected_columns", %{"ordered_ids" => ids}, socket)
+      when is_list(ids) do
+    # Draggable list emits the new order (minus "actions"); re-append it. Any
+    # other shape (a crafted event) leaves the working copy alone.
+    if Enum.all?(ids, &is_binary/1) do
+      {:noreply, assign(socket, :temp_selected_columns, ensure_actions_column(ids))}
+    else
+      {:noreply, socket}
+    end
   end
 
   @impl true

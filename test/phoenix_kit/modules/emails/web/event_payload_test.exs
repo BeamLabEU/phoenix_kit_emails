@@ -12,6 +12,7 @@ defmodule PhoenixKit.Modules.Emails.Web.EventPayloadTest do
 
   alias PhoenixKit.Modules.Emails
   alias PhoenixKit.Modules.Emails.RateLimiter
+  alias PhoenixKit.Modules.Emails.Template
   alias PhoenixKit.Modules.Emails.Web.Blocklist
   alias PhoenixKit.Modules.Emails.Web.Emails, as: EmailsLive
   alias PhoenixKit.Modules.Emails.Web.Metrics
@@ -230,6 +231,118 @@ defmodule PhoenixKit.Modules.Emails.Web.EventPayloadTest do
         TemplateEditor.handle_event("validate_test", %{"test" => %{"recipient" => 42}}, socket)
 
       assert socket.assigns.test_form.errors.recipient
+    end
+  end
+
+  describe "filter payloads that are not flat strings" do
+    for {live, socket_fun} <- [{EmailsLive, :emails_socket}, {TemplatesLive, :templates_socket}] do
+      test "#{inspect(live)}: a nested filter value is dropped, the rest kept" do
+        {:noreply, socket} =
+          unquote(live).handle_event(
+            "filter",
+            %{
+              "filter" => %{
+                "status" => %{"a" => "b"},
+                "category" => ["x"],
+                "search" => 5,
+                "is_system" => "true"
+              }
+            },
+            unquote(socket_fun)()
+          )
+
+        assert {:live, :patch, %{to: to}} = socket.redirected
+        assert to =~ "is_system=true"
+        refute to =~ "status="
+        refute to =~ "category="
+      end
+    end
+  end
+
+  describe "Emails list reorder_selected_columns" do
+    for ids <- [42, "to,status", %{"0" => "to"}, [1, 2], ["to", nil]] do
+      test "ordered_ids=#{inspect(ids)} leaves the working copy alone" do
+        socket =
+          emails_socket()
+          |> Phoenix.Component.assign(:temp_selected_columns, ["to", "actions"])
+
+        {:noreply, socket} =
+          EmailsLive.handle_event(
+            "reorder_selected_columns",
+            %{"ordered_ids" => unquote(Macro.escape(ids))},
+            socket
+          )
+
+        assert socket.assigns.temp_selected_columns == ["to", "actions"]
+      end
+    end
+
+    test "a list of ids is still applied" do
+      {:noreply, socket} =
+        EmailsLive.handle_event(
+          "reorder_selected_columns",
+          %{"ordered_ids" => ["status", "to"]},
+          emails_socket()
+        )
+
+      assert socket.assigns.temp_selected_columns == ["status", "to", "actions"]
+    end
+  end
+
+  describe "Template editor test form" do
+    defp editor_socket do
+      bare_socket(%{
+        test_form: %{recipient: "", sample_variables: %{"kept" => "1"}, errors: %{}},
+        changeset: Template.changeset(%Template{}, %{}),
+        current_editor_locale: "en"
+      })
+    end
+
+    for test_params <- [42, "x", ["a"]] do
+      test "validate_test with test=#{inspect(test_params)} is a validation error" do
+        {:noreply, socket} =
+          TemplateEditor.handle_event(
+            "validate_test",
+            %{"test" => unquote(Macro.escape(test_params))},
+            editor_socket()
+          )
+
+        assert socket.assigns.test_form.errors.recipient
+        assert socket.assigns.test_form.sample_variables == %{"kept" => "1"}
+      end
+
+      test "send_test with test=#{inspect(test_params)} sends nothing" do
+        {:noreply, socket} =
+          TemplateEditor.handle_event(
+            "send_test",
+            %{"test" => unquote(Macro.escape(test_params))},
+            editor_socket()
+          )
+
+        assert socket.assigns.test_form.errors.recipient
+        refute_received {:send_test_email, _, _, _, _}
+      end
+    end
+
+    test "non-map sample variables are not handed to the renderer" do
+      {:noreply, socket} =
+        TemplateEditor.handle_event(
+          "validate_test",
+          %{"test" => %{"recipient" => "a@example.com", "sample_variables" => "x"}},
+          editor_socket()
+        )
+
+      assert socket.assigns.test_form.sample_variables == %{"kept" => "1"}
+
+      {:noreply, _socket} =
+        TemplateEditor.handle_event(
+          "send_test",
+          %{"test" => %{"recipient" => "a@example.com", "sample_variables" => "x"}},
+          editor_socket()
+        )
+
+      assert_received {:send_test_email, "a@example.com", _, vars, "en"}
+      assert vars == %{}
     end
   end
 

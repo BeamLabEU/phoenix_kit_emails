@@ -289,14 +289,11 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditor do
 
   @impl true
   def handle_event("validate_test", params, socket) do
-    test_params = params["test"] || %{}
+    test_params = test_params(params)
     errors = validate_test_form(test_params)
 
     sample_variables =
-      case test_params["sample_variables"] do
-        nil -> socket.assigns.test_form.sample_variables
-        vars -> vars
-      end
+      sample_variables(test_params, socket.assigns.test_form.sample_variables)
 
     test_form = %{
       recipient: test_params["recipient"] || "",
@@ -309,7 +306,7 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditor do
 
   @impl true
   def handle_event("send_test", params, socket) do
-    test_params = params["test"] || %{}
+    test_params = test_params(params)
     errors = validate_test_form(test_params)
 
     if map_size(errors) == 0 do
@@ -317,7 +314,7 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditor do
 
       # Get current template data from changeset
       changeset_data = Ecto.Changeset.apply_changes(socket.assigns.changeset)
-      sample_variables = test_params["sample_variables"] || %{}
+      sample_variables = sample_variables(test_params, %{})
 
       # Send test email using the current editor locale
       locale = socket.assigns.current_editor_locale
@@ -331,7 +328,7 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditor do
     else
       test_form = %{
         recipient: test_params["recipient"] || "",
-        sample_variables: test_params["sample_variables"] || %{},
+        sample_variables: sample_variables(test_params, %{}),
         errors: errors
       }
 
@@ -535,6 +532,16 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditor do
 
     Map.get(sample_data, variable, "Sample #{variable}")
   end
+
+  # The test form's payload as a map. A crafted event can send a string, list
+  # or number under "test", and reading keys from that raises.
+  defp test_params(%{"test" => test_params}) when is_map(test_params), do: test_params
+  defp test_params(_params), do: %{}
+
+  # Sample variables go to Templates.render_template/3 as a map; anything else
+  # (absent, or a crafted non-map) falls back to `default`.
+  defp sample_variables(%{"sample_variables" => vars}, _default) when is_map(vars), do: vars
+  defp sample_variables(_test_params, default), do: default
 
   defp validate_test_form(params) do
     errors = %{}

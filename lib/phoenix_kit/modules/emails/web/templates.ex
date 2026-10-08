@@ -106,8 +106,13 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
     # Extract filter parameters
     combined_params =
       case Map.get(params, "filter") do
-        filter_params when is_map(filter_params) -> Map.merge(combined_params, filter_params)
-        _ -> combined_params
+        # Only flat string values: a crafted event can nest a map or list here,
+        # which URI.encode_query/1 raises on when the URL is built below.
+        filter_params when is_map(filter_params) ->
+          Map.merge(combined_params, Map.filter(filter_params, fn {_k, v} -> is_binary(v) end))
+
+        _ ->
+          combined_params
       end
 
     # Reset to first page when filtering
