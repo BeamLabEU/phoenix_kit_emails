@@ -210,7 +210,9 @@ defmodule PhoenixKit.Modules.Emails.Web.Metrics do
   end
 
   defp determine_period(assigns) do
-    if assigns.period == :custom and assigns.start_date and assigns.end_date do
+    # `&&`, not `and`: start_date/end_date are Dates, and `and` raises
+    # BadBooleanError on a non-boolean, which broke every custom range.
+    if assigns.period == :custom && assigns.start_date && assigns.end_date do
       {:date_range, assigns.start_date, assigns.end_date}
     else
       assigns.period

@@ -222,6 +222,23 @@ defmodule PhoenixKit.Modules.Emails.Web.EventPayloadTest do
         render!(Metrics, socket)
       end
     end
+
+    # The working path, not a crafted one: `and` on the start_date assign (a
+    # Date, not a boolean) raised BadBooleanError, so every custom range
+    # crashed the dashboard.
+    test "a valid range is applied and the metrics render for it" do
+      socket =
+        event!(Metrics, metrics_socket(), "apply_custom_range", %{
+          "start_date" => "2026-10-01",
+          "end_date" => "2026-10-07"
+        })
+
+      assert socket.assigns.period == :custom
+      assert socket.assigns.start_date == ~D[2026-10-01]
+      assert socket.assigns.end_date == ~D[2026-10-07]
+      refute socket.assigns.flash["error"]
+      render!(Metrics, socket)
+    end
   end
 
   ## --- Settings sections ---
