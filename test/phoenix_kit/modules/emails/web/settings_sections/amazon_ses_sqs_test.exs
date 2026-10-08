@@ -391,4 +391,51 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqsTest do
       refute Map.has_key?(socket.assigns, :sqs_visibility_timeout)
     end
   end
+
+  # The range checks moved from `when` guards into parse_int's :min/:max, so
+  # each edge is pinned: on it the value is saved, one past it is refused.
+  describe "the SQS number handlers' ranges" do
+    for {event, key, assign, field, baseline, inside, outside} <- [
+          {"update_max_messages", "max_messages", :sqs_max_messages_per_poll,
+           :max_messages_per_poll, 5, [1, 10], [0, 11]},
+          {"update_visibility_timeout", "timeout", :sqs_visibility_timeout, :visibility_timeout,
+           300, [30, 43_200], [29, 43_201]}
+        ] do
+      for value <- inside do
+        test "#{event} saves #{value}, on the edge of the range" do
+          assert {:noreply, socket} =
+                   SesSection.handle_event(
+                     unquote(event),
+                     %{unquote(key) => unquote(to_string(value))},
+                     bare_socket()
+                   )
+
+          assert socket.assigns[unquote(assign)] == unquote(value)
+          assert Map.fetch!(Emails.get_sqs_config(), unquote(field)) == unquote(value)
+        end
+      end
+
+      for value <- outside do
+        test "#{event} refuses #{value}, just outside the range" do
+          {:noreply, _} =
+            SesSection.handle_event(
+              unquote(event),
+              %{unquote(key) => unquote(to_string(baseline))},
+              bare_socket()
+            )
+
+          assert {:noreply, socket} =
+                   SesSection.handle_event(
+                     unquote(event),
+                     %{unquote(key) => unquote(to_string(value))},
+                     bare_socket()
+                   )
+
+          assert socket.assigns.flash["error"]
+          refute Map.has_key?(socket.assigns, unquote(assign))
+          assert Map.fetch!(Emails.get_sqs_config(), unquote(field)) == unquote(baseline)
+        end
+      end
+    end
+  end
 end

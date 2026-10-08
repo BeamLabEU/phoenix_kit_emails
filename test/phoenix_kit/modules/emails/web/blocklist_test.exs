@@ -54,4 +54,12 @@ defmodule PhoenixKit.Modules.Emails.Web.BlocklistTest do
       assert patched_to(socket) == nil
     end
   end
+
+  test "page 1, the lowest page, is accepted" do
+    socket = Phoenix.Component.assign(socket(), :page, 2)
+
+    assert {:noreply, socket} = Blocklist.handle_event("change_page", %{"page" => "1"}, socket)
+    assert to = patched_to(socket)
+    refute to =~ "page=2"
+  end
 end
