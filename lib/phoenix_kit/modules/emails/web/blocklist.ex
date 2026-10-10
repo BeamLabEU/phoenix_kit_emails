@@ -186,12 +186,11 @@ defmodule PhoenixKit.Modules.Emails.Web.Blocklist do
 
   @impl true
   def handle_event("change_page", %{"page" => page}, socket) do
-    case Integer.parse(page) do
-      {page_num, _} when page_num > 0 ->
-        {:noreply, push_url_state(socket, page: page_num)}
-
-      _ ->
-        {:noreply, socket}
+    # The payload is a crafted event's to choose — an integer, nil or junk —
+    # so it goes through the same no-raise parser as the URL itself.
+    case Utils.parse_int(page, nil, min: 1) do
+      nil -> {:noreply, socket}
+      page_num -> {:noreply, push_url_state(socket, page: page_num)}
     end
   end
 
@@ -445,10 +444,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Blocklist do
   # The page a request can actually land on. `@doc false` rather than private so
   # the pagination-window regression can be pinned by a test without a database.
   @doc false
-  @spec clamp_page(integer(), integer()) :: integer()
-  def clamp_page(page, total_pages) when is_integer(page) and is_integer(total_pages) do
-    page |> max(1) |> min(max(total_pages, 1))
-  end
+  defdelegate clamp_page(page, total_pages), to: Utils
 
   defp validate_sort_by(value) when is_atom(value) do
     if value in @sort_fields, do: value, else: :inserted_at

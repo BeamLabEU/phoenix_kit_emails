@@ -396,4 +396,87 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplatesTest do
       refute html =~ ~s|class="btn btn-error"|
     end
   end
+
+  # `?page` / `?per_page` come straight from the address bar. They went through
+  # `String.to_integer/1`, so `?page=abc` (or an empty, fractional or huge
+  # value) raised and took the LiveView down. No router here, so the page is
+  # driven the way LiveView drives it: mount/3, handle_params/3, render/1.
+  describe "malformed pagination params" do
+    defp visit(params) do
+      {:ok, socket} =
+        TemplatesLive.mount(%{}, %{}, %Phoenix.LiveView.Socket{
+          assigns: %{__changed__: %{}, flash: %{}}
+        })
+
+      {:noreply, socket} =
+        TemplatesLive.handle_params(params, "http://localhost/admin/emails/templates", socket)
+
+      html =
+        render_component(&TemplatesLive.render/1, Map.delete(socket.assigns, :__changed__),
+          endpoint: PhoenixKitEmails.Test.StubEndpoint
+        )
+
+      {socket.assigns, html}
+    end
+
+    for page <- ["abc", "-1", "0", "", "1.5", "2abc"] do
+      test "page=#{inspect(page)} renders the first page" do
+        template = create_custom_template()
+
+        {assigns, html} = visit(%{"page" => unquote(page)})
+
+        assert assigns.page == 1
+        assert assigns.per_page == 25
+        assert html =~ template.name
+      end
+    end
+
+    test "a page number past the 1_000_000 ceiling falls back to the first page" do
+      template = create_custom_template()
+
+      {assigns, html} = visit(%{"page" => String.duplicate("9", 30)})
+
+      assert assigns.page == 1
+      assert html =~ template.name
+    end
+
+    test "a page past the end lands on the last page" do
+      for _ <- 1..3, do: create_custom_template()
+
+      {assigns, _html} =
+        visit(%{"page" => "5", "per_page" => "2", "is_system" => "false"})
+
+      assert assigns.total_pages == 2
+      assert assigns.page == 2
+      assert length(assigns.templates) == 1
+    end
+
+    for per_page <- ["abc", "", "0", "-5"] do
+      test "per_page=#{inspect(per_page)} falls back to the default size" do
+        template = create_custom_template()
+
+        {assigns, html} = visit(%{"per_page" => unquote(per_page)})
+
+        assert assigns.page == 1
+        assert assigns.per_page == 25
+        assert html =~ template.name
+      end
+    end
+
+    test "a huge per_page is capped at the maximum" do
+      {assigns, _html} = visit(%{"per_page" => "100000000000000000000000"})
+
+      assert assigns.per_page == 100
+    end
+
+    test "well-formed values are still honored" do
+      for _ <- 1..3, do: create_custom_template()
+
+      {assigns, _html} = visit(%{"page" => "2", "per_page" => "2", "is_system" => "false"})
+
+      assert assigns.page == 2
+      assert assigns.per_page == 2
+      assert length(assigns.templates) == 1
+    end
+  end
 end

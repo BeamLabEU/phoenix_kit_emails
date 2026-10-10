@@ -70,8 +70,8 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
   def handle_event("update_max_messages", params, socket) do
     value = Map.get(params, "max_messages") || Map.get(params, "value")
 
-    case Integer.parse(value) do
-      {max_messages, _} when max_messages >= 1 and max_messages <= 10 ->
+    case Utils.parse_int(value, nil, min: 1, max: 10) do
+      max_messages when is_integer(max_messages) ->
         case Emails.set_sqs_max_messages(max_messages) do
           {:ok, _setting} ->
             socket =
@@ -100,8 +100,8 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
   def handle_event("update_visibility_timeout", params, socket) do
     value = Map.get(params, "timeout") || Map.get(params, "value")
 
-    case Integer.parse(value) do
-      {timeout, _} when timeout >= 30 and timeout <= 43_200 ->
+    case Utils.parse_int(value, nil, min: 30, max: 43_200) do
+      timeout when is_integer(timeout) ->
         case Emails.set_sqs_visibility_timeout(timeout) do
           {:ok, _setting} ->
             socket =

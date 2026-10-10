@@ -40,6 +40,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
 
   alias PhoenixKit.Modules.Emails.Template
   alias PhoenixKit.Modules.Emails.Templates
+  alias PhoenixKit.Modules.Emails.Utils
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Routes
@@ -585,8 +586,14 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
       is_system: params["is_system"] || ""
     }
 
-    page = String.to_integer(params["page"] || "1")
-    per_page = min(String.to_integer(params["per_page"] || "#{@default_per_page}"), @max_per_page)
+    page = Utils.parse_page(params["page"])
+
+    per_page =
+      Utils.parse_int(params["per_page"], @default_per_page,
+        min: 1,
+        max: @max_per_page,
+        above_max: :clamp
+      )
 
     sort_by = validate_sort_by(params["sort_by"])
     sort_dir = validate_sort_dir(params["sort_dir"])
@@ -603,8 +610,17 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
   defp load_templates(socket) do
     %{filters: filters, page: page, per_page: per_page} = socket.assigns
 
-    # Build filters for Templates query, adding sort order (list only — the
-    # count query below intentionally drops ordering).
+    # Get total count for pagination (the count query drops limit/offset and
+    # ordering)
+    total_count =
+      Templates.count_templates(Map.drop(build_query_filters(filters, 1, 1), [:limit, :offset]))
+
+    # Floor of 1 so an empty list still has a page to sit on. A ?page past the
+    # end (a stale bookmark, a hand-edited URL) lands on the last page instead
+    # of an empty one with no pagination left to get back — same as Blocklist.
+    total_pages = max(ceil(total_count / per_page), 1)
+    page = Utils.clamp_page(page, total_pages)
+
     query_filters =
       build_query_filters(filters, page, per_page)
       |> Map.put(:order_by, socket.assigns.sort_by)
@@ -612,12 +628,8 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
 
     templates = Templates.list_templates(query_filters)
 
-    # Get total count for pagination
-    total_count = Templates.count_templates(Map.drop(query_filters, [:limit, :offset]))
-
-    total_pages = ceil(total_count / per_page)
-
     socket
+    |> assign(:page, page)
     |> assign(:templates, templates)
     |> assign(:total_count, total_count)
     |> assign(:total_pages, total_pages)
