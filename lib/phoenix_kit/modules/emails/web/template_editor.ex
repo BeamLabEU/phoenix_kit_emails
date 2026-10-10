@@ -30,6 +30,7 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditor do
 
   alias PhoenixKit.Modules.Emails.Template
   alias PhoenixKit.Modules.Emails.Templates
+  alias PhoenixKit.Modules.Emails.Utils
   alias PhoenixKit.Modules.Languages
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Date, as: UtilsDate
@@ -127,7 +128,9 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditor do
   ## --- Event Handlers ---
 
   @impl true
-  def handle_event("validate", %{"email_template" => template_params}, socket) do
+  def handle_event("validate", %{"email_template" => template_params}, socket)
+      when is_map(template_params) do
+    template_params = drop_unrenderable_values(template_params)
     template = socket.assigns.template || %Template{}
 
     # Extract variables from current content
@@ -174,80 +177,42 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditor do
   end
 
   @impl true
-  def handle_event("save", %{"email_template" => template_params, "save_as" => save_as}, socket) do
-    socket = assign(socket, :saving, true)
-
-    # Extract variables and auto-add them before saving
-    temp_template = %Template{
-      subject: template_params["subject"] || "",
-      html_body: template_params["html_body"] || "",
-      text_body: template_params["text_body"] || ""
-    }
-
-    extracted_variables = Template.extract_variables(temp_template)
-
-    # Auto-add extracted variables with smart descriptions
-    current_variables = template_params["variables"] || %{}
-
-    current_variables =
-      if is_map(current_variables) do
-        current_variables
-      else
-        %{}
-      end
-
-    updated_variables =
-      Enum.reduce(extracted_variables, current_variables, fn var, acc ->
-        if Map.has_key?(acc, var) do
-          acc
-        else
-          Map.put(acc, var, smart_description_for_variable(var))
-        end
-      end)
-
-    template_params_with_vars = Map.put(template_params, "variables", updated_variables)
-
-    # Override status if saving as draft
-    template_params_final =
-      if save_as == "draft" do
-        Map.put(template_params_with_vars, "status", "draft")
-      else
-        template_params_with_vars
-      end
-
-    try do
-      case socket.assigns.mode do
-        :new ->
-          create_template(socket, template_params_final)
-
-        :edit ->
-          update_template(
-            socket,
-            protect_system_status(socket.assigns.template, template_params_final)
-          )
-      end
-    rescue
-      e ->
-        require Logger
-        Logger.error("Template save failed: #{Exception.message(e)}")
-
-        {:noreply,
-         socket
-         |> assign(:saving, false)
-         |> put_flash(:error, gettext("Something went wrong. Please try again."))}
+  def handle_event("save", %{"email_template" => template_params, "save_as" => save_as}, socket)
+      when is_map(template_params) do
+    if non_string_translation?(template_params) do
+      # validate drops such a value so the form can render; save must not —
+      # dropping a crafted "en" => %{} would quietly save a new version with
+      # no English at all.
+      {:noreply,
+       socket
+       |> assign(:saving, false)
+       |> put_flash(:error, gettext("Every translation must be text. Nothing was saved."))}
+    else
+      save_template(template_params, save_as, socket)
     end
   end
 
   @impl true
-  def handle_event("save", %{"email_template" => template_params}, socket) do
+  def handle_event("save", %{"email_template" => template_params}, socket)
+      when is_map(template_params) do
     # Default save without save_as parameter
     handle_event("save", %{"email_template" => template_params, "save_as" => "active"}, socket)
+  end
+
+  # A crafted event without a map under "email_template" has nothing to
+  # validate or save; the form stays as it was.
+  @impl true
+  def handle_event(event, _params, socket) when event in ["validate", "save"] do
+    {:noreply, socket}
   end
 
   @impl true
   def handle_event("switch_preview", %{"mode" => mode}, socket) when mode in ["html", "text"] do
     {:noreply, assign(socket, :preview_mode, mode)}
   end
+
+  @impl true
+  def handle_event("switch_preview", _params, socket), do: {:noreply, socket}
 
   @impl true
   def handle_event("switch_editor_locale", %{"locale" => locale}, socket) do
@@ -288,17 +253,14 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditor do
 
   @impl true
   def handle_event("validate_test", params, socket) do
-    test_params = params["test"] || %{}
+    test_params = test_params(params)
     errors = validate_test_form(test_params)
 
     sample_variables =
-      case test_params["sample_variables"] do
-        nil -> socket.assigns.test_form.sample_variables
-        vars -> vars
-      end
+      sample_variables(test_params, socket.assigns.test_form.sample_variables)
 
     test_form = %{
-      recipient: test_params["recipient"] || "",
+      recipient: Utils.string_param(test_params["recipient"]),
       sample_variables: sample_variables,
       errors: errors
     }
@@ -308,7 +270,7 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditor do
 
   @impl true
   def handle_event("send_test", params, socket) do
-    test_params = params["test"] || %{}
+    test_params = test_params(params)
     errors = validate_test_form(test_params)
 
     if map_size(errors) == 0 do
@@ -316,7 +278,7 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditor do
 
       # Get current template data from changeset
       changeset_data = Ecto.Changeset.apply_changes(socket.assigns.changeset)
-      sample_variables = test_params["sample_variables"] || %{}
+      sample_variables = sample_variables(test_params, %{})
 
       # Send test email using the current editor locale
       locale = socket.assigns.current_editor_locale
@@ -329,8 +291,8 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditor do
       {:noreply, socket}
     else
       test_form = %{
-        recipient: test_params["recipient"] || "",
-        sample_variables: test_params["sample_variables"] || %{},
+        recipient: Utils.string_param(test_params["recipient"]),
+        sample_variables: sample_variables(test_params, %{}),
         errors: errors
       }
 
@@ -343,7 +305,8 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditor do
         "update_variable_description",
         %{"name" => name, "value" => description},
         socket
-      ) do
+      )
+      when is_binary(name) and is_binary(description) do
     changeset = socket.assigns.changeset
 
     current_variables = Ecto.Changeset.get_field(changeset, :variables) || %{}
@@ -353,6 +316,11 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditor do
 
     {:noreply, assign(socket, :changeset, updated_changeset)}
   end
+
+  # A crafted name or description that is not a string would be rendered back
+  # into the variables list (as an id and an input value) and raise there.
+  @impl true
+  def handle_event("update_variable_description", _params, socket), do: {:noreply, socket}
 
   @impl true
   def handle_event("remove_variable", %{"name" => name}, socket) do
@@ -535,12 +503,116 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditor do
     Map.get(sample_data, variable, "Sample #{variable}")
   end
 
+  # The test form's payload as a map. A crafted event can send a string, list
+  # or number under "test", and reading keys from that raises.
+  defp test_params(%{"test" => test_params}) when is_map(test_params), do: test_params
+  defp test_params(_params), do: %{}
+
+  # Sample variables go to Templates.render_template/3 and back into the form's
+  # inputs, so only string names with string values are kept; a crafted
+  # non-map falls back to `default`.
+  defp sample_variables(%{"sample_variables" => vars}, _default) when is_map(vars),
+    do: string_entries(vars)
+
+  defp sample_variables(_test_params, default), do: default
+
+  # The i18n fields and the variable descriptions are rendered back into the
+  # editor's inputs, and the i18n values are also scanned for {{variables}}.
+  # A crafted value that is not a string (a nested map, a list, a number)
+  # raises in both, so it is dropped here, before either sees it.
+  @i18n_fields ~w(display_name description subject html_body text_body)
+
+  defp drop_unrenderable_values(template_params) do
+    Enum.reduce(["variables" | @i18n_fields], template_params, fn field, acc ->
+      case acc do
+        %{^field => map} when is_map(map) -> Map.put(acc, field, string_entries(map))
+        _ -> acc
+      end
+    end)
+  end
+
+  defp string_entries(map), do: Map.filter(map, fn {k, v} -> is_binary(k) and is_binary(v) end)
+
+  defp save_template(template_params, save_as, socket) do
+    template_params = drop_unrenderable_values(template_params)
+    socket = assign(socket, :saving, true)
+
+    # Extract variables and auto-add them before saving
+    temp_template = %Template{
+      subject: template_params["subject"] || "",
+      html_body: template_params["html_body"] || "",
+      text_body: template_params["text_body"] || ""
+    }
+
+    extracted_variables = Template.extract_variables(temp_template)
+
+    # Auto-add extracted variables with smart descriptions
+    current_variables = template_params["variables"] || %{}
+
+    current_variables =
+      if is_map(current_variables) do
+        current_variables
+      else
+        %{}
+      end
+
+    updated_variables =
+      Enum.reduce(extracted_variables, current_variables, fn var, acc ->
+        if Map.has_key?(acc, var) do
+          acc
+        else
+          Map.put(acc, var, smart_description_for_variable(var))
+        end
+      end)
+
+    template_params_with_vars = Map.put(template_params, "variables", updated_variables)
+
+    # Override status if saving as draft
+    template_params_final =
+      if save_as == "draft" do
+        Map.put(template_params_with_vars, "status", "draft")
+      else
+        template_params_with_vars
+      end
+
+    try do
+      case socket.assigns.mode do
+        :new ->
+          create_template(socket, template_params_final)
+
+        :edit ->
+          update_template(
+            socket,
+            protect_system_status(socket.assigns.template, template_params_final)
+          )
+      end
+    rescue
+      e ->
+        require Logger
+        Logger.error("Template save failed: #{Exception.message(e)}")
+
+        {:noreply,
+         socket
+         |> assign(:saving, false)
+         |> put_flash(:error, gettext("Something went wrong. Please try again."))}
+    end
+  end
+
+  defp non_string_translation?(template_params) do
+    Enum.any?(@i18n_fields, fn field ->
+      case template_params[field] do
+        map when is_map(map) -> Enum.any?(map, fn {_locale, value} -> not is_binary(value) end)
+        _ -> false
+      end
+    end)
+  end
+
   defp validate_test_form(params) do
     errors = %{}
 
     # Validate recipient email
     errors =
-      case String.trim(params["recipient"] || "") do
+      case String.trim(Utils.string_param(params["recipient"])) do
         "" ->
           Map.put(errors, :recipient, "Email address is required")
 
