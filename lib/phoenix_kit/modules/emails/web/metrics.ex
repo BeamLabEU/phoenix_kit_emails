@@ -47,7 +47,12 @@ defmodule PhoenixKit.Modules.Emails.Web.Metrics do
 
   # The periods the dashboard's buttons offer (metrics.html.heex). `:custom` is
   # set only by apply_custom_range, never by name.
-  @periods ~w(last_24_hours last_7_days last_30_days last_90_days)
+  @periods %{
+    "last_24_hours" => :last_24_hours,
+    "last_7_days" => :last_7_days,
+    "last_30_days" => :last_30_days,
+    "last_90_days" => :last_90_days
+  }
 
   ## --- Lifecycle Callbacks ---
 
@@ -99,10 +104,11 @@ defmodule PhoenixKit.Modules.Emails.Web.Metrics do
   end
 
   @impl true
-  def handle_event("change_period", %{"period" => period}, socket) when period in @periods do
+  def handle_event("change_period", %{"period" => period}, socket)
+      when is_map_key(@periods, period) do
     {:noreply,
      socket
-     |> assign(:period, String.to_existing_atom(period))
+     |> assign(:period, Map.fetch!(@periods, period))
      |> assign(:custom_range, false)
      |> assign(:loading, true)
      |> load_metrics_data()}

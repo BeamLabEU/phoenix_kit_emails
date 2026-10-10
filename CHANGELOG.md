@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.5.4 - 2026-10-10
+
+### Fixed
+
+- `?page` and `?per_page` on the emails and templates lists no longer crash on
+  junk (`?page=abc`); a page past the end lands on the last page (PR #51).
+  The settings number fields and column reorder read integers through the same
+  no-raise parser, `Utils.parse_int/3`.
+- LiveView events with a payload of the wrong shape (integer, `nil`, map,
+  list) are refused instead of crashing the LiveView, across Blocklist,
+  Details, Emails, Queue, Metrics, Templates, the template editor and the
+  settings sections (PR #52).
+- The metrics dashboard crashed on every custom date range (`and` on a `Date`).
+- `change_period` no longer mints an atom per client-sent value; it maps the
+  four known period names explicitly.
+
+### Added
+
+- Regression tests for non-map translation fields in the template editor.
+
 ## 0.5.3 - 2026-10-01
 
 ### Added

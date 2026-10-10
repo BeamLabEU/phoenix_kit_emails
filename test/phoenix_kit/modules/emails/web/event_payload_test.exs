@@ -708,6 +708,38 @@ defmodule PhoenixKit.Modules.Emails.Web.EventPayloadTest do
     end
   end
 
+  describe "Template editor form with a non-map translation field" do
+    # The i18n fields are maps of locale => text. A crafted event can send the
+    # field itself as a string, number or list; the changeset rejects it, and
+    # the form must still render from the resulting assigns.
+    for event <- ["validate", "save"],
+        field <- ["display_name", "subject", "html_body", "text_body"],
+        value <- ["plain", 42, ["x"]] do
+      test "#{event} with #{field} = #{inspect(value)} keeps the form renderable" do
+        socket =
+          event!(TemplateEditor, editor_socket(), unquote(event), %{
+            "email_template" =>
+              Map.put(
+                %{
+                  "name" => "payload_shape",
+                  "display_name" => %{"en" => "Shape"},
+                  "subject" => %{"en" => "Hi {{name}}"},
+                  "html_body" => %{"en" => "<p>Hi</p>"},
+                  "text_body" => %{"en" => "Hi"},
+                  "category" => "transactional",
+                  "status" => "draft"
+                },
+                unquote(field),
+                unquote(Macro.escape(value))
+              )
+          })
+
+        refute socket.assigns.saving
+        render!(TemplateEditor, socket)
+      end
+    end
+  end
+
   describe "Template editor variables and preview" do
     for params <- [
           %{"name" => "name", "value" => %{"a" => "b"}},
