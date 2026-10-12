@@ -479,4 +479,72 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplatesTest do
       assert length(assigns.templates) == 1
     end
   end
+
+  describe "who acted is recorded from the session (#47)" do
+    @admin "01900000-0000-7000-8000-0000000000a1"
+
+    defp acting_socket(assigns \\ %{}) do
+      bare_socket(
+        Map.put(assigns, :phoenix_kit_current_scope, %PhoenixKit.Users.Auth.Scope{
+          user: %PhoenixKit.Users.Auth.User{uuid: @admin}
+        })
+      )
+    end
+
+    test "archive and activate record the editor" do
+      template = create_custom_template()
+
+      assert {:noreply, _} =
+               TemplatesLive.handle_event(
+                 "request_archive",
+                 %{"uuid" => template.uuid},
+                 acting_socket()
+               )
+
+      archived = Templates.get_template(template.uuid)
+      assert archived.status == "archived"
+      assert archived.updated_by_user_uuid == @admin
+
+      other = create_custom_template(%{status: "archived"})
+
+      assert {:noreply, _} =
+               TemplatesLive.handle_event(
+                 "request_activate",
+                 %{"uuid" => other.uuid},
+                 acting_socket()
+               )
+
+      activated = Templates.get_template(other.uuid)
+      assert activated.status == "active"
+      assert activated.updated_by_user_uuid == @admin
+    end
+
+    test "cloning records the author" do
+      source = create_custom_template()
+      name = "cloned_by_#{System.unique_integer([:positive])}"
+      socket = acting_socket(%{clone_template: source, clone_form: %{name: "", display_name: ""}})
+
+      assert {:noreply, _} =
+               TemplatesLive.handle_event(
+                 "clone_template",
+                 %{"clone" => %{"name" => name, "display_name" => "Copy"}},
+                 socket
+               )
+
+      assert Templates.get_template_by_name(name).created_by_user_uuid == @admin
+    end
+
+    test "without a scope nothing is recorded and nothing breaks" do
+      template = create_custom_template()
+
+      assert {:noreply, _} =
+               TemplatesLive.handle_event(
+                 "request_archive",
+                 %{"uuid" => template.uuid},
+                 bare_socket()
+               )
+
+      assert Templates.get_template(template.uuid).updated_by_user_uuid == nil
+    end
+  end
 end

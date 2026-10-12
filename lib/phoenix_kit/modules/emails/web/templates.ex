@@ -42,6 +42,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
   alias PhoenixKit.Modules.Emails.Templates
   alias PhoenixKit.Modules.Emails.Utils
   alias PhoenixKit.Settings
+  alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Routes
 
@@ -243,7 +244,8 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
       case Templates.clone_template(
              socket.assigns.clone_template,
              String.trim(clone_params["name"]),
-             %{display_name: clone_params["display_name"]}
+             %{display_name: clone_params["display_name"]},
+             created_by_user_uuid: current_user_uuid(socket)
            ) do
         {:ok, new_template} ->
           {:noreply,
@@ -546,12 +548,15 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
     end
   end
 
+  # Who is acting, from the session — recorded as the editor or author.
+  defp current_user_uuid(socket), do: Scope.user_uuid(socket.assigns[:phoenix_kit_current_scope])
+
   # Shared by the "archive_template" event (uuid lookup — from confirm_action
   # after a system-row confirmation, or the plain uuid-only client event) and
   # request_archive's non-system branch (which already has `template` loaded
   # and would otherwise fetch it a second time).
   defp do_archive(socket, template) do
-    case Templates.archive_template(template) do
+    case Templates.archive_template(template, current_user_uuid(socket)) do
       {:ok, archived_template} ->
         {:noreply,
          socket
@@ -567,7 +572,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
   end
 
   defp do_activate(socket, template) do
-    case Templates.activate_template(template) do
+    case Templates.activate_template(template, current_user_uuid(socket)) do
       {:ok, activated_template} ->
         {:noreply,
          socket
