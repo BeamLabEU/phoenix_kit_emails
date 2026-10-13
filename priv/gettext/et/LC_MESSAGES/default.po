@@ -3439,3 +3439,28 @@ msgstr "E-posti aadress on kohustuslik"
 #, elixir-autogen, elixir-format
 msgid "Please enter a valid email address"
 msgstr "Sisesta kehtiv e-posti aadress"
+
+#: lib/phoenix_kit/modules/emails/web/source_badges.ex:59
+#, elixir-autogen, elixir-format
+msgid "File override shadowed"
+msgstr "Failipõhine ülekirjutus varjatud"
+
+#: lib/phoenix_kit/modules/emails/web/source_badges.ex:60
+#, elixir-autogen, elixir-format
+msgid "Default shadowed"
+msgstr "Vaikemall varjatud"
+
+#: lib/phoenix_kit/modules/emails/web/source_badges.ex:63
+#, elixir-autogen, elixir-format
+msgid "A file override exists for this name — this active row shadows it."
+msgstr "Selle nime jaoks on olemas failipõhine ülekirjutus — see aktiivne rida varjab seda."
+
+#: lib/phoenix_kit/modules/emails/web/source_badges.ex:66
+#, elixir-autogen, elixir-format
+msgid "A built-in default exists for this name — this active row shadows it."
+msgstr "Selle nime jaoks on olemas sisseehitatud vaikemall — see aktiivne rida varjab seda."
+
+#: lib/phoenix_kit/modules/emails/web/source_badges.ex:69
+#, elixir-autogen, elixir-format
+msgid "A default supplied by %{module} exists for this name — this active row shadows it."
+msgstr "Selle nime jaoks on olemas mooduli %{module} vaikemall — see aktiivne rida varjab seda."

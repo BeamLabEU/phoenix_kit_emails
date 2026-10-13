@@ -240,6 +240,11 @@
                       )}
                     </p>
                   <% end %>
+                  <SourceBadges.source_badges
+                    template={@template}
+                    sources={assigns[:template_sources]}
+                    variant={:notice}
+                  />
                 </fieldset>
               </div>
 

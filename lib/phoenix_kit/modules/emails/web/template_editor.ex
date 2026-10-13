@@ -30,7 +30,9 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditor do
 
   alias PhoenixKit.Modules.Emails.Template
   alias PhoenixKit.Modules.Emails.Templates
+  alias PhoenixKit.Modules.Emails.TemplateSources
   alias PhoenixKit.Modules.Emails.Utils
+  alias PhoenixKit.Modules.Emails.Web.SourceBadges
   alias PhoenixKit.Modules.Languages
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth.Scope
@@ -51,6 +53,7 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditor do
       |> assign(:page_title, gettext("Email Template"))
       |> assign(:page_subtitle, gettext("Create and edit an email template"))
       |> assign(:template, nil)
+      |> assign(:template_sources, TemplateSources.empty())
       |> assign(:mode, :new)
       |> assign(:loading, false)
       |> assign(:saving, false)
@@ -96,6 +99,7 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditor do
             )
           )
           |> assign(:template, template)
+          |> assign(:template_sources, TemplateSources.load())
           |> assign(:mode, :edit)
           |> assign(:changeset, changeset)
           |> assign(:extracted_variables, extracted_variables)
@@ -453,6 +457,7 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditor do
          socket
          |> assign(:saving, false)
          |> assign(:template, template)
+         |> assign(:template_sources, TemplateSources.load())
          |> put_flash(
            :info,
            gettext("Template '%{name}' updated successfully (v%{version})",
