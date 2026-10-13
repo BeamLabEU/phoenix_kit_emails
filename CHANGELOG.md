@@ -1,5 +1,43 @@
 # Changelog
 
+## 0.5.5 - 2026-10-13
+
+### Added
+
+- **Migration V3** (PR #53): in every stored `html_body`, `{{line_items_html}}`
+  and `{{line_items_table_html}}` become the raw form `{{{...}}}`. Run
+  `mix phoenix_kit.update` after upgrading; until then the renderer still
+  inserts those two names raw, so mail keeps sending a table. `down/1` below 3
+  runs the inverse.
+- The templates list and the editor say when an active row shadows a host file
+  override or a default shipped by core or a module (`TemplateSources`,
+  `SourceBadges`; PR #57). On a core without the APIs it reads, nothing is shown.
+- The editor preview follows what is typed, uses sample values and is
+  translated (PR #55); variable hints are placeholders and are never saved into
+  the row (PR #54).
+
+### Changed
+
+- `{{name}}` is HTML-escaped in `html_body`; `{{{name}}}` inserts raw. One
+  tokenizer now reads placeholders for extraction, substitution, the unbound
+  warning and the export (PR #53). A variable value that is a map, list or
+  tuple raises `ArgumentError` naming the variable.
+- `Templates.create_template/2`, `update_template/3` and `clone_template/4`
+  take the author as `created_by_user_uuid:` / `updated_by_user_uuid:` options;
+  the audit columns are no longer cast from attrs. A submitted `metadata` is
+  merged into the stored one (PR #54).
+- A locale left empty is dropped instead of saved as a translation (PR #54).
+- `Provider.track_usage/1` returns `:ok`, as the core callback declares.
+
+### Fixed
+
+- The editor no longer writes fallback text into a locale as a translation of
+  its own, and no longer overwrites `cloned_from` in metadata (PR #54).
+- `usage_count` lost concurrent updates; it is now `usage_count + 1` in the
+  database. A failed or log-only test send no longer counts as a use (PR #56).
+- The `Every translation must be text` editor message was missing its Estonian
+  and Russian translations.
+
 ## 0.5.4 - 2026-10-10
 
 ### Fixed
