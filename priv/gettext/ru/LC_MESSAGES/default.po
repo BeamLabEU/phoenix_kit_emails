@@ -3442,3 +3442,28 @@ msgstr "Адрес электронной почты обязателен"
 #, elixir-autogen, elixir-format
 msgid "Please enter a valid email address"
 msgstr "Введите корректный адрес электронной почты"
+
+#: lib/phoenix_kit/modules/emails/web/source_badges.ex:59
+#, elixir-autogen, elixir-format
+msgid "File override shadowed"
+msgstr "Файловый оверрайд перекрыт"
+
+#: lib/phoenix_kit/modules/emails/web/source_badges.ex:60
+#, elixir-autogen, elixir-format
+msgid "Default shadowed"
+msgstr "Шаблон по умолчанию перекрыт"
+
+#: lib/phoenix_kit/modules/emails/web/source_badges.ex:63
+#, elixir-autogen, elixir-format
+msgid "A file override exists for this name — this active row shadows it."
+msgstr "Для этого имени есть файловый оверрайд — эта активная строка его перекрывает."
+
+#: lib/phoenix_kit/modules/emails/web/source_badges.ex:66
+#, elixir-autogen, elixir-format
+msgid "A built-in default exists for this name — this active row shadows it."
+msgstr "Для этого имени есть встроенный шаблон по умолчанию — эта активная строка его перекрывает."
+
+#: lib/phoenix_kit/modules/emails/web/source_badges.ex:69
+#, elixir-autogen, elixir-format
+msgid "A default supplied by %{module} exists for this name — this active row shadows it."
+msgstr "Для этого имени есть шаблон по умолчанию от %{module} — эта активная строка его перекрывает."

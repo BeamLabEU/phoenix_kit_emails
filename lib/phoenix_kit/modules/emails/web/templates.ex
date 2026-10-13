@@ -40,7 +40,9 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
 
   alias PhoenixKit.Modules.Emails.Template
   alias PhoenixKit.Modules.Emails.Templates
+  alias PhoenixKit.Modules.Emails.TemplateSources
   alias PhoenixKit.Modules.Emails.Utils
+  alias PhoenixKit.Modules.Emails.Web.SourceBadges
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.Date, as: UtilsDate
@@ -60,6 +62,8 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
       |> assign(:page_title, gettext("Email Templates"))
       |> assign(:page_subtitle, gettext("Manage and organize your email templates"))
       |> assign(:templates, [])
+      |> assign(:template_sources, TemplateSources.empty())
+      |> assign(:template_sources_loaded, false)
       |> assign(:total_count, 0)
       |> assign(:stats, %{})
       |> assign(:loading, true)
@@ -81,6 +85,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
     socket =
       socket
       |> apply_params(params)
+      |> load_template_sources()
       |> load_templates()
       |> load_stats()
 
@@ -187,6 +192,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
     {:noreply,
      socket
      |> assign(:loading, true)
+     |> load_template_sources(force: true)
      |> load_templates()
      |> load_stats()}
   end
@@ -664,6 +670,19 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
     |> assign(:total_count, total_count)
     |> assign(:total_pages, total_pages)
     |> assign(:loading, false)
+  end
+
+  # The file overrides and defaults a row can hide do not depend on the filters
+  # or the page, and reading them walks the override directories: read once
+  # per mount, again on refresh.
+  defp load_template_sources(socket, opts \\ []) do
+    if socket.assigns[:template_sources_loaded] && !Keyword.get(opts, :force, false) do
+      socket
+    else
+      socket
+      |> assign(:template_sources, TemplateSources.load())
+      |> assign(:template_sources_loaded, true)
+    end
   end
 
   # Load template statistics

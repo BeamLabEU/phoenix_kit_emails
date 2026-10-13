@@ -3436,3 +3436,28 @@ msgstr "Email address is required"
 #, elixir-autogen, elixir-format
 msgid "Please enter a valid email address"
 msgstr "Please enter a valid email address"
+
+#: lib/phoenix_kit/modules/emails/web/source_badges.ex:59
+#, elixir-autogen, elixir-format
+msgid "File override shadowed"
+msgstr "File override shadowed"
+
+#: lib/phoenix_kit/modules/emails/web/source_badges.ex:60
+#, elixir-autogen, elixir-format
+msgid "Default shadowed"
+msgstr "Default shadowed"
+
+#: lib/phoenix_kit/modules/emails/web/source_badges.ex:63
+#, elixir-autogen, elixir-format
+msgid "A file override exists for this name — this active row shadows it."
+msgstr "A file override exists for this name — this active row shadows it."
+
+#: lib/phoenix_kit/modules/emails/web/source_badges.ex:66
+#, elixir-autogen, elixir-format
+msgid "A built-in default exists for this name — this active row shadows it."
+msgstr "A built-in default exists for this name — this active row shadows it."
+
+#: lib/phoenix_kit/modules/emails/web/source_badges.ex:69
+#, elixir-autogen, elixir-format
+msgid "A default supplied by %{module} exists for this name — this active row shadows it."
+msgstr "A default supplied by %{module} exists for this name — this active row shadows it."
