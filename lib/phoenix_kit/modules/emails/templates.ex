@@ -534,19 +534,30 @@ defmodule PhoenixKit.Modules.Emails.Templates do
 
   This should be called whenever a template is used to send an email.
 
+  The count is raised by the database (`usage_count = usage_count + 1`), not
+  written back from `template`, so it does not matter how stale that struct is
+  or how many sends count at once. Only the two usage columns change: using a
+  template is not an edit, so `updated_at` stays as it was.
+
+  Returns the row as stored, or `{:error, :not_found}` when it no longer exists.
+
   ## Examples
 
       iex> Templates.track_usage(template)
       {:ok, %Template{usage_count: 1}}
 
   """
-  def track_usage(%Template{} = template) do
-    template
-    |> Template.usage_changeset(%{
-      usage_count: template.usage_count + 1,
-      last_used_at: UtilsDate.utc_now()
-    })
-    |> repo().update()
+  @spec track_usage(Template.t()) :: {:ok, Template.t()} | {:error, :not_found}
+  def track_usage(%Template{uuid: uuid}) do
+    query = from(t in Template, where: t.uuid == ^uuid, select: t)
+
+    case repo().update_all(query,
+           inc: [usage_count: 1],
+           set: [last_used_at: UtilsDate.utc_now()]
+         ) do
+      {1, [%Template{} = used]} -> {:ok, used}
+      {0, _} -> {:error, :not_found}
+    end
   end
 
   @doc """
