@@ -108,6 +108,20 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditorPreviewTest do
   defp iframe_tag(html), do: hd(Regex.run(~r/<iframe[^>]*>/s, html))
 
   describe "the preview substitutes sample values (#46)" do
+    test "a new template starts with bodies in the selected locale" do
+      socket = bare_socket(%{current_editor_locale: "et", available_locales: ["et", "en"]})
+
+      assert {:noreply, socket} =
+               TemplateEditor.handle_params(%{"display_name" => "New email"}, "http://x/", socket)
+
+      changeset = socket.assigns.changeset
+      assert Ecto.Changeset.get_field(changeset, :display_name) == %{"et" => "New email"}
+      assert Ecto.Changeset.get_field(changeset, :html_body)["et"] =~ "Hello {{user_name}}"
+      assert Ecto.Changeset.get_field(changeset, :text_body)["et"] =~ "Hello {{user_name}}"
+      assert socket.assigns.extracted_variables == ["subject", "url", "user_name"]
+      assert TemplateEditor.preview(changeset, "et").html_body =~ "Hello John Doe"
+    end
+
     test "the HTML preview has no placeholders left" do
       html = render_editor(create!())
 

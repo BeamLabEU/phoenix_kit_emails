@@ -37,6 +37,17 @@
   database. A failed or log-only test send no longer counts as a use (PR #56).
 - The `Every translation must be text` editor message was missing its Estonian
   and Russian translations.
+- Saving or validating in the editor preserves stored translations for
+  languages without an enabled tab, including base-language keys on hosts
+  using regional tabs. Submitting empty text still removes that translation.
+- New templates now start with HTML and text bodies in the selected language;
+  the form previously passed strings to map fields and lost the starter content.
+- After a save, the editor refreshes its form, preview, variables, title and
+  version from the saved row.
+- Optional description translations now reject non-text values through the
+  context API too, while empty descriptions remain valid.
+- Catalog entries without content defaults no longer get a "Default shadowed"
+  badge. Default callbacks remain unevaluated when loading source badges.
 
 ## 0.5.4 - 2026-10-10
 

@@ -44,8 +44,25 @@ defmodule PhoenixKit.Modules.Emails.TemplateSourcesTest do
   defmodule FakeCatalog do
     def entries do
       [
-        %{name: "core_mail", label: "Core mail", module: nil},
-        %{name: "billing_mail", label: "Billing mail", module: PhoenixKitBilling}
+        %{name: "core_mail", label: "Core mail", defaults: %{text: "Core"}, module: nil},
+        %{
+          name: "billing_mail",
+          label: "Billing mail",
+          defaults: fn -> %{text: "Billing"} end,
+          module: PhoenixKitBilling
+        }
+      ]
+    end
+  end
+
+  defmodule CatalogWithoutDefaults do
+    def entries do
+      [
+        %{name: "no_defaults"},
+        %{name: "empty_defaults", defaults: %{}},
+        %{name: "label_only", defaults: %{label: "A label"}},
+        %{name: "blank_defaults", defaults: %{subject: " ", text: ""}},
+        %{name: "broken_defaults", defaults: false}
       ]
     end
   end
@@ -165,6 +182,10 @@ defmodule PhoenixKit.Modules.Emails.TemplateSourcesTest do
                "core_mail" => nil,
                "billing_mail" => PhoenixKitBilling
              }
+    end
+
+    test "a catalog entry without content defaults is not a shadowed default" do
+      assert TemplateSources.load(catalog: CatalogWithoutDefaults).defaults == %{}
     end
 
     test "a core without the catalog shows nothing" do

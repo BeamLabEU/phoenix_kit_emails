@@ -165,6 +165,15 @@ defmodule PhoenixKit.Modules.Emails.TemplateChangesetTest do
       assert change(changeset, :description) == %{}
     end
 
+    test "an optional description still requires text values" do
+      for value <- [nil, false, 5, [], %{}] do
+        changeset = Template.changeset(%Template{}, attrs(%{"description" => %{"en" => value}}))
+        refute changeset.valid?
+        assert {message, _} = Keyword.fetch!(changeset.errors, :description)
+        assert message =~ "must be a string"
+      end
+    end
+
     test "a value that is not a string is still reported, not dropped" do
       changeset = Template.changeset(%Template{}, attrs(%{"subject" => %{"en" => 5}}))
 

@@ -81,7 +81,6 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditor do
       template ->
         changeset = Template.changeset(template, %{})
         extracted_variables = Template.extract_variables(template)
-        source_module = Template.get_source_module(template)
 
         socket =
           socket
@@ -89,15 +88,7 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditor do
             :page_title,
             edit_title(template, socket.assigns[:current_editor_locale] || "en")
           )
-          |> assign(
-            :page_subtitle,
-            gettext("Version %{version} • %{category} • %{source_module} • %{status}",
-              version: template.version,
-              category: category_label(template.category),
-              source_module: source_module_label(source_module),
-              status: status_label(template.status)
-            )
-          )
+          |> assign(:page_subtitle, template_subtitle(template))
           |> assign(:template, template)
           |> assign(:template_sources, TemplateSources.load())
           |> assign(:mode, :edit)
@@ -110,13 +101,15 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditor do
 
   def handle_params(params, _url, socket) do
     # New template mode
+    locale = socket.assigns[:current_editor_locale] || "en"
+
     initial_attrs = %{
       name: params["name"] || "",
-      display_name: params["display_name"] || "",
+      display_name: %{locale => Utils.string_param(params["display_name"])},
       category: params["category"] || "transactional",
-      subject: "",
-      html_body: default_html_template(),
-      text_body: default_text_template(),
+      subject: %{},
+      html_body: %{locale => default_html_template()},
+      text_body: %{locale => default_text_template()},
       status: "draft",
       variables: %{}
     }
@@ -130,7 +123,10 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditor do
       |> assign(:template, nil)
       |> assign(:mode, :new)
       |> assign(:changeset, changeset)
-      |> assign(:extracted_variables, [])
+      |> assign(
+        :extracted_variables,
+        changeset |> Ecto.Changeset.apply_changes() |> Template.extract_variables()
+      )
 
     {:noreply, socket}
   end
@@ -140,8 +136,12 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditor do
   @impl true
   def handle_event("validate", %{"email_template" => template_params}, socket)
       when is_map(template_params) do
-    template_params = drop_unrenderable_values(template_params)
     template = socket.assigns.template || %Template{}
+
+    template_params =
+      template_params
+      |> drop_unrenderable_values()
+      |> preserve_unsubmitted_translations(template)
 
     # Extract variables from current content
     temp_template = %Template{
@@ -457,6 +457,13 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditor do
          socket
          |> assign(:saving, false)
          |> assign(:template, template)
+         |> assign(:changeset, Template.changeset(template, %{}))
+         |> assign(:extracted_variables, Template.extract_variables(template))
+         |> assign(
+           :page_title,
+           edit_title(template, socket.assigns[:current_editor_locale] || "en")
+         )
+         |> assign(:page_subtitle, template_subtitle(template))
          |> assign(:template_sources, TemplateSources.load())
          |> put_flash(
            :info,
@@ -502,6 +509,15 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditor do
   defp edit_title(template, locale) do
     gettext("Edit Template: %{name}",
       name: Template.get_translation(template.display_name, locale)
+    )
+  end
+
+  defp template_subtitle(template) do
+    gettext("Version %{version} • %{category} • %{source_module} • %{status}",
+      version: template.version,
+      category: category_label(template.category),
+      source_module: source_module_label(Template.get_source_module(template)),
+      status: status_label(template.status)
     )
   end
 
@@ -611,8 +627,28 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditor do
 
   defp string_entries(map), do: Map.filter(map, fn {k, v} -> is_binary(k) and is_binary(v) end)
 
+  # Only enabled languages have form controls. A missing locale must survive
+  # validation and saving; a submitted empty value still removes that locale.
+  # Keep this editor-specific: context callers can replace a whole locale map.
+  defp preserve_unsubmitted_translations(params, %Template{} = template) do
+    Enum.reduce(@i18n_fields, params, fn field, acc ->
+      case acc do
+        %{^field => submitted} when is_map(submitted) ->
+          stored = Map.get(template, String.to_existing_atom(field)) || %{}
+          Map.put(acc, field, Map.merge(stored, submitted))
+
+        _ ->
+          acc
+      end
+    end)
+  end
+
   defp save_template(template_params, save_as, socket) do
-    template_params = drop_unrenderable_values(template_params)
+    template_params =
+      template_params
+      |> drop_unrenderable_values()
+      |> preserve_unsubmitted_translations(socket.assigns.template || %Template{})
+
     socket = assign(socket, :saving, true)
 
     # Extract variables and auto-add them before saving

@@ -458,6 +458,7 @@ defmodule PhoenixKit.Modules.Emails.Template do
     |> validate_length(:name, min: 2, max: 100)
     |> validate_length(:slug, min: 2, max: 100)
     |> validate_i18n_map(:display_name, min_length: 2, max_length: 200)
+    |> validate_i18n_map(:description, allow_empty: true)
     |> validate_i18n_map(:subject, min_length: 1, max_length: 300)
     |> validate_i18n_map(:html_body, min_length: 1)
     |> validate_i18n_map(:text_body, min_length: 1)
@@ -693,7 +694,9 @@ defmodule PhoenixKit.Modules.Emails.Template do
         changeset
 
       map when is_map(map) and map_size(map) == 0 ->
-        add_error(changeset, field, "must have at least one language with text")
+        if Keyword.get(opts, :allow_empty, false),
+          do: changeset,
+          else: add_error(changeset, field, "must have at least one language with text")
 
       map when is_map(map) ->
         validate_i18n_map_values(changeset, field, map, opts)

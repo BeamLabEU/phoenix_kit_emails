@@ -95,13 +95,30 @@ defmodule PhoenixKit.Modules.Emails.TemplateSources do
     catalog = Keyword.get(opts, :catalog, PhoenixKit.Email.Catalog)
 
     if exported?(catalog, :entries, 0) do
-      Map.new(catalog.entries(), &{&1.name, Map.get(&1, :module)})
+      catalog.entries()
+      |> Enum.filter(&has_defaults?/1)
+      |> Map.new(&{&1.name, Map.get(&1, :module)})
     else
       %{}
     end
   rescue
     error -> failed("template defaults", error, %{})
   end
+
+  # Catalog entries can advertise a file-only email without any defaults.
+  # Do not evaluate callbacks here: they may depend on a recipient or locale.
+  defp has_defaults?(%{defaults: defaults}) when is_function(defaults, 0), do: true
+
+  defp has_defaults?(%{defaults: defaults}) when is_map(defaults) do
+    Enum.any?(@content_parts, fn part ->
+      case Map.get(defaults, part) do
+        text when is_binary(text) -> String.trim(text) != ""
+        _ -> false
+      end
+    end)
+  end
+
+  defp has_defaults?(_entry), do: false
 
   # `Code.ensure_loaded?/1` first: under interactive code loading a module that
   # is not loaded yet answers `false` to `function_exported?/3`.

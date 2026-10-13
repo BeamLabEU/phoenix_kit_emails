@@ -266,6 +266,63 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditorSaveTest do
   end
 
   describe "metadata survives a save (#47)" do
+    test "validate and save preserve translations for languages without a tab" do
+      translations = %{"en" => "English", "de" => "Deutsch", "en-GB" => "British"}
+
+      template =
+        create!(
+          Map.new(
+            [:display_name, :description, :subject, :html_body, :text_body],
+            &{&1, translations}
+          )
+        )
+
+      socket = bare_socket(editor_assigns(template, "en", @locales))
+      params = en_tab_params(template)
+
+      assert {:noreply, validated} =
+               TemplateEditor.handle_event("validate", %{"email_template" => params}, socket)
+
+      for field <- [:display_name, :description, :subject, :html_body, :text_body] do
+        assert Ecto.Changeset.get_field(validated.assigns.changeset, field)["de"] == "Deutsch"
+      end
+
+      saved_socket = save(validated, params)
+      saved = Templates.get_template(template.uuid)
+
+      for field <- [:display_name, :description, :subject, :html_body, :text_body] do
+        assert Map.get(saved, field)["de"] == "Deutsch"
+        assert Map.get(saved, field)["en-GB"] == "British"
+        refute Map.has_key?(Map.get(saved, field), "et")
+      end
+
+      refute Map.has_key?(saved.description, "en")
+      assert Ecto.Changeset.apply_changes(saved_socket.assigns.changeset) == saved
+    end
+
+    test "saving synchronizes the form and preview even without a preceding validate" do
+      template = create!()
+      socket = bare_socket(editor_assigns(template, "en", @locales))
+
+      updated =
+        save(
+          socket,
+          en_tab_params(template, %{
+            "display_name" => %{"en" => "Renamed"},
+            "html_body" => %{"en" => "<p>Saved {{user_name}}</p>"}
+          })
+        )
+
+      saved = Templates.get_template(template.uuid)
+      assert Ecto.Changeset.apply_changes(updated.assigns.changeset) == saved
+      assert updated.assigns.extracted_variables == ["user_name"]
+      assert updated.assigns.page_title == "Edit Template: Renamed"
+      assert updated.assigns.page_subtitle == "Version 2 • Transactional • Custom • Active"
+
+      assert TemplateEditor.preview(updated.assigns.changeset, "en").html_body ==
+               "<p>Saved John Doe</p>"
+    end
+
     test "the editor's source_module is merged, cloned_from stays" do
       source = create!()
       {:ok, clone} = Templates.clone_template(source, "metadata_clone_#{unique()}")
@@ -594,8 +651,8 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditorSaveTest do
       assert updated.assigns.flash["info"] =~ "updated successfully"
       saved = Templates.get_template(template.uuid)
       assert saved.version == template.version + 1
-      assert saved.subject == %{"en-US" => "Subject"}
-      assert saved.html_body == %{"en-US" => "<p>Hi</p>"}
+      assert saved.subject == %{"en" => "Subject", "en-US" => "Subject"}
+      assert saved.html_body == %{"en" => "<p>Hi</p>", "en-US" => "<p>Hi</p>"}
       assert Template.get_translation(saved.subject, "et") == "Subject"
     end
   end
