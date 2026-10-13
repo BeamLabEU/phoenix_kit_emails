@@ -385,8 +385,17 @@ defmodule PhoenixKit.Modules.Emails.Templates do
 
   ## Parameters
   - `template` — the EmailTemplate struct
-  - `variables` — map of variable names to values
+  - `variables` — map of variable names to values; atom and string keys are
+    equivalent
   - `locale` — the target locale code (default: `"en"`)
+
+  `{{name}}` is HTML-escaped in the HTML body and `{{{name}}}` is inserted raw;
+  see `PhoenixKit.Modules.Emails.Template.substitute_variables/3` for the rules.
+
+  Raises `ArgumentError` naming the variable when a placeholder uses a value
+  that is not a string, number, atom or `String.Chars` struct (a map or a list,
+  say). Unlike the warnings below, this is not softened: a value that cannot
+  become text has no safe rendering.
 
   ## Examples
 
@@ -407,7 +416,7 @@ defmodule PhoenixKit.Modules.Emails.Templates do
   def render_template(%Template{} = template, variables \\ %{}, locale \\ "en") do
     # Extract required variables from all language versions of the template
     required_vars = Template.extract_variables(template)
-    provided_vars = Map.keys(variables)
+    provided_vars = variables |> Map.keys() |> Enum.map(&to_string/1)
 
     # Check for missing variables
     missing_vars = required_vars -- provided_vars
@@ -431,29 +440,28 @@ defmodule PhoenixKit.Modules.Emails.Templates do
     rendered = Template.substitute_variables(template, variables, locale)
 
     # Check for unreplaced variables in rendered output
-    validate_rendered_content(template.name, rendered)
+    validate_rendered_content(template, provided_vars, locale)
 
     rendered
   end
 
-  # Private helper to validate rendered content for unreplaced variables
-  defp validate_rendered_content(template_name, rendered) do
-    # Check each field for unreplaced {{variable}} patterns
-    fields_with_issues =
-      [
-        {:subject, rendered.subject},
-        {:html_body, rendered.html_body},
-        {:text_body, rendered.text_body}
-      ]
-      |> Enum.filter(fn {_field, content} ->
-        String.contains?(content, "{{")
-      end)
+  # Warns about the fields that keep an unbound placeholder. Read from the
+  # template's own content with the substitution's parser, not by looking for
+  # "{{" in the output: a value may legitimately contain braces, and so may
+  # CSS in the html_body.
+  defp validate_rendered_content(template, provided_vars, locale) do
+    field_names =
+      for field <- [:subject, :html_body, :text_body],
+          template
+          |> Map.get(field)
+          |> Template.get_translation(locale)
+          |> Template.placeholder_names()
+          |> Enum.any?(&(&1 not in provided_vars)),
+          do: field
 
-    if fields_with_issues != [] do
-      field_names = Enum.map(fields_with_issues, fn {field, _} -> field end)
-
+    if field_names != [] do
       Logger.warning(
-        "Template '#{template_name}' contains unreplaced variables in: #{Enum.join(field_names, ", ")}"
+        "Template '#{template.name}' contains unreplaced variables in: #{Enum.join(field_names, ", ")}"
       )
     end
   end
@@ -1407,7 +1415,7 @@ defmodule PhoenixKit.Modules.Emails.Templates do
               </tr>
             </thead>
             <tbody>
-              {{line_items_html}}
+              {{{line_items_html}}}
             </tbody>
           </table>
 
@@ -1619,7 +1627,7 @@ defmodule PhoenixKit.Modules.Emails.Templates do
               </tr>
             </thead>
             <tbody>
-              {{line_items_html}}
+              {{{line_items_html}}}
             </tbody>
           </table>
 

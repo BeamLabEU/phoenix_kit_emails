@@ -188,34 +188,37 @@ defmodule PhoenixKit.Modules.Emails.Template do
   """
   def reserved_names, do: @reserved_names
 
-  @raw_html_variables ["line_items_html"]
+  @raw_html_variables ["line_items_html", "line_items_table_html"]
 
   @doc """
   Returns template variables whose value is already-rendered HTML rather than
   plain text.
 
-  `phoenix_kit_billing`'s `format_line_items_html/1` builds a ready
-  `<tr>...</tr>` table and hands it to this package as `line_items_html` — the
-  only variable on this list today. A renderer that escapes `{{var}}`
-  (`phoenix_kit_templates` >= 0.2.0's `html` part) must substitute a variable
-  like this raw instead, via `{{{var}}}`.
+  `phoenix_kit_billing` builds both from escaped line items and hands them to
+  this package ready to insert: `line_items_html` is a run of `<tr>...</tr>`
+  rows, `line_items_table_html` a whole `<table>`. Since `{{var}}` is
+  HTML-escaped in `html_body` (see `substitute_variables/3`), content must
+  write these as `{{{var}}}` — the raw form.
 
-  `content` on operator-authored newsletters (`is_system: false`) is
-  deliberately absent: those rows are never touched by `TemplateExport`, and
-  at send time it is `phoenix_kit_newsletters`'s own
-  `DeliveryWorker.compose_html/3` — not this package — that substitutes it,
-  via a `String.replace/3` for `{{content}}` itself followed by a `{{var}}`-
-  only regex for everything else. Neither has a raw form, so the outcome is
-  the same as if this package's own substitution ran: no triple-brace escape
-  hatch exists for it.
+  The list is read in three places:
 
-  This list exists only for `TemplateExport` to consult while the templates
-  table is still the source of truth for these rows; nothing in the send path
-  reads it. A name belongs on it by being listed here, not by any naming
+    * `PhoenixKit.Modules.Emails.Migrations` V3 rewrites `{{var}}` to
+      `{{{var}}}` in every stored `html_body`;
+    * `substitute_variables/3` inserts these names raw even when written
+      with double braces, so a row the migration has not reached yet (the
+      code deployed before `mix phoenix_kit.update` ran, a restored backup)
+      still sends a table and not escaped markup;
+    * `TemplateExport` rewrites them for `phoenix_kit_templates` files.
+
+  `content` on operator-authored newsletters is deliberately absent:
+  `phoenix_kit_newsletters`'s `DeliveryWorker.compose_html/3` substitutes it
+  with its own `String.replace/3` and never calls this module, so nothing
+  here escapes it.
+
+  A name belongs on the list by being listed here, not by any naming
   convention — `TemplateExport.rewrite_raw_html/3`'s `_html`-suffix check is
   a separate, looser heuristic it falls back to only for flagging a name that
-  *isn't* on this list, so a future addition here needs no particular
-  spelling to be recognized.
+  *isn't* on this list.
   """
   def raw_html_variables, do: @raw_html_variables
 
@@ -410,38 +413,73 @@ defmodule PhoenixKit.Modules.Emails.Template do
     |> validate_number(:version, greater_than: 0)
   end
 
+  # One tokenizer for reading and for substituting placeholders — the rules
+  # of `PhoenixKit.Templates.Substitution` (`phoenix_kit_templates` >= 0.2.0),
+  # so a database row and a file override read the same content the same way.
+  # Not that module itself: this package supports cores that predate it.
+  #
+  # One combined, left-to-right pass. At any position after `{{`, the next
+  # character settles which form can match: a third `{` only continues the
+  # raw form, whitespace or a name only the escaped one. Two passes (double
+  # first, then triple) would match the inner pair of `{{{x}}}` and leave
+  # `{V}` behind. A name is an identifier; `{{user.name}}`, `{{a-b}}`, an
+  # unclosed `{{x` and CSS braces are literal text.
+  @placeholder ~r/
+    \{\{\{\s*(?<triple>[a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}\}
+    |
+    \{\{\s*(?<double>[a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}
+  /x
+
+  @doc false
+  # The one pattern, for the export task too: it has to tell `{{x}}` from
+  # `{{{x}}}` and so reads the `triple` / `double` captures itself.
+  @spec placeholder_regex() :: Regex.t()
+  def placeholder_regex, do: @placeholder
+
   @doc """
   Extracts variables from template content (subject, html_body, text_body).
 
-  Returns a list of unique variable names found in the template.
+  Returns the sorted, unique names of every `{{name}}` and `{{{name}}}`
+  placeholder in every locale of the three fields. Surrounding whitespace is
+  not part of a name (`{{ name }}` is `name`), and anything that is not an
+  identifier — `{{user.name}}`, `{{a b}}`, an unclosed `{{name` — is literal
+  text, not a variable. `substitute_variables/3` reads placeholders with the
+  same rules, so every name listed here is one it will substitute.
 
   ## Examples
 
       iex> template = %EmailTemplate{
       ...>   subject: "Welcome {{user_name}}!",
-      ...>   html_body: "<p>Hi {{user_name}}, click {{url}}</p>",
-      ...>   text_body: "Hi {{user_name}}, visit {{url}}"
+      ...>   html_body: "<p>Hi {{ user_name }}, click {{url}}</p>",
+      ...>   text_body: "Hi {{user_name}}, visit {{{url}}}"
       ...> }
       iex> EmailTemplate.extract_variables(template)
-      ["user_name", "url"]
+      ["url", "user_name"]
 
   """
   def extract_variables(%__MODULE__{} = template) do
-    # Collect all language values from all map fields and scan for {{variables}}
-    content =
-      [template.subject, template.html_body, template.text_body]
-      |> Enum.flat_map(fn
-        map when is_map(map) -> Map.values(map)
-        str when is_binary(str) -> [str]
-        _ -> []
-      end)
-      |> Enum.join(" ")
-
-    Regex.scan(~r/\{\{([^}]+)\}\}/, content)
-    |> Enum.map(fn [_, var] -> String.trim(var) end)
+    [template.subject, template.html_body, template.text_body]
+    |> Enum.flat_map(fn
+      map when is_map(map) -> Map.values(map)
+      str when is_binary(str) -> [str]
+      _ -> []
+    end)
+    |> Enum.flat_map(&placeholder_names/1)
     |> Enum.uniq()
     |> Enum.sort()
   end
+
+  @doc false
+  # The placeholder names in one string, in order, with repeats. Shared with
+  # `Templates.render_template/3`, which reports unbound ones.
+  @spec placeholder_names(term()) :: [String.t()]
+  def placeholder_names(content) when is_binary(content) do
+    @placeholder
+    |> Regex.scan(content)
+    |> Enum.map(fn [_whole | groups] -> Enum.find(groups, &(&1 != "")) end)
+  end
+
+  def placeholder_names(_content), do: []
 
   @doc """
   Substitutes variables in template content with provided values.
@@ -449,11 +487,31 @@ defmodule PhoenixKit.Modules.Emails.Template do
   ## Parameters
 
   - `template` - The email template
-  - `variables` - Map of variable names to values
+  - `variables` - Map of variable names to values; atom and string keys are
+    equivalent
   - `locale` - The target locale code (default: `"en"`)
 
   Returns a map `%{subject: string, html_body: string, text_body: string}` with
   the locale-specific content and all variables substituted.
+
+  ## Escaping
+
+  In `html_body`, a `{{name}}` value is HTML-escaped (`&` `<` `>` `"` `'`), so
+  a customer name or a note cannot inject markup or break an attribute.
+  `{{{name}}}` inserts the value raw, for a variable that already holds
+  rendered HTML. The names on `raw_html_variables/0` are inserted raw in
+  either form. `subject` and `text_body` are plain text and never escaped.
+
+  ## Rules
+
+  Placeholders are read as `extract_variables/1` reads them. An unbound
+  placeholder is left exactly as written. A value is never itself scanned
+  for placeholders.
+
+  A value must be a string, a number, an atom (`true` is `"true"`, `nil` is
+  `""`) or a struct implementing `String.Chars` (`Date`, `DateTime`,
+  `Decimal`, ...). A map, list, tuple or any other value raises
+  `ArgumentError` naming the variable, when a placeholder actually uses it.
 
   ## Examples
 
@@ -462,17 +520,23 @@ defmodule PhoenixKit.Modules.Emails.Template do
       ...>   html_body: %{"en" => "<p>Hi {{user_name}}</p>"},
       ...>   text_body: %{"en" => "Hi {{user_name}}"}
       ...> }
-      iex> result = EmailTemplate.substitute_variables(template, %{"user_name" => "John"}, "en")
+      iex> result = EmailTemplate.substitute_variables(template, %{"user_name" => "Tom & Jerry"}, "en")
       iex> result.subject
-      "Welcome John!"
+      "Welcome Tom & Jerry!"
+      iex> result.html_body
+      "<p>Hi Tom &amp; Jerry</p>"
 
   """
   def substitute_variables(%__MODULE__{} = template, variables, locale \\ "en")
       when is_map(variables) do
+    variables = Map.new(variables, fn {key, value} -> {to_string(key), value} end)
+
     %{
-      subject: template.subject |> get_translation(locale) |> substitute_string(variables),
-      html_body: template.html_body |> get_translation(locale) |> substitute_string(variables),
-      text_body: template.text_body |> get_translation(locale) |> substitute_string(variables)
+      subject: template.subject |> get_translation(locale) |> substitute_string(variables, false),
+      html_body:
+        template.html_body |> get_translation(locale) |> substitute_string(variables, true),
+      text_body:
+        template.text_body |> get_translation(locale) |> substitute_string(variables, false)
     }
   end
 
@@ -629,12 +693,57 @@ defmodule PhoenixKit.Modules.Emails.Template do
     put_change(changeset, :is_system, is_system)
   end
 
-  # Substitute variables in a string
-  defp substitute_string(content, variables) when is_binary(content) and is_map(variables) do
-    Enum.reduce(variables, content, fn {key, value}, acc ->
-      String.replace(acc, "{{#{key}}}", to_string(value))
+  # Substitute variables in a string, escaping `{{name}}` values when
+  # `escape?` (the html_body). See `substitute_variables/3`.
+  defp substitute_string(content, variables, escape?) when is_binary(content) do
+    Regex.replace(@placeholder, content, fn whole, raw, escapable ->
+      {name, raw?} = if raw != "", do: {raw, true}, else: {escapable, false}
+
+      case Map.fetch(variables, name) do
+        {:ok, value} ->
+          value = scalar_to_string!(name, value)
+
+          if escape? and not raw? and name not in @raw_html_variables,
+            do: escape_html(value),
+            else: value
+
+        :error ->
+          whole
+      end
     end)
   end
 
-  defp substitute_string(content, _variables), do: content
+  defp substitute_string(content, _variables, _escape?), do: content
+
+  defp scalar_to_string!(_name, value) when is_binary(value), do: value
+
+  defp scalar_to_string!(_name, value) when is_number(value) or is_atom(value),
+    do: to_string(value)
+
+  defp scalar_to_string!(name, %_{} = value) do
+    if String.Chars.impl_for(value),
+      do: to_string(value),
+      else: raise_not_scalar(name, value)
+  end
+
+  defp scalar_to_string!(name, value), do: raise_not_scalar(name, value)
+
+  # Names the kind of value, never the value: it may be a customer's data.
+  defp raise_not_scalar(name, value) do
+    kind =
+      case value do
+        %struct{} -> inspect(struct)
+        map when is_map(map) -> "a map"
+        list when is_list(list) -> "a list"
+        tuple when is_tuple(tuple) -> "a tuple"
+        _ -> "an unsupported value"
+      end
+
+    raise ArgumentError,
+          "template variable #{inspect(name)} must be a string, number, atom or " <>
+            "a struct implementing String.Chars (Date, Decimal, ...), got #{kind}"
+  end
+
+  defp escape_html(value),
+    do: value |> Phoenix.HTML.html_escape() |> Phoenix.HTML.safe_to_string()
 end
