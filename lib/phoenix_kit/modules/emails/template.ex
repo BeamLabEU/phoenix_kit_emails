@@ -266,6 +266,66 @@ defmodule PhoenixKit.Modules.Emails.Template do
   def get_translation(_field_map, _locale, _default_locale), do: ""
 
   @doc """
+  The text the editor shows for `locale`: what is stored for it, with no
+  fallback, or `""`.
+
+  `get_translation/3` answers "what should this reader see", and falls back
+  to the base language, `"en"` and then any value. The editor needs the other
+  question, "what is stored for this locale": an input filled from the
+  fallback and then saved would write the fallback text into the locale as a
+  translation of its own, and the fallback could no longer apply.
+
+  One exception, for hosts whose languages carry a region (`"en-US"`) while
+  the stored rows are keyed by the base code (`"en"`, as seeded): a tab with
+  no key of its own shows the base key's text when `tabs` — every enabled
+  locale, in tab order — makes that unambiguous. That is the first tab with
+  that base code, and the base code is not a tab itself (it has its own key
+  then). Saving writes the text under the tab's key. Without `tabs` the
+  lookup is exact.
+
+  ## Examples
+
+      iex> stored_translation(%{"en" => "Hello"}, "en")
+      "Hello"
+
+      iex> stored_translation(%{"en" => "Hello"}, "et")
+      ""
+
+      iex> stored_translation(%{"en" => "Hello"}, "en-US", ["en-US", "en-GB"])
+      "Hello"
+
+      iex> stored_translation(%{"en" => "Hello"}, "en-GB", ["en-US", "en-GB"])
+      ""
+
+  """
+  @spec stored_translation(term(), String.t(), [String.t()]) :: String.t()
+  def stored_translation(field_map, locale, tabs \\ [])
+
+  def stored_translation(field_map, locale, tabs) when is_map(field_map) do
+    case Map.fetch(field_map, locale) do
+      {:ok, value} -> text_or_empty(value)
+      :error -> field_map |> inherited_translation(locale, tabs)
+    end
+  end
+
+  def stored_translation(_field_map, _locale, _tabs), do: ""
+
+  defp inherited_translation(field_map, locale, tabs) do
+    base = base_code(locale)
+
+    if base != locale and base not in tabs and locale == Enum.find(tabs, &(base_code(&1) == base)) do
+      field_map |> Map.get(base) |> text_or_empty()
+    else
+      ""
+    end
+  end
+
+  defp base_code(locale), do: locale |> String.split("-") |> List.first()
+
+  defp text_or_empty(value) when is_binary(value), do: value
+  defp text_or_empty(_value), do: ""
+
+  @doc """
   Returns the list of valid source modules for email templates.
   """
   def valid_source_modules, do: @valid_source_modules
@@ -342,8 +402,29 @@ defmodule PhoenixKit.Modules.Emails.Template do
   - Slug must be unique and URL-friendly
   - Category must be one of the valid categories
   - Status must be one of the valid statuses
-  - Subject and body fields cannot be empty
+  - Subject and body fields need text in at least one language
   - Variables must be a valid map
+
+  ## Translations
+
+  A locale whose text is empty (or only whitespace) is not a translation: it
+  is dropped from `display_name`, `description`, `subject`, `html_body` and
+  `text_body` before validation. The editor posts a key for every enabled
+  language, so a template written in one language arrives with the others
+  empty; what is required is one locale with text, not one per language.
+
+  ## Metadata
+
+  A submitted `metadata` is merged into the row's existing metadata, not
+  substituted for it, so a form that carries only `source_module` cannot erase
+  `cloned_from`. A key cannot be removed through this changeset. A submitted
+  `source_module` must be one of `valid_source_modules/0`.
+
+  ## Audit columns
+
+  `created_by_user_uuid` and `updated_by_user_uuid` are not cast: attrs come
+  from a form a client controls, and who made a change is for the context to
+  say (`Templates.create_template/2`, `Templates.update_template/3`).
   """
   def changeset(template, attrs, is_system \\ nil) do
     template
@@ -358,10 +439,10 @@ defmodule PhoenixKit.Modules.Emails.Template do
       :category,
       :status,
       :variables,
-      :metadata,
-      :created_by_user_uuid,
-      :updated_by_user_uuid
+      :metadata
     ])
+    |> merge_metadata()
+    |> drop_empty_translations([:display_name, :description, :subject, :html_body, :text_body])
     |> put_is_system(is_system)
     |> auto_generate_slug()
     |> validate_required([
@@ -393,6 +474,20 @@ defmodule PhoenixKit.Modules.Emails.Template do
     |> unique_constraint(:slug)
     |> validate_template_variables()
     |> validate_reserved_name()
+  end
+
+  @doc """
+  Records who created the row on a changeset `changeset/3` built.
+
+  For the context, which knows the author from the session — not for attrs a
+  client sent. `nil` changes nothing; a value that is not a UUID is a
+  changeset error, not a database one.
+  """
+  @spec put_created_by(Ecto.Changeset.t(), term()) :: Ecto.Changeset.t()
+  def put_created_by(changeset, nil), do: changeset
+
+  def put_created_by(changeset, user_uuid) do
+    cast(changeset, %{created_by_user_uuid: user_uuid}, [:created_by_user_uuid])
   end
 
   @doc """
@@ -542,6 +637,55 @@ defmodule PhoenixKit.Modules.Emails.Template do
 
   # Private helper functions
 
+  # Submitted metadata is merged into the row's own, never substituted for it.
+  # Only what was submitted is checked: a stored value that predates the check
+  # is not this save's concern.
+  defp merge_metadata(changeset) do
+    case fetch_change(changeset, :metadata) do
+      {:ok, submitted} when is_map(submitted) ->
+        submitted = stringify_keys(submitted)
+        merged = Map.merge(changeset.data.metadata || %{}, submitted)
+
+        changeset
+        |> put_change(:metadata, merged)
+        |> validate_submitted_source_module(submitted)
+
+      _ ->
+        changeset
+    end
+  end
+
+  defp stringify_keys(map) do
+    Map.new(map, fn
+      {key, value} when is_atom(key) -> {Atom.to_string(key), value}
+      pair -> pair
+    end)
+  end
+
+  defp validate_submitted_source_module(changeset, %{"source_module" => source_module})
+       when source_module not in @valid_source_modules do
+    add_error(
+      changeset,
+      :metadata,
+      "source_module must be one of: #{Enum.join(@valid_source_modules, ", ")}"
+    )
+  end
+
+  defp validate_submitted_source_module(changeset, _submitted), do: changeset
+
+  # A locale with no text is not a translation (see `changeset/3`). A value
+  # that is not a string stays, so `validate_i18n_map/3` can name it.
+  defp drop_empty_translations(changeset, fields) do
+    Enum.reduce(fields, changeset, fn field, acc ->
+      update_change(acc, field, fn
+        map when is_map(map) -> Map.reject(map, fn {_locale, value} -> blank_string?(value) end)
+        other -> other
+      end)
+    end)
+  end
+
+  defp blank_string?(value), do: is_binary(value) and String.trim(value) == ""
+
   # Validates that a :map field contains valid language-keyed string values
   defp validate_i18n_map(changeset, field, opts) do
     case get_field(changeset, field) do
@@ -549,7 +693,7 @@ defmodule PhoenixKit.Modules.Emails.Template do
         changeset
 
       map when is_map(map) and map_size(map) == 0 ->
-        add_error(changeset, field, "must have at least one language")
+        add_error(changeset, field, "must have at least one language with text")
 
       map when is_map(map) ->
         validate_i18n_map_values(changeset, field, map, opts)

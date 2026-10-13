@@ -33,6 +33,7 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditor do
   alias PhoenixKit.Modules.Emails.Utils
   alias PhoenixKit.Modules.Languages
   alias PhoenixKit.Settings
+  alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Routes
 
@@ -409,8 +410,14 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditor do
 
   defp protect_system_status(_template, template_params), do: template_params
 
+  # Who is saving, from the session — never from the form (see
+  # `Templates.create_template/2`).
+  defp current_user_uuid(socket), do: Scope.user_uuid(socket.assigns[:phoenix_kit_current_scope])
+
   defp create_template(socket, template_params) do
-    case Templates.create_template(template_params) do
+    case Templates.create_template(template_params,
+           created_by_user_uuid: current_user_uuid(socket)
+         ) do
       {:ok, template} ->
         {:noreply,
          socket
@@ -430,7 +437,9 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditor do
   end
 
   defp update_template(socket, template_params) do
-    case Templates.update_template(socket.assigns.template, template_params) do
+    case Templates.update_template(socket.assigns.template, template_params,
+           updated_by_user_uuid: current_user_uuid(socket)
+         ) do
       {:ok, template} ->
         {:noreply,
          socket

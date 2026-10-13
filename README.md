@@ -184,6 +184,28 @@ logs = Emails.list_logs(%{status: "sent", page: 1})
 log = Emails.get_log!(log_uuid)
 ```
 
+### Template editor
+
+A language with no text is not stored: the editor shows an untranslated language
+as an empty field (the preview still shows the fallback a reader would get), and
+an empty language is dropped on save. A template needs text in at least one
+language, not in every enabled one.
+
+`metadata` submitted to `Templates.update_template/3` is merged into the stored
+metadata, so keys such as `cloned_from` survive an edit — and a key can no longer
+be removed through that function. A submitted `source_module` must be one of
+`Template.valid_source_modules/0`; a clone keeps its source's metadata as stored.
+
+`created_by_user_uuid` and `updated_by_user_uuid` are no longer read from the
+attrs, under any key type. Pass `created_by_user_uuid:` as an option to
+`Templates.create_template/2` and `Templates.clone_template/4`, and
+`updated_by_user_uuid:` to `Templates.update_template/3`. The admin pages do
+this with the signed-in user.
+
+When the enabled languages carry a region (`en-US`) and a template is stored under
+the base code (`en`), the first `en-*` tab shows the `en` text; saving stores it
+under that tab's own code.
+
 ### Analytics
 
 ```elixir
