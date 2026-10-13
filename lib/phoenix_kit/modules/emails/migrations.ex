@@ -136,7 +136,7 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
 
   ## Where the DDL comes from
 
-  Mechanically extracted from core's own `PhoenixKit.Migrations.ExpectedSchema`
+  Mechanically extracted from core's own `ExpectedSchema`
   manifest — the same object list `mix phoenix_kit.doctor` and
   `mix phoenix_kit.repair` verify a live database against — so every
   statement is byte-identical to what core would emit for the same object,

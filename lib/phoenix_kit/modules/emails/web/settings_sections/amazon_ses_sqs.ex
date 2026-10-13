@@ -6,7 +6,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
   infrastructure setup, and the SQS worker's tuning knobs.
 
   Reached through `SQSPollingManager.settings_component/0`, not through
-  `PhoenixKit.Modules.Emails.email_settings_sections/0`. It used to be a
+  `c:PhoenixKit.Module.email_settings_sections/0`. It used to be a
   third section on the settings page, listed as a peer of the tracker table
   while actually being the detail of one of its rows: it repeated that
   table's "is collection on" answer, and nothing on the page said which

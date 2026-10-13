@@ -7,7 +7,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTracking do
   rate), how long to keep it (retention, compression, S3 archival), and the
   send queue's two switches — plus the system-status card, which reports what
   the module is actually doing rather than what it is configured to do.
-  Contributed via `PhoenixKit.Modules.Emails.email_settings_sections/0`.
+  Contributed via `c:PhoenixKit.Module.email_settings_sections/0`.
   """
 
   use PhoenixKitWeb, :live_component
