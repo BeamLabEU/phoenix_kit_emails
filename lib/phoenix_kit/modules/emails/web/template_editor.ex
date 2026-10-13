@@ -84,11 +84,16 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditor do
           socket
           |> assign(
             :page_title,
-            "Edit Template: #{Template.get_translation(template.display_name, "en")}"
+            edit_title(template, socket.assigns[:current_editor_locale] || "en")
           )
           |> assign(
             :page_subtitle,
-            "Version #{template.version} • #{String.capitalize(template.category)} • #{String.capitalize(source_module)} • #{String.capitalize(template.status)}"
+            gettext("Version %{version} • %{category} • %{source_module} • %{status}",
+              version: template.version,
+              category: category_label(template.category),
+              source_module: source_module_label(source_module),
+              status: status_label(template.status)
+            )
           )
           |> assign(:template, template)
           |> assign(:mode, :edit)
@@ -116,7 +121,7 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditor do
 
     socket =
       socket
-      |> assign(:page_title, "Create New Template")
+      |> assign(:page_title, gettext("Create New Template"))
       |> assign(:page_subtitle, gettext("Create a new email template"))
       |> assign(:template, nil)
       |> assign(:mode, :new)
@@ -160,7 +165,7 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditor do
         if Map.has_key?(acc, var) do
           acc
         else
-          Map.put(acc, var, smart_description_for_variable(var))
+          Map.put(acc, var, "")
         end
       end)
 
@@ -220,7 +225,10 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditor do
     available = socket.assigns.available_locales
 
     if locale in available do
-      {:noreply, assign(socket, :current_editor_locale, locale)}
+      {:noreply,
+       socket
+       |> assign(:current_editor_locale, locale)
+       |> refresh_page_title(locale)}
     else
       {:noreply, socket}
     end
@@ -461,30 +469,86 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditor do
     end
   end
 
-  defp smart_description_for_variable(variable) do
-    descriptions = %{
-      "user_name" => "User's display name",
-      "user_email" => "User's email address",
-      "email" => "User's email address",
-      "url" => "Action URL or link",
-      "confirmation_url" => "Email confirmation link",
-      "reset_url" => "Password reset link",
-      "magic_link_url" => "Magic link authentication URL",
-      "update_url" => "Profile update URL",
-      "timestamp" => "Current timestamp",
-      "app_name" => "Application name",
-      "company_name" => "Company or organization name",
-      "support_email" => "Support contact email",
-      "first_name" => "User's first name",
-      "last_name" => "User's last name",
-      "username" => "User's username",
-      "token" => "Verification or authentication token",
-      "code" => "Verification code",
-      "expiry" => "Expiration date/time",
-      "subject" => "Email subject line"
-    }
+  # What the author is told a variable is for, shown as the description
+  # field's placeholder while no description is stored. Never written to the
+  # row: a stored description is the author's own text, and a hint saved in
+  # the editor's language would stay in it whatever language reads it later.
+  defp variable_hint("user_name"), do: gettext("User's display name")
+  defp variable_hint("user_email"), do: gettext("User's email address")
+  defp variable_hint("email"), do: gettext("User's email address")
+  defp variable_hint("url"), do: gettext("Action URL or link")
+  defp variable_hint("confirmation_url"), do: gettext("Email confirmation link")
+  defp variable_hint("reset_url"), do: gettext("Password reset link")
+  defp variable_hint("magic_link_url"), do: gettext("Magic link authentication URL")
+  defp variable_hint("update_url"), do: gettext("Profile update URL")
+  defp variable_hint("timestamp"), do: gettext("Current timestamp")
+  defp variable_hint("app_name"), do: gettext("Application name")
+  defp variable_hint("company_name"), do: gettext("Company or organization name")
+  defp variable_hint("support_email"), do: gettext("Support contact email")
+  defp variable_hint("first_name"), do: gettext("User's first name")
+  defp variable_hint("last_name"), do: gettext("User's last name")
+  defp variable_hint("username"), do: gettext("User's username")
+  defp variable_hint("token"), do: gettext("Verification or authentication token")
+  defp variable_hint("code"), do: gettext("Verification code")
+  defp variable_hint("expiry"), do: gettext("Expiration date/time")
+  defp variable_hint("subject"), do: gettext("Email subject line")
+  defp variable_hint(name), do: gettext("Custom variable: %{name}", name: name)
 
-    Map.get(descriptions, variable, "Custom variable: #{variable}")
+  defp edit_title(template, locale) do
+    gettext("Edit Template: %{name}",
+      name: Template.get_translation(template.display_name, locale)
+    )
+  end
+
+  defp refresh_page_title(
+         %{assigns: %{template: %Template{} = template}} = socket,
+         locale
+       ),
+       do: assign(socket, :page_title, edit_title(template, locale))
+
+  defp refresh_page_title(socket, _locale), do: socket
+
+  # The page subtitle names a template's category, status and source module;
+  # the labels are the ones the editor's own selects show. A value the editor
+  # has no label for is shown as it is stored.
+  defp category_label("transactional"), do: gettext("Transactional")
+  defp category_label("marketing"), do: gettext("Marketing")
+  defp category_label("system"), do: gettext("System")
+  defp category_label("notification"), do: gettext("Notification")
+  defp category_label("newsletters"), do: gettext("Newsletters")
+  defp category_label(other), do: other |> to_string() |> String.capitalize()
+
+  defp status_label("draft"), do: gettext("Draft")
+  defp status_label("active"), do: gettext("Active")
+  defp status_label("archived"), do: gettext("Archived")
+  defp status_label(other), do: other |> to_string() |> String.capitalize()
+
+  defp source_module_label("users"), do: gettext("Users")
+  defp source_module_label("billing"), do: gettext("Billing")
+  defp source_module_label("publishing"), do: gettext("Publishing")
+  defp source_module_label("entities"), do: gettext("Entities")
+  defp source_module_label("admin"), do: gettext("Admin")
+  defp source_module_label("custom"), do: gettext("Custom")
+  defp source_module_label(other), do: other |> to_string() |> String.capitalize()
+
+  # The preview: the template as edited so far, in the tab's language, with a
+  # sample value for each variable it uses. Built from the changeset, so it
+  # follows what is typed and not only what is saved.
+  @doc false
+  @spec preview(Ecto.Changeset.t(), String.t()) :: %{
+          subject: String.t(),
+          html_body: String.t(),
+          text_body: String.t()
+        }
+  def preview(%Ecto.Changeset{} = changeset, locale) do
+    template = Ecto.Changeset.apply_changes(changeset)
+
+    variables =
+      template
+      |> Template.extract_variables()
+      |> generate_sample_variables()
+
+    Template.substitute_variables(template, variables, locale)
   end
 
   defp generate_sample_variables(variables) do
@@ -570,7 +634,7 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditor do
         if Map.has_key?(acc, var) do
           acc
         else
-          Map.put(acc, var, smart_description_for_variable(var))
+          Map.put(acc, var, "")
         end
       end)
 
@@ -623,13 +687,13 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditor do
     errors =
       case String.trim(Utils.string_param(params["recipient"])) do
         "" ->
-          Map.put(errors, :recipient, "Email address is required")
+          Map.put(errors, :recipient, gettext("Email address is required"))
 
         email ->
           if Regex.match?(~r/^[^\s@]+@[^\s@]+\.[^\s@]+$/, email) do
             errors
           else
-            Map.put(errors, :recipient, "Please enter a valid email address")
+            Map.put(errors, :recipient, gettext("Please enter a valid email address"))
           end
       end
 
