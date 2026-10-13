@@ -723,11 +723,6 @@ msgstr ""
 msgid "Description (Optional)"
 msgstr ""
 
-#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:420
-#, elixir-autogen, elixir-format
-msgid "Description for this variable..."
-msgstr ""
-
 #: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:49
 #: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:66
 #, elixir-autogen, elixir-format
@@ -3300,4 +3295,145 @@ msgstr ""
 #: lib/phoenix_kit/modules/emails/web/templates.ex:457
 #, elixir-autogen, elixir-format
 msgid "Template '%{name}' archived — test emails will now use the built-in template instead"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:489
+#, elixir-autogen, elixir-format
+msgid "Edit Template: %{name}"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:123
+#, elixir-autogen, elixir-format
+msgid "Create New Template"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:90
+#, elixir-autogen, elixir-format
+msgid "Version %{version} • %{category} • %{source_module} • %{status}"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:321
+#, elixir-autogen, elixir-format
+msgid "Welcome to %{app_name}! (%{locale})"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:357
+#, elixir-autogen, elixir-format
+msgid "<h1>Welcome %{user_name}!</h1> (%{locale})"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:385
+#, elixir-autogen, elixir-format
+msgid "Welcome %{user_name}! (%{locale})"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:467
+#, elixir-autogen, elixir-format
+msgid "User's display name"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:468
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:469
+#, elixir-autogen, elixir-format
+msgid "User's email address"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:470
+#, elixir-autogen, elixir-format
+msgid "Action URL or link"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:471
+#, elixir-autogen, elixir-format
+msgid "Email confirmation link"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:472
+#, elixir-autogen, elixir-format
+msgid "Password reset link"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:473
+#, elixir-autogen, elixir-format
+msgid "Magic link authentication URL"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:474
+#, elixir-autogen, elixir-format
+msgid "Profile update URL"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:475
+#, elixir-autogen, elixir-format
+msgid "Current timestamp"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:476
+#, elixir-autogen, elixir-format
+msgid "Application name"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:477
+#, elixir-autogen, elixir-format
+msgid "Company or organization name"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:478
+#, elixir-autogen, elixir-format
+msgid "Support contact email"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:479
+#, elixir-autogen, elixir-format
+msgid "User's first name"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:480
+#, elixir-autogen, elixir-format
+msgid "User's last name"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:481
+#, elixir-autogen, elixir-format
+msgid "User's username"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:482
+#, elixir-autogen, elixir-format
+msgid "Verification or authentication token"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:483
+#, elixir-autogen, elixir-format
+msgid "Verification code"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:484
+#, elixir-autogen, elixir-format
+msgid "Expiration date/time"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:485
+#, elixir-autogen, elixir-format
+msgid "Email subject line"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:486
+#, elixir-autogen, elixir-format
+msgid "Custom variable: %{name}"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:77
+#, elixir-autogen, elixir-format
+msgid "Welcome Email"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:681
+#, elixir-autogen, elixir-format
+msgid "Email address is required"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:687
+#, elixir-autogen, elixir-format
+msgid "Please enter a valid email address"
 msgstr ""

@@ -723,11 +723,6 @@ msgstr "Kohaletoimetamise trendid"
 msgid "Description (Optional)"
 msgstr "Kirjeldus (valikuline)"
 
-#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:420
-#, elixir-autogen, elixir-format
-msgid "Description for this variable..."
-msgstr "Selle muutuja kirjeldus..."
-
 #: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:49
 #: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:66
 #, elixir-autogen, elixir-format
@@ -1705,7 +1700,7 @@ msgstr "Sünkroonimine..."
 #: lib/phoenix_kit/modules/emails/web/templates.html.heex:403
 #, elixir-autogen, elixir-format
 msgid "System"
-msgstr "Süsteem:"
+msgstr "Süsteem"
 
 #: lib/phoenix_kit/modules/emails/web/metrics.html.heex:337
 #: lib/phoenix_kit/modules/emails/web/queue.html.heex:10
@@ -3303,3 +3298,144 @@ msgstr "Malli arhiveerimine ebaõnnestus: %{reason}"
 #, elixir-autogen, elixir-format
 msgid "Template '%{name}' archived — test emails will now use the built-in template instead"
 msgstr "Mall '%{name}' arhiveeritud — testkirjad kasutavad nüüd sisseehitatud malli"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:489
+#, elixir-autogen, elixir-format
+msgid "Edit Template: %{name}"
+msgstr "Muuda malli: %{name}"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:123
+#, elixir-autogen, elixir-format
+msgid "Create New Template"
+msgstr "Loo uus mall"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:90
+#, elixir-autogen, elixir-format
+msgid "Version %{version} • %{category} • %{source_module} • %{status}"
+msgstr "Versioon %{version} • %{category} • %{source_module} • %{status}"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:321
+#, elixir-autogen, elixir-format
+msgid "Welcome to %{app_name}! (%{locale})"
+msgstr "Tere tulemast teenusesse %{app_name}! (%{locale})"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:357
+#, elixir-autogen, elixir-format
+msgid "<h1>Welcome %{user_name}!</h1> (%{locale})"
+msgstr "<h1>Tere tulemast, %{user_name}!</h1> (%{locale})"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:385
+#, elixir-autogen, elixir-format
+msgid "Welcome %{user_name}! (%{locale})"
+msgstr "Tere tulemast, %{user_name}! (%{locale})"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:467
+#, elixir-autogen, elixir-format
+msgid "User's display name"
+msgstr "Kasutaja kuvatav nimi"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:468
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:469
+#, elixir-autogen, elixir-format
+msgid "User's email address"
+msgstr "Kasutaja e-posti aadress"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:470
+#, elixir-autogen, elixir-format
+msgid "Action URL or link"
+msgstr "Toimingu URL või link"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:471
+#, elixir-autogen, elixir-format
+msgid "Email confirmation link"
+msgstr "E-posti kinnituslink"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:472
+#, elixir-autogen, elixir-format
+msgid "Password reset link"
+msgstr "Parooli lähtestamise link"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:473
+#, elixir-autogen, elixir-format
+msgid "Magic link authentication URL"
+msgstr "Võlulingiga autentimise URL"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:474
+#, elixir-autogen, elixir-format
+msgid "Profile update URL"
+msgstr "Profiili uuendamise URL"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:475
+#, elixir-autogen, elixir-format
+msgid "Current timestamp"
+msgstr "Praegune ajatempel"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:476
+#, elixir-autogen, elixir-format
+msgid "Application name"
+msgstr "Rakenduse nimi"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:477
+#, elixir-autogen, elixir-format
+msgid "Company or organization name"
+msgstr "Ettevõtte või organisatsiooni nimi"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:478
+#, elixir-autogen, elixir-format
+msgid "Support contact email"
+msgstr "Toe kontakt-e-post"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:479
+#, elixir-autogen, elixir-format
+msgid "User's first name"
+msgstr "Kasutaja eesnimi"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:480
+#, elixir-autogen, elixir-format
+msgid "User's last name"
+msgstr "Kasutaja perekonnanimi"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:481
+#, elixir-autogen, elixir-format
+msgid "User's username"
+msgstr "Kasutajanimi"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:482
+#, elixir-autogen, elixir-format
+msgid "Verification or authentication token"
+msgstr "Kinnitus- või autentimistunnus"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:483
+#, elixir-autogen, elixir-format
+msgid "Verification code"
+msgstr "Kinnituskood"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:484
+#, elixir-autogen, elixir-format
+msgid "Expiration date/time"
+msgstr "Aegumise kuupäev/kellaaeg"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:485
+#, elixir-autogen, elixir-format
+msgid "Email subject line"
+msgstr "E-kirja teemarida"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:486
+#, elixir-autogen, elixir-format
+msgid "Custom variable: %{name}"
+msgstr "Kohandatud muutuja: %{name}"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:77
+#, elixir-autogen, elixir-format
+msgid "Welcome Email"
+msgstr "Tervitusmeil"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:681
+#, elixir-autogen, elixir-format
+msgid "Email address is required"
+msgstr "E-posti aadress on kohustuslik"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:687
+#, elixir-autogen, elixir-format
+msgid "Please enter a valid email address"
+msgstr "Sisesta kehtiv e-posti aadress"
