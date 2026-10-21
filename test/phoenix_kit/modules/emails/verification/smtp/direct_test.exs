@@ -327,6 +327,43 @@ defmodule PhoenixKit.Modules.Emails.Verification.Smtp.DirectTest do
       end
     end
 
+    test "public_address?/1 refuses every range that is not a mail host of the internet" do
+      for ip <- [
+            {0, 0, 0, 0},
+            {10, 0, 0, 5},
+            {100, 64, 0, 1},
+            {100, 127, 255, 254},
+            {127, 0, 0, 1},
+            {169, 254, 169, 254},
+            {172, 16, 0, 1},
+            {172, 31, 255, 255},
+            {192, 0, 2, 7},
+            {192, 168, 1, 1},
+            {198, 18, 0, 1},
+            {198, 19, 255, 255},
+            {198, 51, 100, 1},
+            {203, 0, 113, 9},
+            {224, 0, 0, 1},
+            {255, 255, 255, 255}
+          ] do
+        refute Direct.public_address?(ip), "#{inspect(ip)} must not be reachable"
+      end
+
+      for ip <- [
+            {8, 8, 8, 8},
+            {100, 63, 0, 1},
+            {100, 128, 0, 1},
+            {172, 15, 0, 1},
+            {172, 32, 0, 1},
+            {198, 20, 0, 1},
+            {142, 250, 150, 27}
+          ] do
+        assert Direct.public_address?(ip), "#{inspect(ip)} is public"
+      end
+
+      refute Direct.public_address?({0, 0, 0, 0, 0, 0, 0, 1})
+    end
+
     test "without a port the configured one is used, never a real mail port by accident" do
       assert Application.get_env(:phoenix_kit_emails, :verification_smtp_port) == 1
       assert {:ok, %{"outcome" => "connect_failed"}} = Direct.run(plain_session(), @sender)

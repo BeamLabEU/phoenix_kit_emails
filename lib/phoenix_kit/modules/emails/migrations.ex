@@ -619,7 +619,15 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
        "WHERE lease_token IS NOT NULL"},
     {5,
      "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_email_verify_runners_key_idx " <>
-       "ON #{@schema_token}.phoenix_kit_email_verify_runners USING btree (api_key_uuid)"}
+       "ON #{@schema_token}.phoenix_kit_email_verify_runners USING btree (api_key_uuid)"},
+    # Every settled address looks up the batch items that wait for it by `email`
+    # alone (`Batches.settle_awaiting/2`, `lock_awaiting/1`). The member index leads
+    # with `batch_uuid`, so without this one each report row scanned every item of
+    # every batch. Partial: only parked items are ever asked for.
+    {5,
+     "CREATE INDEX IF NOT EXISTS phoenix_kit_email_verify_batch_items_awaiting_idx " <>
+       "ON #{@schema_token}.phoenix_kit_email_verify_batch_items USING btree (email) " <>
+       "WHERE state = 'awaiting_smtp'"}
   ]
 
   # V4 - tables this chain creates itself, in dependency order (a batch before

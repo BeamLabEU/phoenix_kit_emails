@@ -848,6 +848,18 @@ defmodule PhoenixKit.Modules.Emails.MigrationsTest do
       assert statement =~ "(email) WHERE state IN ('queued', 'leased')"
     end
 
+    test "parked batch items are findable by address: a partial index on email alone" do
+      statement =
+        Enum.find(
+          Migrations.up_statements(),
+          &(&1 =~ "phoenix_kit_email_verify_batch_items_awaiting_idx")
+        )
+
+      assert statement =~ "CREATE INDEX IF NOT EXISTS"
+      assert statement =~ "phoenix_kit_email_verify_batch_items USING btree (email)"
+      assert statement =~ "WHERE state = 'awaiting_smtp'"
+    end
+
     test "a pinned older version emits none of it" do
       for version <- 1..4 do
         refute Enum.any?(

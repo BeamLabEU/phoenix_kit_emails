@@ -197,7 +197,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.Smtp.Direct do
 
   defp connect_within_session(host, cfg, hard) do
     case connect_budget(cfg, hard, now_ms()) do
-      {:ok, wait_ms} -> connect(host, cfg.port, wait_ms)
+      {:ok, wait_ms} -> connect(host, cfg.port, wait_ms, :public)
       :expired -> :error
     end
   end
@@ -370,7 +370,10 @@ defmodule PhoenixKit.Modules.Emails.Verification.Smtp.Direct do
 
   ## --- The socket ---
 
-  defp connect(host, port, wait_ms) do
+  # `scope` is `:public` for a mail host named by a domain's MX record (the domain belongs
+  # to whoever typed the address, so the name is untrusted) and `:any` for the host the
+  # admin chose for the port 25 self-test.
+  defp connect(host, port, wait_ms, scope \\ :any) do
     guard!(host)
 
     options = [
@@ -382,11 +385,51 @@ defmodule PhoenixKit.Modules.Emails.Verification.Smtp.Direct do
       send_timeout_close: true
     ]
 
-    case :gen_tcp.connect(String.to_charlist(host), port, options, wait_ms) do
-      {:ok, sock} -> {:ok, sock}
-      {:error, _reason} -> :error
+    with {:ok, target} <- target(host, scope),
+         {:ok, sock} <- :gen_tcp.connect(target, port, options, wait_ms) do
+      {:ok, sock}
+    else
+      _refused_or_failed -> :error
     end
   end
+
+  # An MX record can name `localhost`, or a host whose A record is 10.x or 127.x, so a
+  # session would reach into the server's own network and store the reply. The name is
+  # resolved here and the connection goes to the address that was checked, not to the
+  # name again (a second lookup could answer differently). The test config, which only
+  # lets the loopback interface through (`guard!/1`), skips the check.
+  defp target(host, :public) do
+    if Application.get_env(:phoenix_kit_emails, :verification_smtp_loopback_only, false) do
+      {:ok, String.to_charlist(host)}
+    else
+      with {:ok, addresses} <- :inet.getaddrs(String.to_charlist(host), :inet),
+           ip when not is_nil(ip) <- Enum.find(addresses, &public_address?/1) do
+        {:ok, ip}
+      else
+        _none -> :error
+      end
+    end
+  end
+
+  defp target(host, :any), do: {:ok, String.to_charlist(host)}
+
+  @doc false
+  # Whether an IPv4 address is one a mail host of the public internet can have: not
+  # loopback, private, link-local, shared (CGNAT), documentation, benchmarking, multicast
+  # or reserved space.
+  @spec public_address?(term()) :: boolean()
+  def public_address?({a, b, c, _d}), do: not reserved?(a, b, c)
+  def public_address?(_address), do: false
+
+  defp reserved?(a, _b, _c) when a in [0, 10, 127] or a >= 224, do: true
+  defp reserved?(100, b, _c) when b in 64..127, do: true
+  defp reserved?(169, 254, _c), do: true
+  defp reserved?(172, b, _c) when b in 16..31, do: true
+  defp reserved?(192, 168, _c), do: true
+  defp reserved?(198, b, _c) when b in 18..19, do: true
+
+  defp reserved?(a, b, c),
+    do: {a, b, c} in [{192, 0, 0}, {192, 0, 2}, {198, 51, 100}, {203, 0, 113}]
 
   # The test config switches this on: no test can reach a real mail host.
   defp guard!(host) do
