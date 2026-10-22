@@ -20,7 +20,7 @@ msgstr "E-kirjad"
 msgid "Dashboard"
 msgstr "Töölaud"
 
-#: lib/phoenix_kit/modules/emails/web/details.ex:70
+#: lib/phoenix_kit/modules/emails/web/details.ex:73
 #, elixir-autogen
 msgid "Email Details"
 msgstr "E-kirja andmed"
@@ -451,7 +451,7 @@ msgstr "Arhiveeri mall"
 msgid "Archived"
 msgstr "Arhiveeritud"
 
-#: lib/phoenix_kit/modules/emails/web/details.html.heex:155
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:159
 #, elixir-autogen, elixir-format
 msgid "Attachments"
 msgstr "Manused"
@@ -478,7 +478,7 @@ msgstr "Arveldus"
 msgid "Blocks that expired today"
 msgstr "Täna aegunud blokeeringud"
 
-#: lib/phoenix_kit/modules/emails/web/details.html.heex:248
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:252
 #, elixir-autogen, elixir-format
 msgid "Body Preview"
 msgstr "Sisu eelvaade"
@@ -516,7 +516,7 @@ msgstr "CSV sisu"
 msgid "CSV Format:"
 msgstr "CSV vorming:"
 
-#: lib/phoenix_kit/modules/emails/web/details.html.heex:188
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:192
 #: lib/phoenix_kit/modules/emails/web/emails.html.heex:449
 #, elixir-autogen, elixir-format
 msgid "Campaign"
@@ -529,7 +529,8 @@ msgstr "Kampaania"
 #: lib/phoenix_kit/modules/emails/web/emails.html.heex:799
 #: lib/phoenix_kit/modules/emails/web/metrics.html.heex:166
 #: lib/phoenix_kit/modules/emails/web/queue.html.heex:156
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:375
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:406
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:434
 #: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:517
 #: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:703
 #: lib/phoenix_kit/modules/emails/web/templates.html.heex:638
@@ -707,7 +708,7 @@ msgstr "Kustuta mall"
 msgid "Delivered"
 msgstr "Kohaletoimetatud"
 
-#: lib/phoenix_kit/modules/emails/web/details.html.heex:377
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:381
 #, elixir-autogen, elixir-format
 msgid "Delivered At"
 msgstr "Kohale toimetatud"
@@ -764,7 +765,7 @@ msgstr "E-posti aadress"
 msgid "Email Blocklist"
 msgstr "E-kirjade blokeering"
 
-#: lib/phoenix_kit/modules/emails/web/details.html.heex:220
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:224
 #: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:281
 #, elixir-autogen, elixir-format
 msgid "Email Content"
@@ -780,7 +781,7 @@ msgstr "E-kirjade töölaud"
 msgid "Email Details %{uuid}"
 msgstr "E-kirja %{uuid} andmed"
 
-#: lib/phoenix_kit/modules/emails/web/details.html.heex:470
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:474
 #, elixir-autogen, elixir-format
 msgid "Email Not Found"
 msgstr "E-kirja ei leitud"
@@ -877,19 +878,19 @@ msgstr "Olemid"
 msgid "Error"
 msgstr "Viga"
 
-#: lib/phoenix_kit/modules/emails/web/details.html.heex:209
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:213
 #, elixir-autogen, elixir-format
 msgid "Error:"
 msgstr "Viga:"
 
-#: lib/phoenix_kit/modules/emails/web/details.html.heex:391
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:395
 #: lib/phoenix_kit/modules/emails/web/queue.html.heex:341
 #: lib/phoenix_kit/modules/emails/web/queue.html.heex:364
 #, elixir-autogen, elixir-format
 msgid "Events"
 msgstr "Sündmused"
 
-#: lib/phoenix_kit/modules/emails/web/details.html.heex:323
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:327
 #, elixir-autogen, elixir-format
 msgid "Events Timeline"
 msgstr "Sündmuste ajajoon"
@@ -974,7 +975,7 @@ msgstr "Saatjalt"
 msgid "From Date"
 msgstr "Alates kuupäevast"
 
-#: lib/phoenix_kit/modules/emails/web/details.html.heex:263
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:267
 #, elixir-autogen, elixir-format
 msgid "Full Body"
 msgstr "Täielik sisu"
@@ -995,23 +996,23 @@ msgstr "HTML-sisu"
 msgid "Hard Bounced"
 msgstr "Püsiv tagastus"
 
-#: lib/phoenix_kit/modules/emails/web/details.html.heex:282
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:286
 #, elixir-autogen, elixir-format
 msgid "Header"
 msgstr "Päis"
 
-#: lib/phoenix_kit/modules/emails/web/details.html.heex:275
-#: lib/phoenix_kit/modules/emails/web/details.html.heex:310
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:279
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:314
 #, elixir-autogen, elixir-format
 msgid "Headers"
 msgstr "Päised"
 
-#: lib/phoenix_kit/modules/emails/web/details.html.heex:228
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:232
 #, elixir-autogen, elixir-format
 msgid "Hide Full Body"
 msgstr "Peida täielik sisu"
 
-#: lib/phoenix_kit/modules/emails/web/details.html.heex:238
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:242
 #, elixir-autogen, elixir-format
 msgid "Hide Headers"
 msgstr "Peida päised"
@@ -1152,17 +1153,17 @@ msgstr "Sõnumeid maksimaalselt küsitluse kohta"
 msgid "Maximum number of messages to process in each polling cycle (1-10)"
 msgstr "Maksimaalne sõnumite arv ühe küsitluse tsükli kohta (1–10)"
 
-#: lib/phoenix_kit/modules/emails/web/details.html.heex:353
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:357
 #, elixir-autogen, elixir-format
 msgid "Message ID"
 msgstr "Sõnumi ID"
 
-#: lib/phoenix_kit/modules/emails/web/details.html.heex:166
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:170
 #, elixir-autogen, elixir-format
 msgid "Message ID (Internal)"
 msgstr "Sõnumi ID (sisemine)"
 
-#: lib/phoenix_kit/modules/emails/web/details.html.heex:411
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:415
 #, elixir-autogen, elixir-format
 msgid "Message Tags"
 msgstr "Sõnumi sildid"
@@ -1238,17 +1239,17 @@ msgstr "Kirju ei leitud"
 msgid "No emails found matching your criteria"
 msgstr "Teie kriteeriumitele vastavaid kirju ei leitud"
 
-#: lib/phoenix_kit/modules/emails/web/details.html.heex:337
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:341
 #, elixir-autogen, elixir-format
 msgid "No events recorded for this email"
 msgstr "Selle kirja jaoks pole sündmusi salvestatud"
 
-#: lib/phoenix_kit/modules/emails/web/details.html.heex:313
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:317
 #, elixir-autogen, elixir-format
 msgid "No headers available for this email"
 msgstr "Selle kirja jaoks pole päiseid"
 
-#: lib/phoenix_kit/modules/emails/web/details.html.heex:254
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:258
 #, elixir-autogen, elixir-format
 msgid "No preview available"
 msgstr "Eelvaade pole saadaval"
@@ -1329,7 +1330,7 @@ msgstr "Avatud"
 msgid "Percentage of emails to fully track for analytics (0-100%)"
 msgstr "Analüütika jaoks täielikult jälgitavate kirjade osakaal (0–100%)"
 
-#: lib/phoenix_kit/modules/emails/web/details.html.heex:137
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:141
 #: lib/phoenix_kit/modules/emails/web/metrics.html.heex:291
 #: lib/phoenix_kit/modules/emails/web/metrics.html.heex:344
 #: lib/phoenix_kit/modules/emails/web/settings_sections/delivery_event_tracking.html.heex:13
@@ -1356,7 +1357,7 @@ msgstr "Avaldamine"
 msgid "Queued"
 msgstr "Järjekorras"
 
-#: lib/phoenix_kit/modules/emails/web/details.html.heex:349
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:353
 #, elixir-autogen, elixir-format
 msgid "Quick Stats"
 msgstr "Kiire statistika"
@@ -1429,7 +1430,7 @@ msgstr "Värskenda"
 msgid "Rejected"
 msgstr "Tagasi lükatud"
 
-#: lib/phoenix_kit/modules/emails/web/details.html.heex:429
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:433
 #, elixir-autogen, elixir-format
 msgid "Related Emails"
 msgstr "Seotud kirjad"
@@ -1449,7 +1450,7 @@ msgstr "Eemalda muutuja"
 msgid "Retention"
 msgstr "Säilitusperiood:"
 
-#: lib/phoenix_kit/modules/emails/web/details.html.heex:397
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:401
 #, elixir-autogen, elixir-format
 msgid "Retries"
 msgstr "Korduskatsed"
@@ -1583,7 +1584,7 @@ msgstr "Saatmine..."
 msgid "Sent"
 msgstr "Saadetud"
 
-#: lib/phoenix_kit/modules/emails/web/details.html.heex:369
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:373
 #: lib/phoenix_kit/modules/emails/web/queue.html.heex:338
 #: lib/phoenix_kit/modules/emails/web/queue.html.heex:363
 #, elixir-autogen, elixir-format
@@ -1600,17 +1601,17 @@ msgstr "Täna saadetud"
 msgid "Sent:"
 msgstr "Saadetud:"
 
-#: lib/phoenix_kit/modules/emails/web/details.html.heex:229
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:233
 #, elixir-autogen, elixir-format
 msgid "Show Full Body"
 msgstr "Näita täielikku sisu"
 
-#: lib/phoenix_kit/modules/emails/web/details.html.heex:239
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:243
 #, elixir-autogen, elixir-format
 msgid "Show Headers"
 msgstr "Näita päiseid"
 
-#: lib/phoenix_kit/modules/emails/web/details.html.heex:146
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:150
 #, elixir-autogen, elixir-format
 msgid "Size"
 msgstr "Suurus"
@@ -1646,7 +1647,7 @@ msgstr "Algkuupäev"
 
 #: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:233
 #: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:427
-#: lib/phoenix_kit/modules/emails/web/details.html.heex:128
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:132
 #: lib/phoenix_kit/modules/emails/web/emails.html.heex:114
 #: lib/phoenix_kit/modules/emails/web/emails.html.heex:131
 #: lib/phoenix_kit/modules/emails/web/queue.html.heex:333
@@ -1756,7 +1757,7 @@ msgstr "E-kirja kohaletoimetamise juhtimise test"
 msgid "Text Body"
 msgstr "Tekstisisu"
 
-#: lib/phoenix_kit/modules/emails/web/details.html.heex:473
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:477
 #, elixir-autogen, elixir-format
 msgid "The email with ID %{uuid} could not be found."
 msgstr "ID-ga %{uuid} kirja ei leitud."
@@ -1878,7 +1879,7 @@ msgstr "Kasutus"
 msgid "Users"
 msgstr "Kasutajad"
 
-#: lib/phoenix_kit/modules/emails/web/details.html.heex:285
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:289
 #, elixir-autogen, elixir-format
 msgid "Value"
 msgstr "Väärtus"
@@ -1899,12 +1900,12 @@ msgstr "Kontrolli AWS SES seadeid (kui lubatud)"
 msgid "View"
 msgstr "Vaata"
 
-#: lib/phoenix_kit/modules/emails/web/details.html.heex:454
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:458
 #, elixir-autogen, elixir-format
 msgid "View all %{count} related emails"
 msgstr "Näita kõiki seotud kirju (%{count})"
 
-#: lib/phoenix_kit/modules/emails/web/details.html.heex:199
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:203
 #, elixir-autogen, elixir-format
 msgid "View campaign emails"
 msgstr "Kampaania kirjad"
@@ -1925,7 +1926,7 @@ msgstr "Nähtavuse aegumine"
 msgid "Your blocklist is empty"
 msgstr "Teie blokeerimise loend on tühi"
 
-#: lib/phoenix_kit/modules/emails/web/details.html.heex:385
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:389
 #, elixir-autogen, elixir-format
 msgid "delivery time"
 msgstr "kohaletoimetamise aeg"
@@ -2048,14 +2049,14 @@ msgid "Email headers saving enabled"
 msgstr "Kirja päiste salvestamine lubatud"
 
 #: lib/phoenix_kit/modules/emails/web/blocklist.ex:123
-#: lib/phoenix_kit/modules/emails/web/details.ex:81
+#: lib/phoenix_kit/modules/emails/web/details.ex:84
 #: lib/phoenix_kit/modules/emails/web/metrics.ex:91
 #: lib/phoenix_kit/modules/emails/web/queue.ex:81
 #, elixir-autogen, elixir-format
 msgid "Email is not enabled"
 msgstr "E-posti moodul ei ole lubatud"
 
-#: lib/phoenix_kit/modules/emails/web/details.ex:142
+#: lib/phoenix_kit/modules/emails/web/details.ex:145
 #, elixir-autogen, elixir-format
 msgid "Email log not found"
 msgstr "Kirja kirjet ei leitud"
@@ -2112,7 +2113,7 @@ msgstr "Malli kloonimine ebaõnnestus"
 msgid "Failed to delete template"
 msgstr "Malli kustutamine ebaõnnestus"
 
-#: lib/phoenix_kit/modules/emails/web/details.ex:243
+#: lib/phoenix_kit/modules/emails/web/details.ex:248
 #, elixir-autogen, elixir-format
 msgid "Failed to load email data"
 msgstr "Kirja andmete laadimine ebaõnnestus"
@@ -2447,7 +2448,7 @@ msgstr "Lähtesta"
 msgid "Delivery Event Tracking"
 msgstr "Kohaletoimetamise sündmuste jälgimine"
 
-#: lib/phoenix_kit/modules/emails/web/details.ex:73
+#: lib/phoenix_kit/modules/emails/web/details.ex:76
 #, elixir-autogen, elixir-format
 msgid "Delivery log, events and tracking for this email"
 msgstr "Selle kirja kohaletoimetamise logi, sündmused ja jälgimine"
@@ -2462,7 +2463,7 @@ msgstr "Lohistage ümberjärjestamiseks"
 msgid "Drag to reorder selected columns, or add new columns from the options below. The Actions column is always included."
 msgstr "Lohistage valitud veergude ümberjärjestamiseks või lisage uusi veerge allolevast loendist. Veerg Toimingud on alati kaasatud."
 
-#: lib/phoenix_kit/modules/emails/web/details.ex:229
+#: lib/phoenix_kit/modules/emails/web/details.ex:233
 #, elixir-autogen, elixir-format
 msgid "Email #%{uuid}"
 msgstr "E-kiri #%{uuid}"
@@ -2635,7 +2636,7 @@ msgstr "Postiadapter pole veel seadistatud."
 msgid "No message ID available to sync this email"
 msgstr "Selle kirja sünkroonimiseks pole sõnumi ID-d saadaval"
 
-#: lib/phoenix_kit/modules/emails/web/details.ex:196
+#: lib/phoenix_kit/modules/emails/web/details.ex:199
 #: lib/phoenix_kit/modules/emails/web/emails.ex:615
 #, elixir-autogen, elixir-format
 msgid "No new events"
@@ -2667,13 +2668,13 @@ msgstr "Sisestage kehtiv millisekundite arv"
 msgid "Poll now"
 msgstr "Alusta pollimist"
 
-#: lib/phoenix_kit/modules/emails/web/details.html.heex:176
-#: lib/phoenix_kit/modules/emails/web/details.html.heex:361
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:180
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:365
 #, elixir-autogen, elixir-format
 msgid "Provider Message ID"
 msgstr "Pakkuja sõnumi ID"
 
-#: lib/phoenix_kit/modules/emails/web/details.ex:202
+#: lib/phoenix_kit/modules/emails/web/details.ex:205
 #: lib/phoenix_kit/modules/emails/web/emails.ex:621
 #, elixir-autogen, elixir-format
 msgid "Received %{count} new event(s)"
@@ -3000,7 +3001,7 @@ msgid "Recording"
 msgstr "Aktiivne"
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:282
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:352
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:371
 #, elixir-autogen, elixir-format
 msgid "Save"
 msgstr "Salvesta"
@@ -3457,27 +3458,27 @@ msgstr "E-posti aadress on kohustuslik"
 msgid "Please enter a valid email address"
 msgstr "Sisesta kehtiv e-posti aadress"
 
-#: lib/phoenix_kit/modules/emails/web/source_badges.ex:59
+#: lib/phoenix_kit/modules/emails/web/source_badges.ex:107
 #, elixir-autogen, elixir-format
 msgid "File override shadowed"
 msgstr "Failipõhine ülekirjutus varjatud"
 
-#: lib/phoenix_kit/modules/emails/web/source_badges.ex:60
+#: lib/phoenix_kit/modules/emails/web/source_badges.ex:108
 #, elixir-autogen, elixir-format
 msgid "Default shadowed"
 msgstr "Vaikemall varjatud"
 
-#: lib/phoenix_kit/modules/emails/web/source_badges.ex:63
+#: lib/phoenix_kit/modules/emails/web/source_badges.ex:111
 #, elixir-autogen, elixir-format
 msgid "A file override exists for this name — this active row shadows it."
 msgstr "Selle nime jaoks on olemas failipõhine ülekirjutus — see aktiivne rida varjab seda."
 
-#: lib/phoenix_kit/modules/emails/web/source_badges.ex:66
+#: lib/phoenix_kit/modules/emails/web/source_badges.ex:114
 #, elixir-autogen, elixir-format
 msgid "A built-in default exists for this name — this active row shadows it."
 msgstr "Selle nime jaoks on olemas sisseehitatud vaikemall — see aktiivne rida varjab seda."
 
-#: lib/phoenix_kit/modules/emails/web/source_badges.ex:69
+#: lib/phoenix_kit/modules/emails/web/source_badges.ex:117
 #, elixir-autogen, elixir-format
 msgid "A default supplied by %{module} exists for this name — this active row shadows it."
 msgstr "Selle nime jaoks on olemas mooduli %{module} vaikemall — see aktiivne rida varjab seda."
@@ -3487,115 +3488,118 @@ msgstr "Selle nime jaoks on olemas mooduli %{module} vaikemall — see aktiivne 
 msgid "Every translation must be text. Nothing was saved."
 msgstr "Iga tõlge peab olema tekst. Midagi ei salvestatud."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:346
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:349
 #, elixir-autogen, elixir-format
 msgid "%{n} in the queue"
 msgstr "järjekorras %{n}"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:352
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:355
 #, elixir-autogen, elixir-format
 msgid "%{n} min ago"
 msgstr "%{n} min tagasi"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:410
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:469
 #, elixir-autogen, elixir-format
 msgid "%{n} older token(s) of other admins still work. Revoke them in Settings → API."
 msgstr ""
 "Veel %{n} teiste administraatorite luba töötab endiselt. Tühista need "
 "jaotises Seaded → API."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:351
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:354
 #, elixir-autogen, elixir-format
 msgid "%{n} s ago"
 msgstr "%{n} s tagasi"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:448
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:452
 #, elixir-autogen, elixir-format
 msgid "%{rcpt} addresses per session, %{interval} s between sessions to a domain, greylist retry %{retry} min × %{attempts}"
 msgstr ""
 "%{rcpt} aadressi sessioonis, %{interval} s pausi domeeni sessioonide "
 "vahel, greylist-i kordus %{retry} min × %{attempts}"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:443
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:446
 #, elixir-autogen, elixir-format
 msgid "A whole number above zero."
 msgstr "Täisarv, mis on suurem kui null."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:412
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:415
 #, elixir-autogen, elixir-format
 msgid "Addresses per session"
 msgstr "Aadresse sessioonis"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:316
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:328
 #, elixir-autogen, elixir-format
 msgid "Advanced"
 msgstr "Täpsemalt"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:444
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:447
 #, elixir-autogen, elixir-format
 msgid "At most %{max}."
 msgstr "Kuni %{max}."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:421
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:424
 #, elixir-autogen, elixir-format
 msgid "Blocks that pause a domain"
 msgstr "Blokeeringuid, mis panevad domeeni pausile"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:444
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:503
 #, elixir-autogen, elixir-format
 msgid "Command for PowerShell"
 msgstr "PowerShelli käsk"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:418
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:421
 #, elixir-autogen, elixir-format
 msgid "Connect timeout, s"
 msgstr "Ühenduse ajalõpp, s"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:230
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:232
 #, elixir-autogen, elixir-format
 msgid "Connecting"
 msgstr "Ühendamine"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:437
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:462
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:496
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:521
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:543
 #, elixir-autogen, elixir-format
 msgid "Copied!"
 msgstr "Kopeeritud!"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:436
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:461
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:495
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:520
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:542
 #, elixir-autogen, elixir-format
 msgid "Copy"
 msgstr "Kopeeri"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:393
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:452
 #, elixir-autogen, elixir-format
 msgid "Copy the token now"
 msgstr "Kopeeri luba kohe"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:33
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:35
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:393
 #, elixir-autogen, elixir-format
 msgid "Do not enable it if other sites share this IP address: a mail host that blocks it blocks them too."
 msgstr ""
 "Ära lülita sisse, kui sama IP-aadressi kasutavad teised saidid: kui "
 "postiserver selle blokeerib, jäävad ka nemad ilma."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:423
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:426
 #, elixir-autogen, elixir-format
 msgid "Domain pause, min"
 msgstr "Domeeni paus, min"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:425
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:428
 #, elixir-autogen, elixir-format
 msgid "Domains those sessions must span"
 msgstr "Mitmel domeenil see juhtuma peab"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:233
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:235
 #, elixir-autogen, elixir-format
 msgid "Download the script to the computer the check will run from:"
 msgstr "Laadi skript alla arvutisse, kust kontroll käivitub:"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:299
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:311
 #, elixir-autogen, elixir-format
 msgid "Empty: the reverse DNS name of the runner's IP address; when it has none or the site sees a local address, the computer's own host name (in the \"this server\" mode, the name of this server)."
 msgstr ""
@@ -3603,85 +3607,85 @@ msgstr ""
 "kohalikku aadressi, arvuti enda hostinimi (režiimis „See server“ selle "
 "serveri nimi)."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:276
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:288
 #, elixir-autogen, elixir-format
 msgid "Empty: the sender address of the site is used."
 msgstr "Tühi: kasutatakse saidi saatja aadressi."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:83
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:378
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:85
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:437
 #, elixir-autogen, elixir-format
 msgid "Enable the machine API"
 msgstr "Lülita masin-API sisse"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:364
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:423
 #, elixir-autogen, elixir-format
 msgid "Enable the machine API?"
 msgstr "Lülita masin-API sisse?"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:424
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:427
 #, elixir-autogen, elixir-format
 msgid "Failed sessions that pause the runner"
 msgstr "Ebaõnnestunud sessioone, mis panevad töötaja pausile"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:476
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:586
 #, elixir-autogen, elixir-format
 msgid "Failed to save the mode"
 msgstr "Režiimi salvestamine ebaõnnestus"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:415
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:418
 #, elixir-autogen, elixir-format
 msgid "Greylist attempts"
 msgstr "Greylist-i katseid"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:414
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:417
 #, elixir-autogen, elixir-format
 msgid "Greylist retry, min"
 msgstr "Greylist-i kordus, min"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:291
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:303
 #, elixir-autogen, elixir-format
 msgid "HELO name"
 msgstr "HELO nimi"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:470
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:554
 #, elixir-autogen, elixir-format
 msgid "I have copied the token"
 msgstr "Olen loa kopeerinud"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:279
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:291
 #, elixir-autogen, elixir-format
 msgid "In use: %{address} (set here)."
 msgstr "Kasutusel: %{address} (määratud siin)."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:281
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:293
 #, elixir-autogen, elixir-format
 msgid "In use: %{address} (the sender address of the site)."
 msgstr "Kasutusel: %{address} (saidi saatja aadress)."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:206
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:208
 #, elixir-autogen, elixir-format
 msgid "Issue a new token"
 msgstr "Väljasta uus luba"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:202
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:204
 #, elixir-autogen, elixir-format
 msgid "Issue a new token? The current token of the runner stops working."
 msgstr "Väljastada uus luba? Töötaja praegune luba lakkab töötamast."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:441
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:444
 #, elixir-autogen, elixir-format
 msgid "Letters, digits, hyphens and dots only (or an address like [203.0.113.9])."
 msgstr ""
 "Ainult tähed, numbrid, sidekriipsud ja punktid (või aadress kujul "
 "[203.0.113.9])."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:417
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:420
 #, elixir-autogen, elixir-format
 msgid "Lost sessions before giving up"
 msgstr "Kaotatud sessioone enne loobumist"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:7
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:9
 #, elixir-autogen, elixir-format
 msgid "Mailbox check"
 msgstr "Postkasti kontroll"
@@ -3691,263 +3695,263 @@ msgstr "Postkasti kontroll"
 msgid "Mailbox verification (SMTP)"
 msgstr "Postkasti kontroll (SMTP)"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:619
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:640
 #, elixir-autogen, elixir-format
 msgid "Mailbox verification by SMTP is off"
 msgstr "Postkasti kontroll SMTP kaudu on välja lülitatud"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:623
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:644
 #, elixir-autogen, elixir-format
 msgid "Mailbox verification by SMTP is off; %{n} addresses that were waiting for it were settled without it"
 msgstr ""
 "Postkasti kontroll SMTP kaudu on välja lülitatud; %{n} ootavat aadressi "
 "lahendati ilma selleta"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:629
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:650
 #, elixir-autogen, elixir-format
 msgid "Mailbox verification will run from this server"
 msgstr "Postkasti kontroll käib sellelt serverilt"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:632
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:653
 #, elixir-autogen, elixir-format
 msgid "Mailbox verification will run through the runner"
 msgstr "Postkasti kontroll käib töötaja kaudu"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:436
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:439
 #, elixir-autogen, elixir-format
 msgid "Not a usable sender address (an address on example.com or localhost does not count)."
 msgstr ""
 "Sobimatu saatja aadress (aadress domeenil example.com või localhost ei "
 "kõlba)."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:288
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:291
 #, elixir-autogen, elixir-format
 msgid "Not connected yet"
 msgstr "Pole veel ühendatud"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:18
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:20
 #, elixir-autogen, elixir-format
 msgid "Off — the domain only (the result is \"Domain OK, no SMTP\")"
 msgstr "Väljas — ainult domeen (tulemus „Domeen OK, ilma SMTP-ta“)"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:413
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:416
 #, elixir-autogen, elixir-format
 msgid "Pause between sessions to a domain, s"
 msgstr "Paus domeeni sessioonide vahel, s"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:272
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:119
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:275
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:121
 #, elixir-autogen, elixir-format
 msgid "Paused: %{reason}"
 msgstr "Peatatud: %{reason}"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:139
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:141
 #, elixir-autogen, elixir-format
 msgid "Port 25 is closed on the runner's machine (the provider or a firewall). No mailbox can be checked from there."
 msgstr ""
 "Töötaja arvutis on port 25 suletud (teenusepakkuja või tulemüür). Sealt "
 "ei saa ühtegi postkasti kontrollida."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:342
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:361
 #, elixir-autogen, elixir-format
 msgid "Port 25 self-test host"
 msgstr "Pordi 25 enesetesti host"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:419
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:422
 #, elixir-autogen, elixir-format
 msgid "Read timeout, s"
 msgstr "Lugemise ajalõpp, s"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:129
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:131
 #, elixir-autogen, elixir-format
 msgid "Resume"
 msgstr "Jätka"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:216
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:218
 #, elixir-autogen, elixir-format
 msgid "Revoke"
 msgstr "Tühista"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:214
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:216
 #, elixir-autogen, elixir-format
 msgid "Revoke the token? The runner stops within a minute."
 msgstr "Tühistada luba? Töötaja peatub minuti jooksul."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:47
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:49
 #, elixir-autogen, elixir-format
 msgid "Runner on your computer"
 msgstr "Töötaja teie arvutis"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:426
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:429
 #, elixir-autogen, elixir-format
 msgid "Runner pause, min"
 msgstr "Töötaja paus, min"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:420
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:423
 #, elixir-autogen, elixir-format
 msgid "Runner poll when idle, s"
 msgstr "Töötaja päring jõudeolekus, s"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:268
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:280
 #, elixir-autogen, elixir-format
 msgid "Sender address (MAIL FROM)"
 msgstr "Saatja aadress (MAIL FROM)"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:495
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:497
 #, elixir-autogen, elixir-format
 msgid "Settings saved"
 msgstr "Seaded salvestatud"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:89
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:96
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:105
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:91
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:98
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:107
 #, elixir-autogen, elixir-format
 msgid "Settings → API"
 msgstr "Seaded → API"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:508
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:510
 #, elixir-autogen, elixir-format
 msgid "Some fields are not valid"
 msgstr "Mõned väljad pole korrektsed"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:237
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:239
 #, elixir-autogen, elixir-format
 msgid "Start it in PowerShell, with the token issued here:"
 msgstr "Käivita see PowerShellis siin väljastatud lubaga:"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:645
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:666
 #, elixir-autogen, elixir-format
 msgid "That action is not available."
 msgstr "See toiming pole saadaval."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:94
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:96
 #, elixir-autogen, elixir-format
 msgid "The API of the Emails module is switched off, so the runner cannot connect."
 msgstr ""
 "E-kirjade mooduli API on välja lülitatud, seega töötaja ei saa ühenduda."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:561
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:563
 #, elixir-autogen, elixir-format
 msgid "The machine API could not be switched on"
 msgstr "Masin-API sisselülitamine ebaõnnestus"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:558
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:560
 #, elixir-autogen, elixir-format
 msgid "The machine API is on"
 msgstr "Masin-API on sees"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:73
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:75
 #, elixir-autogen, elixir-format
 msgid "The machine API is switched off, so the runner cannot connect."
 msgstr "Masin-API on välja lülitatud, seega töötaja ei saa ühenduda."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:407
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:466
 #, elixir-autogen, elixir-format
 msgid "The previous token was revoked: there is one runner per site."
 msgstr "Eelmine luba tühistati: saidil on üks töötaja."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:514
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:516
 #, elixir-autogen, elixir-format
 msgid "The runner is no longer paused"
 msgstr "Töötaja pole enam pausil"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:472
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:615
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:582
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:636
 #, elixir-autogen, elixir-format
 msgid "The runner needs the machine API of PhoenixKit 2.63 or newer."
 msgstr "Töötaja vajab PhoenixKit 2.63 või uuema masin-API-t."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:372
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:375
 #, elixir-autogen, elixir-format
 msgid "The runner will stop: the owner of its key, %{who}, is deactivated. Issue a new token."
 msgstr ""
 "Töötaja peatub: tema loa omanik %{who} on deaktiveeritud. Väljasta uus "
 "luba."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:379
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:382
 #, elixir-autogen, elixir-format
 msgid "The runner will stop: the owner of its key, %{who}, no longer has the \"emails\" permission. Issue a new token."
 msgstr ""
 "Töötaja peatub: tema loa omanikul %{who} pole enam õigust „emails“. "
 "Väljasta uus luba."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:184
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:186
 #, elixir-autogen, elixir-format
 msgid "The runner works with the key of %{who}."
 msgstr "Töötaja kasutab kasutaja %{who} võtit."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:388
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:391
 #, elixir-autogen, elixir-format
 msgid "The runner's token has expired, so the runner has stopped. Issue a new token."
 msgstr "Töötaja luba on aegunud, seega töötaja on peatunud. Väljasta uus luba."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:385
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:388
 #, elixir-autogen, elixir-format
 msgid "The runner's token was revoked, so the runner has stopped. Issue a new token."
 msgstr "Töötaja luba tühistati, seega töötaja on peatunud. Väljasta uus luba."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:445
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:449
 #, elixir-autogen, elixir-format
 msgid "The settings could not be saved."
 msgstr "Seadeid ei saanud salvestada."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:245
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:257
 #, elixir-autogen, elixir-format
 msgid "The status above turns to \"Online\"."
 msgstr "Ülaltoodud olek muutub olekuks „Võrgus“."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:638
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:659
 #, elixir-autogen, elixir-format
 msgid "The token belongs to another admin and was not revoked. Revoke it in Settings → API."
 msgstr ""
 "Luba kuulub teisele administraatorile ja seda ei tühistatud. Tühista see "
 "jaotises Seaded → API."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:617
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:638
 #, elixir-autogen, elixir-format
 msgid "The token could not be issued"
 msgstr "Luba ei saanud väljastada"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:536
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:538
 #, elixir-autogen, elixir-format
 msgid "The token could not be revoked"
 msgstr "Luba ei saanud tühistada"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:400
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:459
 #, elixir-autogen, elixir-format
 msgid "The token is shown once. If it is lost, issue a new one."
 msgstr "Luba kuvatakse ainult ühe korra. Kui see kaob, väljasta uus."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:157
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:159
 #, elixir-autogen, elixir-format
 msgid "There is no usable sender address, so the runner starts no sessions. Set the sender in this card or in the settings of this page."
 msgstr ""
 "Kasutatavat saatja aadressi pole, seega töötaja ei alusta sessioone. "
 "Määra saatja selles kaardis või selle lehe seadetes."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:283
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:295
 #, elixir-autogen, elixir-format
 msgid "There is no usable sender address; no session can start."
 msgstr "Kasutatavat saatja aadressi pole; ükski sessioon ei saa alata."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:530
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:532
 #, elixir-autogen, elixir-format
 msgid "There was no active token to revoke"
 msgstr "Tühistatavat aktiivset luba polnud"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:101
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:103
 #, elixir-autogen, elixir-format
 msgid "These runner tools are hidden, so the runner cannot work: %{names}."
 msgstr ""
 "Need töötaja tööriistad on peidetud, seega töötaja ei saa töötada: "
 "%{names}."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:29
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:31
 #, elixir-autogen, elixir-format
 msgid "This server — connections go from the site's IP address"
 msgstr "See server — ühendused lähevad saidi IP-aadressilt"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:368
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:427
 #, elixir-autogen, elixir-format
 msgid "This switches on the admin API (/api/admin/v1) of the whole site: any API key with a suitable scope can call it. Keys are issued in Settings → API; the token issued here can only fetch and report SMTP verification jobs."
 msgstr ""
@@ -3956,202 +3960,204 @@ msgstr ""
 "API; siin väljastatud luba saab ainult tuua ja teatada SMTP kontrolli "
 "ülesandeid."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:67
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:69
 #, elixir-autogen, elixir-format
 msgid "This version of PhoenixKit has no machine API, so no runner can connect. Update PhoenixKit to 2.63 or newer."
 msgstr ""
 "Selles PhoenixKit-i versioonis pole masin-API-t, seega ükski töötaja ei "
 "saa ühenduda. Uuenda PhoenixKit versioonile 2.63 või uuemale."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:50
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:52
 #, elixir-autogen, elixir-format
 msgid "This version of PhoenixKit has no machine API. The runner needs PhoenixKit 2.63 or newer."
 msgstr ""
 "Selles PhoenixKit-i versioonis pole masin-API-t. Töötaja vajab PhoenixKit "
 "2.63 või uuemat."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:416
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:419
 #, elixir-autogen, elixir-format
 msgid "Time to finish a session, s"
 msgstr "Aeg sessiooni lõpetamiseks, s"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:241
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:253
 #, elixir-autogen, elixir-format
 msgid "To start it with the computer, add -Install (a Task Scheduler job; the token is kept encrypted)."
 msgstr ""
 "Arvutiga koos käivitamiseks lisa -Install (Task Scheduleri ülesanne; luba "
 "hoitakse krüpteeritult)."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:417
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:476
 #, elixir-autogen, elixir-format
 msgid "Token"
 msgstr "Luba"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:634
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:655
 #, elixir-autogen, elixir-format
 msgid "Token revoked"
 msgstr "Luba tühistatud"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:643
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:664
 #, elixir-autogen, elixir-format
 msgid "Token revoked; %{left} more belong to other admins and still work"
 msgstr ""
 "Luba tühistatud; veel %{left} kuulub teistele administraatoritele ja "
 "töötab endiselt"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:422
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:425
 #, elixir-autogen, elixir-format
 msgid "Window for those blocks, min"
 msgstr "Nende blokeeringute aken, min"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:658
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:679
 #, elixir-autogen, elixir-format
 msgid "You are not allowed to do that."
 msgstr "Sul pole selleks õigust."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:86
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:88
 #, elixir-autogen, elixir-format
 msgid "You need the API permission for this."
 msgstr "Selleks on vaja API õigust."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:606
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:219
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:627
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:221
 #, elixir-autogen, elixir-format
 msgid "You need the API permission to issue a token."
 msgstr "Loa väljastamiseks on vaja API õigust."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:222
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:224
 #, elixir-autogen, elixir-format
 msgid "Your account cannot be read here. Issue a key with the scope emails.smtp_runner:run in Settings → API."
 msgstr ""
 "Sinu kontot ei saa siin lugeda. Väljasta võti skoobiga "
 "emails.smtp_runner:run jaotises Seaded → API."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:610
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:631
 #, elixir-autogen, elixir-format
 msgid "Your account cannot hold the runner token: it needs the \"emails\" permission, and the runner tools must not be hidden in Settings → API."
 msgstr ""
 "Sinu konto ei saa töötaja luba hoida: vaja on õigust „emails“ ning "
 "töötaja tööriistad ei tohi jaotises Seaded → API peidetud olla."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:294
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:297
 #, elixir-autogen, elixir-format
 msgid "answered %{ago}"
 msgstr "vastas %{ago}"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:293
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:344
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:305
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:363
 #, elixir-autogen, elixir-format
 msgid "automatic"
 msgstr "automaatne"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:305
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:308
 #, elixir-autogen, elixir-format
 msgid "last seen %{at}"
 msgstr "viimati nähtud %{at}"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:276
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:279
 #, elixir-autogen, elixir-format
 msgid "no reason recorded"
 msgstr "põhjus puudub"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:342
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:345
 #, elixir-autogen, elixir-format
 msgid "port 25 closed"
 msgstr "port 25 suletud"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:341
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:344
 #, elixir-autogen, elixir-format
 msgid "port 25 open"
 msgstr "port 25 avatud"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:304
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:307
 #, elixir-autogen, elixir-format
 msgctxt "smtp runner status"
 msgid "Offline"
 msgstr "Võrguta"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:293
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:296
 #, elixir-autogen, elixir-format
 msgctxt "smtp runner status"
 msgid "Online"
 msgstr "Võrgus"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:314
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:317
 #, elixir-autogen, elixir-format
 msgid "Not started yet"
 msgstr "Pole veel käivitunud"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:148
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:150
 #, elixir-autogen, elixir-format
 msgid "Port 25 is closed on this server (the host or a firewall). No mailbox can be checked from here; the server looks again every ten minutes."
 msgstr ""
 "Port 25 on sellel serveril suletud (majutaja või tulemüür). Siit ei saa "
 "ühtegi postkasti kontrollida; server vaatab uuesti iga kümne minuti järel."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:174
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:176
 #, elixir-autogen, elixir-format
 msgid "The checks run on this server (%{host}) and go out from its IP address, with the EHLO name %{helo}."
 msgstr ""
 "Kontrollid jooksevad sellel serveril (%{host}) ja lähevad selle "
 "IP-aadressilt, EHLO nimi on %{helo}."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:166
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:168
 #, elixir-autogen, elixir-format
 msgid "There is no usable sender address, so the server starts no sessions. Set the sender below or in the settings of this page."
 msgstr ""
 "Kasutatavat saatja aadressi pole, seega server ei alusta sessioone. "
 "Määrake saatja allpool või selle lehe seadetes."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:330
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:333
 #, elixir-autogen, elixir-format
 msgid "last cycle %{at}"
 msgstr "viimane tsükkel %{at}"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:329
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:332
 #, elixir-autogen, elixir-format
 msgctxt "smtp local runner status"
 msgid "Not responding"
 msgstr "Ei vasta"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:338
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:341
 #, elixir-autogen, elixir-format
 msgctxt "smtp local runner status"
 msgid "Ready"
 msgstr "Valmis"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:339
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:342
 #, elixir-autogen, elixir-format
 msgctxt "smtp local runner status"
 msgid "Working"
 msgstr "Töötab"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:366
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:383
 #, elixir-autogen, elixir-format
 msgid "Check mailboxes from this server?"
 msgstr "Kas kontrollida postkaste sellest serverist?"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:372
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:388
 #, elixir-autogen, elixir-format
 msgid "The connections to other mail hosts will go out from the IP address of the server this site runs on."
 msgstr "Ühendused teiste meiliserveritega tehakse selle saidi serveri IP-aadressilt."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:382
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:398
 #, elixir-autogen, elixir-format
 msgid "On switching, the server tests whether its port 25 is open; if it is closed, no mailbox can be checked from here."
 msgstr "Ümberlülitamisel kontrollib server, kas selle port 25 on avatud; kui see on suletud, ei saa siit ühtegi postkasti kontrollida."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:392
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:409
 #, elixir-autogen, elixir-format
 msgid "Switch to this server"
 msgstr "Lülita sellele serverile"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:239
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:243
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:525
 #, elixir-autogen, elixir-format
 msgid "Or pass the token on the command line (it can then be seen in the process list):"
 msgstr "Või anna token käsureal (siis on see protsesside loendis näha):"
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:247
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:547
 #, elixir-autogen, elixir-format
 msgid "A command typed in the console may be kept in the console history (older PowerShell versions save every line). Where that matters, run the script without a token and type it at the hidden prompt, or use -TokenFile."
 msgstr "Konsoolis sisestatud käsk võib jääda konsooli ajalukku (vanemad PowerShelli versioonid salvestavad iga rea). Kui see on oluline, käivita skript ilma tokenita ja sisesta see peidetud küsimuses või kasuta -TokenFile."
@@ -4161,7 +4167,42 @@ msgstr "Konsoolis sisestatud käsk võib jääda konsooli ajalukku (vanemad Powe
 msgid "At least %{min}."
 msgstr "Vähemalt %{min}."
 
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:333
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:338
 #, elixir-autogen, elixir-format
 msgid "A session can run up to %{limit} s, so the time to finish a session cannot be below %{floor} s."
 msgstr "Seanss võib kesta kuni %{limit} s, seega ei saa seansi lõpetamise aeg olla lühem kui %{floor} s."
+
+#: lib/phoenix_kit/modules/emails/web/source_badges.ex:81
+#, elixir-autogen, elixir-format
+msgid "Database template"
+msgstr "Andmebaasi mall"
+
+#: lib/phoenix_kit/modules/emails/web/source_badges.ex:82
+#, elixir-autogen, elixir-format
+msgid "File override"
+msgstr "Failipõhine ülekirjutus"
+
+#: lib/phoenix_kit/modules/emails/web/source_badges.ex:83
+#, elixir-autogen, elixir-format
+msgid "Module default"
+msgstr "Mooduli vaikimisi mall"
+
+#: lib/phoenix_kit/modules/emails/web/source_badges.ex:71
+#, elixir-autogen, elixir-format
+msgid "Open template"
+msgstr "Ava mall"
+
+#: lib/phoenix_kit/modules/emails/web/source_badges.ex:89
+#, elixir-autogen, elixir-format
+msgid "This message was built from a file override supplied by the host."
+msgstr "Kiri on koostatud hosti failipõhisest ülekirjutusest."
+
+#: lib/phoenix_kit/modules/emails/web/source_badges.ex:86
+#, elixir-autogen, elixir-format
+msgid "This message was built from a template stored in the database."
+msgstr "Kiri on koostatud andmebaasis hoitavast mallist."
+
+#: lib/phoenix_kit/modules/emails/web/source_badges.ex:92
+#, elixir-autogen, elixir-format
+msgid "This message was built from the default shipped by core or a module."
+msgstr "Kiri on koostatud tuuma või mooduli vaikimisi sisust."

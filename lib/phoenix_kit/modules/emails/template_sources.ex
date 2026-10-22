@@ -70,6 +70,27 @@ defmodule PhoenixKit.Modules.Emails.TemplateSources do
 
   def layers(_template, _sources), do: []
 
+  @doc """
+  The layer that built a message, for the log: `"db"`, `"file"` or `"module"`,
+  `nil` for a message sent without a template name.
+
+  Core names the row (`template_uuid`) only when an active database row was
+  used, and says nothing of the other two, so: a uuid means the row; else a
+  file override for the name means the file; else the default (core's, a
+  module's or the caller's own). `sources` is a `load/1` result, read here when
+  not given.
+  """
+  @spec origin(String.t() | nil, String.t() | nil, t() | nil) :: String.t() | nil
+  def origin(template_name, template_uuid, sources \\ nil)
+
+  def origin(name, _uuid, _sources) when not is_binary(name) or name == "", do: nil
+  def origin(_name, uuid, _sources) when is_binary(uuid) and uuid != "", do: "db"
+
+  def origin(name, _uuid, sources) do
+    %{overrides: overrides} = sources || load()
+    if name in overrides, do: "file", else: "module"
+  end
+
   defp load_overrides(opts) do
     overrides = Keyword.get(opts, :overrides, PhoenixKit.Templates.Overrides)
     content = Keyword.get(opts, :content, PhoenixKit.Email.Content)

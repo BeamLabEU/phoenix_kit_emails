@@ -146,6 +146,7 @@ defmodule PhoenixKit.Modules.Emails.Provider do
         email
         |> PhoenixKit.Mailer.deliver_email(
           template_name: template.name,
+          template_uuid: template.uuid,
           user_uuid: user_uuid,
           source_module: "emails",
           skip_queue: true

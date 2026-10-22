@@ -61,6 +61,7 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
   alias PhoenixKit.Modules.Emails.Event
   alias PhoenixKit.Modules.Emails.Log
   alias PhoenixKit.Modules.Emails.SecretScrubber
+  alias PhoenixKit.Modules.Emails.TemplateSources
   alias PhoenixKit.Modules.Emails.Utils
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias Swoosh.Email
@@ -563,6 +564,8 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
     opts = enrich_send_opts(opts)
 
     user_uuid = Keyword.get(opts, :user_uuid)
+    template_name = Keyword.get(opts, :template_name)
+    template_uuid = Keyword.get(opts, :template_uuid)
     integration_uuid = Keyword.get(opts, :integration_uuid)
     configuration_set = Keyword.get(opts, :configuration_set)
 
@@ -576,7 +579,9 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
       body_full: extract_body_full(email, opts),
       attachments_count: length(email.attachments || []),
       size_bytes: estimate_email_size(email),
-      template_name: Keyword.get(opts, :template_name),
+      template_name: template_name,
+      template_uuid: template_uuid,
+      template_source: template_source(template_name, template_uuid, opts),
       locale: Keyword.get(opts, :locale, "en"),
       campaign_id: Keyword.get(opts, :campaign_id),
       user_uuid: user_uuid,
@@ -585,6 +590,21 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
       configuration_set: configuration_set,
       message_tags: build_message_tags(email, opts)
     }
+  end
+
+  # Core reports the row's uuid and nothing about the other layers; a core that
+  # reports the layer itself (`:template_source`) is believed. Never raises: a
+  # log line is not worth a failed send.
+  defp template_source(template_name, template_uuid, opts) do
+    case Keyword.get(opts, :template_source) do
+      source when source in ["db", "file", "module"] ->
+        source
+
+      _ ->
+        TemplateSources.origin(template_name, template_uuid, Keyword.get(opts, :template_sources))
+    end
+  rescue
+    _ -> nil
   end
 
   # Generate or extract message ID
