@@ -80,7 +80,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SourceBadges do
 
   defp log_label("db"), do: gettext("Database template")
   defp log_label("file"), do: gettext("File override")
-  defp log_label(_module), do: gettext("Module default")
+  defp log_label(_module), do: gettext("Default template")
 
   defp log_message("db"),
     do: gettext("This message was built from a template stored in the database.")
@@ -89,7 +89,10 @@ defmodule PhoenixKit.Modules.Emails.Web.SourceBadges do
     do: gettext("This message was built from a file override supplied by the host.")
 
   defp log_message(_module),
-    do: gettext("This message was built from the default shipped by core or a module.")
+    do:
+      gettext(
+        "This message was built from a default: one shipped by core or a module, or supplied by the host in code."
+      )
 
   defp layers(template, %{overrides: _, defaults: _} = sources),
     do: TemplateSources.layers(template, sources)

@@ -8,15 +8,39 @@ defmodule PhoenixKit.Modules.Emails.LogTemplateSourceTest do
 
   use PhoenixKitEmails.DataCase, async: false
 
-  import Phoenix.LiveViewTest, only: [render_component: 2]
-  import Swoosh.Email
+  import Ecto.Query, only: [from: 2]
+  import Phoenix.LiveViewTest, only: [render_component: 2, rendered_to_string: 1]
+  import Swoosh.Email, except: [from: 2]
 
   alias PhoenixKit.Modules.Emails
+  alias PhoenixKit.Modules.Emails.ApplicationIntegration
   alias PhoenixKit.Modules.Emails.Interceptor
   alias PhoenixKit.Modules.Emails.Log
+  alias PhoenixKit.Modules.Emails.Provider
+  alias PhoenixKit.Modules.Emails.Template
+  alias PhoenixKit.Modules.Emails.Templates
   alias PhoenixKit.Modules.Emails.TemplateSources
+  alias PhoenixKit.Modules.Emails.Web.Details
   alias PhoenixKit.Modules.Emails.Web.SourceBadges
+  alias PhoenixKit.Templates.Overrides
   alias PhoenixKitEmails.Test.Repo
+
+  defmodule FakeCatalog do
+    def entries do
+      [
+        %{name: "module_mail", defaults: %{text: "Hello"}},
+        %{name: "no_defaults_mail", defaults: %{}}
+      ]
+    end
+  end
+
+  defmodule BrokenCatalog do
+    def entries, do: raise("a catalog entry blew up")
+  end
+
+  defmodule BrokenLocate do
+    def locate(_roots, _name, _part, _locale), do: raise("unreadable root")
+  end
 
   setup do
     {:ok, _} = Emails.enable_system()
@@ -26,7 +50,7 @@ defmodule PhoenixKit.Modules.Emails.LogTemplateSourceTest do
   defp email do
     new()
     |> to("recipient@example.com")
-    |> from("sender@example.com")
+    |> Swoosh.Email.from("sender@example.com")
     |> subject("Hello")
     |> text_body("Hi")
   end
@@ -36,56 +60,166 @@ defmodule PhoenixKit.Modules.Emails.LogTemplateSourceTest do
     Repo.reload!(log)
   end
 
-  @sources %{overrides: ["file_mail"], defaults: %{"module_mail" => nil, "file_mail" => nil}}
+  defp row(name, status \\ "active") do
+    n = System.unique_integer([:positive])
+
+    {:ok, template} =
+      Templates.create_template(%{
+        name: name,
+        slug: "slug-#{n}",
+        display_name: %{"en" => "Row #{n}"},
+        subject: %{"en" => "Subject"},
+        html_body: %{"en" => "<p>Hi</p>"},
+        text_body: %{"en" => "Hi"},
+        category: "transactional",
+        status: status
+      })
+
+    template
+  end
+
+  defp unique(prefix), do: "#{prefix}_#{System.unique_integer([:positive])}"
+
+  # Override files for `name`, in a root core's `override_paths/0` will return.
+  defp with_root(tmp_dir) do
+    previous = Application.get_env(:phoenix_kit, :template_paths)
+    Application.put_env(:phoenix_kit, :template_paths, [tmp_dir])
+    Overrides.reset_cache([tmp_dir])
+
+    on_exit(fn ->
+      if previous,
+        do: Application.put_env(:phoenix_kit, :template_paths, previous),
+        else: Application.delete_env(:phoenix_kit, :template_paths)
+
+      Overrides.reset_cache([tmp_dir])
+    end)
+
+    tmp_dir
+  end
+
+  defp write_file(root, name, locale, text \\ "From a file") do
+    {:ok, _} = Overrides.write(root, name, :text, locale, text)
+    :ok
+  end
 
   describe "TemplateSources.origin/3" do
-    test "a uuid means a database row, whatever else exists for the name" do
-      assert TemplateSources.origin("file_mail", Ecto.UUID.generate(), @sources) == "db"
+    test "a valid uuid is the row, whatever else exists for the name" do
+      uuid = Ecto.UUID.generate()
+      assert TemplateSources.origin(unique("any"), uuid) == {"db", uuid}
     end
 
-    test "no uuid and a file override for the name means the file" do
-      assert TemplateSources.origin("file_mail", nil, @sources) == "file"
+    test "an active row with the name is the row, with its uuid" do
+      template = row(unique("row_mail"))
+      assert TemplateSources.origin(template.name, nil) == {"db", template.uuid}
     end
 
-    test "no uuid and no override means the module default" do
-      assert TemplateSources.origin("module_mail", nil, @sources) == "module"
-      assert TemplateSources.origin("caller_default_mail", nil, @sources) == "module"
+    test "a draft row is not what a send used" do
+      template = row(unique("draft_mail"), "draft")
+      assert TemplateSources.origin(template.name, nil, roots: []) == {nil, nil}
     end
 
-    test "a message without a template has no source" do
-      assert TemplateSources.origin(nil, nil, @sources) == nil
-      assert TemplateSources.origin("", nil, @sources) == nil
+    @tag :tmp_dir
+    test "a file counts only for the locale it was found for", %{tmp_dir: tmp_dir} do
+      name = unique("file_mail")
+      write_file(tmp_dir, name, "ru")
+
+      assert TemplateSources.origin(name, nil, roots: [tmp_dir], locale: "ru") == {"file", nil}
+      assert TemplateSources.origin(name, nil, roots: [tmp_dir], locale: "en") == {nil, nil}
+    end
+
+    @tag :tmp_dir
+    test "a locale-less file serves every locale", %{tmp_dir: tmp_dir} do
+      name = unique("file_mail")
+      write_file(tmp_dir, name, nil)
+
+      assert TemplateSources.origin(name, nil, roots: [tmp_dir], locale: "et") == {"file", nil}
+    end
+
+    @tag :tmp_dir
+    test "an empty file is no file", %{tmp_dir: tmp_dir} do
+      name = unique("file_mail")
+      write_file(tmp_dir, name, nil, "  \n")
+
+      assert TemplateSources.origin(name, nil, roots: [tmp_dir]) == {nil, nil}
+    end
+
+    test "a name in the catalog of defaults is the module's" do
+      assert TemplateSources.origin("module_mail", nil, roots: [], catalog: FakeCatalog) ==
+               {"module", nil}
+    end
+
+    test "a name nothing resolves has no source" do
+      assert TemplateSources.origin("unknown_mail", nil, roots: [], catalog: FakeCatalog) ==
+               {nil, nil}
+
+      assert TemplateSources.origin("no_defaults_mail", nil, roots: [], catalog: FakeCatalog) ==
+               {nil, nil}
+    end
+
+    test "no name, no source" do
+      assert TemplateSources.origin(nil, nil) == {nil, nil}
+      assert TemplateSources.origin("", nil) == {nil, nil}
+      assert TemplateSources.origin(123, nil) == {nil, nil}
+    end
+
+    test "a source that blows up answers nothing instead of raising" do
+      assert TemplateSources.origin("x_mail", nil, roots: [], catalog: BrokenCatalog) ==
+               {nil, nil}
+
+      assert TemplateSources.origin("x_mail", nil, roots: ["/"], overrides: BrokenLocate) ==
+               {nil, nil}
     end
   end
 
   describe "the interceptor stamps the log" do
-    test "an active row: template_uuid and source db" do
+    test "an active row named by uuid: db" do
       uuid = Ecto.UUID.generate()
-      log = log_for(template_name: "row_mail", template_uuid: uuid, template_sources: @sources)
+      log = log_for(template_name: "row_mail", template_uuid: uuid)
 
       assert log.template_name == "row_mail"
       assert log.template_uuid == uuid
       assert log.template_source == "db"
     end
 
-    test "a host file override: source file, no uuid" do
-      log = log_for(template_name: "file_mail", template_sources: @sources)
+    test "a notification that resolved a row but passed no uuid is still db" do
+      template = row(unique("magic_like"))
+      log = log_for(template_name: template.name)
+
+      assert log.template_uuid == template.uuid
+      assert log.template_source == "db"
+    end
+
+    @tag :tmp_dir
+    test "a host file override: file, no uuid", %{tmp_dir: tmp_dir} do
+      name = unique("file_mail")
+      write_file(with_root(tmp_dir), name, nil)
+      log = log_for(template_name: name)
 
       assert log.template_uuid == nil
       assert log.template_source == "file"
     end
 
-    test "the module default: source module, no uuid" do
-      log = log_for(template_name: "module_mail", template_sources: @sources)
+    @tag :tmp_dir
+    test "a file for another locale than the message's is not file", %{tmp_dir: tmp_dir} do
+      name = unique("file_mail")
+      write_file(with_root(tmp_dir), name, "ru")
+
+      assert log_for(template_name: name, locale: "en").template_source == nil
+      assert log_for(template_name: name, locale: "ru").template_source == "file"
+    end
+
+    test "a default shipped by core: module, no uuid" do
+      log = log_for(template_name: "magic_link")
 
       assert log.template_uuid == nil
       assert log.template_source == "module"
     end
 
-    test "the module default also when the layers are read from core" do
-      log = log_for(template_name: "no_such_mail_#{System.unique_integer([:positive])}")
+    test "a name nothing resolves has no source" do
+      log = log_for(template_name: unique("no_such_mail"))
 
-      assert log.template_source == "module"
+      assert log.template_name != nil
+      assert log.template_source == nil
     end
 
     test "no template: both stay nil" do
@@ -96,22 +230,25 @@ defmodule PhoenixKit.Modules.Emails.LogTemplateSourceTest do
       assert log.template_source == nil
     end
 
-    test "a source named by the caller (a core that reports the layer) wins" do
-      log =
-        log_for(template_name: "module_mail", template_source: "file", template_sources: @sources)
+    test "a layer named by the caller wins, and nil means none" do
+      assert log_for(template_name: "magic_link", template_source: "file").template_source ==
+               "file"
 
-      assert log.template_source == "file"
+      assert log_for(template_name: "magic_link", template_source: nil).template_source == nil
     end
 
     test "an unknown source from the caller is ignored" do
-      log =
-        log_for(
-          template_name: "module_mail",
-          template_source: "bogus",
-          template_sources: @sources
-        )
+      assert log_for(template_name: "magic_link", template_source: "bogus").template_source ==
+               "module"
+    end
 
-      assert log.template_source == "module"
+    test "a malformed template_uuid is dropped and the log is still written" do
+      for bad <- ["not-a-uuid", 123, ""] do
+        log = log_for(template_name: "magic_link", template_uuid: bad)
+
+        assert log.template_uuid == nil
+        assert log.template_source == "module"
+      end
     end
 
     test "the changeset refuses a source that is not one of the three" do
@@ -127,11 +264,97 @@ defmodule PhoenixKit.Modules.Emails.LogTemplateSourceTest do
     end
   end
 
+  describe "the senders that know their layer say so" do
+    defp test_send_log do
+      previous = Application.get_env(:phoenix_kit, PhoenixKit.Mailer)
+      previous_provider = Application.get_env(:phoenix_kit, :email_provider)
+      Application.put_env(:phoenix_kit, PhoenixKit.Mailer, adapter: Swoosh.Adapters.Test)
+      ApplicationIntegration.register()
+
+      on_exit(fn ->
+        if previous,
+          do: Application.put_env(:phoenix_kit, PhoenixKit.Mailer, previous),
+          else: Application.delete_env(:phoenix_kit, PhoenixKit.Mailer)
+
+        if previous_provider,
+          do: Application.put_env(:phoenix_kit, :email_provider, previous_provider),
+          else: Application.delete_env(:phoenix_kit, :email_provider)
+      end)
+
+      _ = Provider.send_test_tracking_email("recipient@example.com", nil)
+      Repo.one!(from(l in Log, where: l.template_name == "test_email"))
+    end
+
+    test "the admin test send of a stored template is db with its uuid" do
+      Templates.seed_system_templates()
+      template = Templates.get_active_template_by_name("test_email")
+      assert template
+
+      log = test_send_log()
+      assert log.template_source == "db"
+      assert log.template_uuid == template.uuid
+    end
+
+    test "the built-in fallback body of the test send has no layer" do
+      Repo.delete_all(from(t in Template, where: t.name == "test_email"))
+
+      log = test_send_log()
+      assert log.template_source == nil
+      assert log.template_uuid == nil
+    end
+  end
+
+  describe "the details page" do
+    defp bare_socket do
+      %Phoenix.LiveView.Socket{
+        assigns: %{__changed__: %{}, flash: %{}},
+        private: %{live_temp: %{}}
+      }
+    end
+
+    defp details_html(log) do
+      {:ok, socket} = Details.mount(%{"id" => log.uuid}, %{}, bare_socket())
+
+      assigns =
+        Map.merge(socket.assigns, %{
+          phoenix_kit_current_scope: nil,
+          current_locale: "en",
+          url_path: "/admin/emails/#{log.uuid}"
+        })
+
+      assigns |> Details.render() |> rendered_to_string()
+    end
+
+    test "a log built from a stored row shows the badge and a link to it" do
+      template = row(unique("details_row"))
+      log = log_for(template_name: template.name)
+      html = details_html(log)
+
+      assert html =~ "Database template"
+      assert html =~ "/admin/emails/templates/#{template.uuid}/edit"
+    end
+
+    test "the link is gone with the row" do
+      template = row(unique("details_row"))
+      log = log_for(template_name: template.name)
+      Repo.delete!(template)
+      html = details_html(log)
+
+      assert html =~ "Database template"
+      refute html =~ "/edit"
+    end
+
+    test "a default shows its own badge" do
+      assert details_html(log_for(template_name: "magic_link")) =~ "Default template"
+    end
+  end
+
   describe "the details badge" do
     defp badge(attrs) do
       render_component(
         &SourceBadges.log_source/1,
-        Keyword.merge([log: struct(Log, attrs), template_exists?: false], [])
+        log: struct(Log, attrs),
+        template_exists?: false
       )
     end
 
@@ -162,7 +385,7 @@ defmodule PhoenixKit.Modules.Emails.LogTemplateSourceTest do
 
     test "file and module get their own badge and no link" do
       assert badge(template_name: "x", template_source: "file") =~ "File override"
-      assert badge(template_name: "x", template_source: "module") =~ "Module default"
+      assert badge(template_name: "x", template_source: "module") =~ "Default template"
       refute badge(template_name: "x", template_source: "file") =~ "<a "
     end
 
