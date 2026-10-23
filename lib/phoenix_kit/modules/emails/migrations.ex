@@ -163,8 +163,9 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
   Two nullable columns on `phoenix_kit_email_logs` (#48): `template_uuid` (the
   database row the message was built from) and `template_source` (`"db"`,
   `"file"` or `"module"`; `NULL` for a message without a template). Core
-  resolves `active row -> host file override -> module default` and tells the
-  send path only the row's uuid, so the layer is derived in
+  resolves `active row -> host file override -> module default`, but its
+  `send_from_template` passes only the row's uuid and the notification mails
+  pass no layer at all, so the layer is derived in
   `PhoenixKit.Modules.Emails.TemplateSources.origin/3`.
 
   Nullable, no default, no foreign key: older rows genuinely have no known layer

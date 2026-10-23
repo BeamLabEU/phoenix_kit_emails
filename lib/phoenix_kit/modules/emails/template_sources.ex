@@ -119,7 +119,7 @@ defmodule PhoenixKit.Modules.Emails.TemplateSources do
 
   @doc "A well-formed uuid string, or `nil` (a log must not fail over a bad one)."
   @spec cast_uuid(term()) :: String.t() | nil
-  def cast_uuid(uuid) when is_binary(uuid) do
+  def cast_uuid(uuid) when is_binary(uuid) and byte_size(uuid) == 36 do
     case Ecto.UUID.cast(uuid) do
       {:ok, uuid} -> uuid
       :error -> nil

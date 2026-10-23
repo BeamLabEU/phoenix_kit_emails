@@ -2,8 +2,9 @@ defmodule PhoenixKit.Modules.Emails.LogTemplateSourceTest do
   @moduledoc """
   The log remembers which layer built the message (#48): `template_uuid` and
   `template_source` (`"db"` / `"file"` / `"module"`, `nil` without a template).
-  Core hands the send path `:template_name` always and `:template_uuid` only
-  when an active database row was used, so the layer is derived here.
+  Core's `send_from_template` passes `:template_uuid` when an active database
+  row was used; the notification mails pass only `:template_name`, so the layer
+  is derived here from direct evidence.
   """
 
   use PhoenixKitEmails.DataCase, async: false
@@ -22,6 +23,7 @@ defmodule PhoenixKit.Modules.Emails.LogTemplateSourceTest do
   alias PhoenixKit.Modules.Emails.TemplateSources
   alias PhoenixKit.Modules.Emails.Web.Details
   alias PhoenixKit.Modules.Emails.Web.SourceBadges
+  alias PhoenixKit.Modules.Emails.Web.TemplateEditor
   alias PhoenixKit.Templates.Overrides
   alias PhoenixKitEmails.Test.Repo
 
@@ -143,6 +145,23 @@ defmodule PhoenixKit.Modules.Emails.LogTemplateSourceTest do
       assert TemplateSources.origin(name, nil, roots: [tmp_dir]) == {nil, nil}
     end
 
+    @tag :tmp_dir
+    test "a row and a file of one name, no uuid: the row wins", %{tmp_dir: tmp_dir} do
+      template = row(unique("both_mail"))
+      write_file(tmp_dir, template.name, nil)
+
+      assert TemplateSources.origin(template.name, nil, roots: [tmp_dir]) ==
+               {"db", template.uuid}
+    end
+
+    @tag :tmp_dir
+    test "a file and a catalog default of one name: the file wins", %{tmp_dir: tmp_dir} do
+      write_file(tmp_dir, "module_mail", nil)
+
+      assert TemplateSources.origin("module_mail", nil, roots: [tmp_dir], catalog: FakeCatalog) ==
+               {"file", nil}
+    end
+
     test "a name in the catalog of defaults is the module's" do
       assert TemplateSources.origin("module_mail", nil, roots: [], catalog: FakeCatalog) ==
                {"module", nil}
@@ -154,6 +173,15 @@ defmodule PhoenixKit.Modules.Emails.LogTemplateSourceTest do
 
       assert TemplateSources.origin("no_defaults_mail", nil, roots: [], catalog: FakeCatalog) ==
                {nil, nil}
+    end
+
+    test "cast_uuid takes only the 36-character form" do
+      uuid = Ecto.UUID.generate()
+      assert TemplateSources.cast_uuid(uuid) == uuid
+      assert TemplateSources.cast_uuid(String.upcase(uuid)) == uuid
+      assert TemplateSources.cast_uuid(Ecto.UUID.dump!(uuid)) == nil
+      assert TemplateSources.cast_uuid("sixteen byte str") == nil
+      assert TemplateSources.cast_uuid(nil) == nil
     end
 
     test "no name, no source" do
@@ -265,7 +293,7 @@ defmodule PhoenixKit.Modules.Emails.LogTemplateSourceTest do
   end
 
   describe "the senders that know their layer say so" do
-    defp test_send_log do
+    defp use_test_mailer do
       previous = Application.get_env(:phoenix_kit, PhoenixKit.Mailer)
       previous_provider = Application.get_env(:phoenix_kit, :email_provider)
       Application.put_env(:phoenix_kit, PhoenixKit.Mailer, adapter: Swoosh.Adapters.Test)
@@ -280,9 +308,44 @@ defmodule PhoenixKit.Modules.Emails.LogTemplateSourceTest do
           do: Application.put_env(:phoenix_kit, :email_provider, previous_provider),
           else: Application.delete_env(:phoenix_kit, :email_provider)
       end)
+    end
 
+    defp test_send_log do
+      use_test_mailer()
       _ = Provider.send_test_tracking_email("recipient@example.com", nil)
       Repo.one!(from(l in Log, where: l.template_name == "test_email"))
+    end
+
+    # The editor's "send test" message, as `handle_event("send_test_email")` posts it.
+    defp editor_send(name, template) do
+      use_test_mailer()
+      # The editor sends from the site's address; the log refuses `noreply@localhost`.
+      {:ok, _} =
+        PhoenixKit.Settings.update_setting_with_module(
+          "from_email",
+          "mail@example.com",
+          "email_system"
+        )
+
+      recipient = "editor-#{System.unique_integer([:positive])}@example.com"
+
+      data = %{
+        name: name,
+        subject: %{"en" => "Subject"},
+        html_body: %{"en" => "<p>Hi</p>"},
+        text_body: %{"en" => "Hi"}
+      }
+
+      socket = %Phoenix.LiveView.Socket{
+        assigns: %{__changed__: %{}, flash: %{}, template: template},
+        private: %{live_temp: %{}}
+      }
+
+      assert {:noreply, updated} =
+               TemplateEditor.handle_info({:send_test_email, recipient, data, %{}, "en"}, socket)
+
+      assert updated.assigns.flash["info"], "the test send did not go out"
+      Repo.one!(from(l in Log, where: l.to == ^recipient))
     end
 
     test "the admin test send of a stored template is db with its uuid" do
@@ -299,6 +362,31 @@ defmodule PhoenixKit.Modules.Emails.LogTemplateSourceTest do
       Repo.delete_all(from(t in Template, where: t.name == "test_email"))
 
       log = test_send_log()
+      assert log.template_source == nil
+      assert log.template_uuid == nil
+    end
+  end
+
+  describe "the template editor's test send" do
+    test "a saved template is db with its uuid" do
+      template = row(unique("editor_mail"))
+      log = editor_send(template.name, template)
+
+      assert log.template_source == "db"
+      assert log.template_uuid == template.uuid
+    end
+
+    test "an unsaved template named like an active row has no layer" do
+      template = row(unique("editor_mail"))
+      log = editor_send(template.name, nil)
+
+      assert log.template_source == nil
+      assert log.template_uuid == nil
+    end
+
+    test "an unsaved template with a fresh name has no layer" do
+      log = editor_send(unique("editor_new"), nil)
+
       assert log.template_source == nil
       assert log.template_uuid == nil
     end
