@@ -46,6 +46,10 @@ defmodule PhoenixKit.Modules.Emails.LogTemplateSourceTest do
 
   setup do
     {:ok, _} = Emails.enable_system()
+    # Every answer here depends on which rows exist, and "magic_link" is used as
+    # "a core default with no row": a row committed to the test database outside
+    # the sandbox would turn it into "db". Rolled back with the sandbox.
+    Repo.delete_all(Template)
     :ok
   end
 
@@ -263,6 +267,44 @@ defmodule PhoenixKit.Modules.Emails.LogTemplateSourceTest do
                "file"
 
       assert log_for(template_name: "magic_link", template_source: nil).template_source == nil
+    end
+
+    test "a file or module layer named by the caller carries no uuid" do
+      log =
+        log_for(
+          template_name: "magic_link",
+          template_uuid: Ecto.UUID.generate(),
+          template_source: "file"
+        )
+
+      assert {log.template_source, log.template_uuid} == {"file", nil}
+    end
+
+    # `UserNotifier.deliver_built/1`: every auth mail is logged as
+    # "user_notification" and the row it used travels in the private map.
+    test "an auth mail carrying its row in the private map is db with that uuid" do
+      template = row(unique("auth_row"))
+
+      {:ok, log} =
+        email()
+        |> put_private(:phoenix_kit_db_template, template)
+        |> Interceptor.create_email_log(template_name: "user_notification")
+
+      log = Repo.reload!(log)
+      assert {log.template_source, log.template_uuid} == {"db", template.uuid}
+    end
+
+    test "an auth mail that built from a file or default has no layer, whatever its name is" do
+      # A row under the logged name is not what built this message.
+      row("user_notification")
+
+      {:ok, log} =
+        email()
+        |> put_private(:phoenix_kit_db_template, nil)
+        |> Interceptor.create_email_log(template_name: "user_notification")
+
+      log = Repo.reload!(log)
+      assert {log.template_source, log.template_uuid} == {nil, nil}
     end
 
     test "an unknown source from the caller is ignored" do

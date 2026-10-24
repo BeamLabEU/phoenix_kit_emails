@@ -604,17 +604,43 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
   # A caller that knows says so with `:template_source`: a valid value is taken
   # as it is, `nil` means "no template layer" and skips the lookup. An
   # unrecognised value is ignored. Never raises: a log line is not worth a
-  # failed send, and a bad uuid is dropped, not stored.
+  # failed send, and a bad uuid is dropped, not stored. Only a row has a uuid,
+  # so `"file"` / `"module"` never carry one.
+  #
+  # Core's auth mails (`UserNotifier.deliver_built/1`) all go out as
+  # `template_name: "user_notification"`, a name nothing resolves, while the
+  # name they were resolved under stays inside core. What they do carry is the
+  # row they used, in the message's private map (`nil` on the file/default
+  # path), and that is direct evidence: with the key present the name is not
+  # looked up at all.
   defp template_origin(%Email{} = email, opts) do
     name = Keyword.get(opts, :template_name)
     uuid = TemplateSources.cast_uuid(Keyword.get(opts, :template_uuid))
 
     case Keyword.fetch(opts, :template_source) do
-      {:ok, source} when source in ["db", "file", "module"] -> {source, uuid}
-      {:ok, nil} -> {nil, nil}
-      _ -> TemplateSources.origin(name, uuid, locale: origin_locale(email, opts))
+      {:ok, "db"} ->
+        {"db", uuid}
+
+      {:ok, source} when source in ["file", "module"] ->
+        {source, nil}
+
+      {:ok, nil} ->
+        {nil, nil}
+
+      _ ->
+        private_origin(email) ||
+          TemplateSources.origin(name, uuid, locale: origin_locale(email, opts))
     end
   end
+
+  defp private_origin(%Email{private: %{phoenix_kit_db_template: template}}) do
+    case template do
+      %{uuid: uuid} -> {"db", TemplateSources.cast_uuid(uuid)}
+      _ -> {nil, nil}
+    end
+  end
+
+  defp private_origin(_email), do: nil
 
   # The locale core resolved the message in: the caller's, else the recipient's.
   defp origin_locale(%Email{} = email, opts) do
