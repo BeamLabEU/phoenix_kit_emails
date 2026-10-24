@@ -61,8 +61,10 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
   alias PhoenixKit.Modules.Emails.Event
   alias PhoenixKit.Modules.Emails.Log
   alias PhoenixKit.Modules.Emails.SecretScrubber
+  alias PhoenixKit.Modules.Emails.TemplateSources
   alias PhoenixKit.Modules.Emails.Utils
   alias PhoenixKit.Utils.Date, as: UtilsDate
+  alias PhoenixKit.Utils.RecipientLocale
   alias Swoosh.Email
 
   @doc """
@@ -75,6 +77,11 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
 
   - `:user_uuid` - Associate with a specific user
   - `:template_name` - Name of the email template
+  - `:template_uuid` - Database row the message was built from (core sets it on
+    `send_from_template`); recorded on the log, and a malformed value is dropped
+  - `:template_source` - `"db"`, `"file"` or `"module"` when the caller knows the
+    layer, `nil` for "no template layer"; when absent the layer is looked up from
+    the name (see `TemplateSources.origin/3`)
   - `:campaign_id` - Campaign identifier for grouping
   - `:provider` - Override provider detection
   - `:configuration_set` - Override AWS SES configuration set
@@ -563,6 +570,8 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
     opts = enrich_send_opts(opts)
 
     user_uuid = Keyword.get(opts, :user_uuid)
+    template_name = Keyword.get(opts, :template_name)
+    {template_source, template_uuid} = template_origin(email, opts)
     integration_uuid = Keyword.get(opts, :integration_uuid)
     configuration_set = Keyword.get(opts, :configuration_set)
 
@@ -576,7 +585,9 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
       body_full: extract_body_full(email, opts),
       attachments_count: length(email.attachments || []),
       size_bytes: estimate_email_size(email),
-      template_name: Keyword.get(opts, :template_name),
+      template_name: template_name,
+      template_uuid: template_uuid,
+      template_source: template_source,
       locale: Keyword.get(opts, :locale, "en"),
       campaign_id: Keyword.get(opts, :campaign_id),
       user_uuid: user_uuid,
@@ -585,6 +596,32 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
       configuration_set: configuration_set,
       message_tags: build_message_tags(email, opts)
     }
+  end
+
+  # Core reports the row's uuid on `send_from_template` only, and never the
+  # layer, so without a direct word from the caller the layer is looked up from
+  # the name (`TemplateSources.origin/3`) and is `nil` when nothing proves it.
+  # A caller that knows says so with `:template_source`: a valid value is taken
+  # as it is, `nil` means "no template layer" and skips the lookup. An
+  # unrecognised value is ignored. Never raises: a log line is not worth a
+  # failed send, and a bad uuid is dropped, not stored.
+  defp template_origin(%Email{} = email, opts) do
+    name = Keyword.get(opts, :template_name)
+    uuid = TemplateSources.cast_uuid(Keyword.get(opts, :template_uuid))
+
+    case Keyword.fetch(opts, :template_source) do
+      {:ok, source} when source in ["db", "file", "module"] -> {source, uuid}
+      {:ok, nil} -> {nil, nil}
+      _ -> TemplateSources.origin(name, uuid, locale: origin_locale(email, opts))
+    end
+  end
+
+  # The locale core resolved the message in: the caller's, else the recipient's.
+  defp origin_locale(%Email{} = email, opts) do
+    Keyword.get(opts, :locale) ||
+      RecipientLocale.for_rendering(extract_primary_recipient(email.to))
+  rescue
+    _ -> nil
   end
 
   # Generate or extract message ID
