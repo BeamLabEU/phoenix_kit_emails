@@ -18,9 +18,9 @@ defmodule PhoenixKitEmails.CorePinConformanceTest do
   commit; what this guards is that the upper end stays open across minors.
   """
 
-  @floor "2.21.3"
-  @must_admit [@floor, "2.21.9", "2.22.0", "2.42.1", "2.99.0"]
-  @must_reject ["1.7.189", "1.9.4", "2.0.0", "2.21.2", "3.0.0"]
+  @floor "2.65.0"
+  @must_admit ["2.65.0", "2.65.1", "2.99.4", "3.0.0", "3.9.9"]
+  @must_reject ["1.7.189", "1.9.4", "2.0.0", "2.21.2", "2.64.9", "4.0.0"]
 
   test "the :phoenix_kit requirement admits every core 2.x from the floor and nothing else" do
     requirement = core_requirement()
