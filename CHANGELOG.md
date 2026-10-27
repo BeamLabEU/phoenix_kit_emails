@@ -17,7 +17,7 @@ Run `mix phoenix_kit_emails.templates.export` **before** upgrading to core 3.0 i
 
 ### Changed
 
-- **Core pin widened to `>= 2.65.0 and < 4.0.0`:** works with core 3.x (core 3.0 stops creating the module tables; this module's own chain builds its tables). The floor is the first core with the `file_references/0` and `expected_schema/0` callbacks, which now carry `@impl PhoenixKit.Module`.
+- **Core pin is `>= 3.0.0 and < 4.0.0`.** This module no longer serves email templates from the database, and core 2.x still calls the provider callbacks that were removed, so it needs core 3.0 (open through core 3.x).
 
 ### Added
 

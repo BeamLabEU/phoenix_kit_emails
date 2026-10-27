@@ -87,9 +87,11 @@ defmodule PhoenixKitEmails.MixProject do
       # Spelled as an explicit range, not `~> 2.21.3`: a three-segment `~>`
       # expands to `< 2.22.0` and would strand hosts the moment core ships
       # 2.22, which is the upper-bound trap the note above warns about.
-      # Floor 2.65.0: the first core with the `file_references/0` and `expected_schema/0`
-      # callbacks this module implements (`@impl`). The ceiling is open through core 3.x.
-      {:phoenix_kit, ">= 2.65.0 and < 4.0.0"},
+      # Floor 3.0.0: the database layer for email templates was retired. Core 3.0
+      # no longer calls this module's template provider callbacks, and core 2.x
+      # still does, so this module cannot run on a 2.x core. The ceiling is open
+      # through core 3.x.
+      {:phoenix_kit, ">= 3.0.0 and < 4.0.0"},
       {:gettext, "~> 1.0"},
       {:phoenix_live_view, "~> 1.1"},
       {:oban, "~> 2.20"},
