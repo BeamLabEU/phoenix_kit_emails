@@ -27,7 +27,6 @@ defmodule PhoenixKit.Modules.Emails.MigrationsTest do
     phoenix_kit_email_logs
     phoenix_kit_email_events
     phoenix_kit_email_blocklist
-    phoenix_kit_email_templates
     phoenix_kit_email_metrics
     phoenix_kit_email_orphaned_events
   )
@@ -37,6 +36,28 @@ defmodule PhoenixKit.Modules.Emails.MigrationsTest do
       assert is_integer(Migrations.current_version())
       assert Migrations.current_version() > 0
       assert Migrations.version_table() == "phoenix_kit_email_logs"
+    end
+
+    test "the retired email-templates table is neither created nor indexed by any version" do
+      for version <- 1..Migrations.current_version(), prefix <- ["public", "tenant_a"] do
+        statements = Migrations.up_statements(prefix, version)
+
+        refute Enum.any?(
+                 statements,
+                 &(&1 =~ ~r/CREATE (UNIQUE )?(TABLE|INDEX).*email_templates/s)
+               )
+
+        refute Enum.any?(statements, &(&1 =~ ~r/ALTER TABLE.*email_templates/s))
+
+        # The one statement that still names it is V3's data step, and it only
+        # acts where the table exists.
+        for statement <- Enum.filter(statements, &(&1 =~ "email_templates")) do
+          assert statement =~ "to_regclass('#{prefix}.phoenix_kit_email_templates') IS NOT NULL"
+        end
+      end
+
+      refute "phoenix_kit_email_templates" in Migrations.adopted_tables()
+      refute "phoenix_kit_email_templates" in Migrations.owned_tables()
     end
 
     test "up stamps the version marker" do
@@ -396,15 +417,11 @@ defmodule PhoenixKit.Modules.Emails.MigrationsTest do
                )
       end
 
-      assert Enum.any?(
+      # No adopted object carries the marker any more: the only one was the
+      # email-templates table's, and that table is not created here.
+      refute Enum.any?(
                Migrations.up_statements("public"),
-               &(&1 =~ ~r/CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_email_templates_uuid_idx /)
-             )
-
-      assert Enum.any?(
-               Migrations.up_statements("tenant_a"),
-               &(&1 =~
-                   ~r/CREATE UNIQUE INDEX IF NOT EXISTS tenant_a_phoenix_kit_email_templates_uuid_idx /)
+               &(&1 =~ "phoenix_kit_email_templates_uuid_idx")
              )
     end
   end
@@ -414,7 +431,7 @@ defmodule PhoenixKit.Modules.Emails.MigrationsTest do
   # placeholder that is not already triple-braced, which
   # `migration_v3_raw_html_test.exs` proves against real rows.
   defp raw_html_rewrite?(statement),
-    do: String.starts_with?(statement, "UPDATE public.phoenix_kit_email_templates SET html_body")
+    do: statement =~ "UPDATE public.phoenix_kit_email_templates SET html_body"
 
   defp create_table_statement(table) do
     Enum.find(
@@ -470,7 +487,7 @@ defmodule PhoenixKit.Modules.Emails.MigrationsTest do
       create =
         Enum.find_index(
           statements,
-          &(&1 =~ "CREATE TABLE IF NOT EXISTS public.phoenix_kit_email_templates")
+          &(&1 =~ "CREATE TABLE IF NOT EXISTS public.phoenix_kit_email_logs")
         )
 
       assert rewrite && create && rewrite > create

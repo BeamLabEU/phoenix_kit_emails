@@ -978,44 +978,6 @@ defmodule PhoenixKit.Modules.Emails do
         live_view: {Web.Details, :show}
       ),
       Tab.new!(
-        id: :admin_emails_templates,
-        label: "Templates",
-        icon: "hero-document-duplicate",
-        path: "emails/templates",
-        priority: 513,
-        level: :admin,
-        permission: "emails",
-        parent: :admin_emails,
-        gettext_backend: PhoenixKit.Modules.Emails.Gettext,
-        live_view: {Web.Templates, :index}
-      ),
-      Tab.new!(
-        id: :admin_emails_template_new,
-        label: "New Template",
-        icon: "hero-document-plus",
-        path: "emails/templates/new",
-        priority: 513,
-        level: :admin,
-        permission: "emails",
-        parent: :admin_emails,
-        visible: false,
-        gettext_backend: PhoenixKit.Modules.Emails.Gettext,
-        live_view: {Web.TemplateEditor, :new}
-      ),
-      Tab.new!(
-        id: :admin_emails_template_edit,
-        label: "Edit Template",
-        icon: "hero-pencil-square",
-        path: "emails/templates/:id/edit",
-        priority: 513,
-        level: :admin,
-        permission: "emails",
-        parent: :admin_emails,
-        visible: false,
-        gettext_backend: PhoenixKit.Modules.Emails.Gettext,
-        live_view: {Web.TemplateEditor, :edit}
-      ),
-      Tab.new!(
         id: :admin_emails_queue,
         label: "Queue",
         icon: "hero-queue-list",
