@@ -20,7 +20,6 @@ defmodule PhoenixKit.Modules.Emails.MigrationsTest do
 
   use ExUnit.Case, async: true
 
-  alias PhoenixKit.Migrations.ExpectedSchema
   alias PhoenixKit.Modules.Emails.Migrations
 
   @adopted_tables ~w(
