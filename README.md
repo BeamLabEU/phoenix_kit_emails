@@ -21,6 +21,49 @@ Email tracking, analytics, and AWS SES integration for [PhoenixKit](https://gith
 - **Admin dashboard** — LiveView pages for logs, metrics, queue, blocklist, and settings
 - **Auto-discovery** — implements `PhoenixKit.Module` behaviour; PhoenixKit finds it at startup with zero config
 
+## Upgrading after address verification was removed
+
+Address verification is no longer part of this package. The `Verification`
+API and workers, SMTP settings section, runner download route and machine-API
+tools (`emails.claim_smtp_jobs` and `emails.report_smtp_results`) are removed.
+Newsletters uses a host-configured verification engine instead.
+
+If you used this feature, prepare the host **while the old version is still
+running**, before updating this dependency:
+
+1. Stop starting verification batches and stop external SMTP runners. In
+   Settings → Email Sending → Mailbox verification (SMTP), switch the SMTP mode
+   off; this settles queued SMTP checks. Remove any verification worker from
+   `Oban.Plugins.Cron`, especially
+   `PhoenixKit.Modules.Emails.Verification.QueueSweepWorker`. A cron entry for
+   a removed worker prevents Oban from starting after the upgrade.
+2. Keep the `email_verification` queue configured while in-flight batches finish.
+   Wait for executing jobs to finish and for remaining batch work to settle.
+   Scheduled sweep/runner jobs can remain after that. Pause the verification
+   queue on every node, wait for executing jobs to finish, then cancel the
+   remaining `available`, `scheduled` and `retryable` jobs for these workers
+   through the host's Oban instance:
+   `PhoenixKit.Modules.Emails.Verification.BatchStartWorker`,
+   `PhoenixKit.Modules.Emails.Verification.VerifyEmailWorker`,
+   `PhoenixKit.Modules.Emails.Verification.QueueSweepWorker` and
+   `PhoenixKit.Modules.Emails.Verification.LocalRunnerWorker`.
+3. Remove `email_verification` from the host's Oban queues, then update the
+   dependency. Leaving jobs behind makes them fail as unknown workers if the
+   queue still runs, or leaves them unprocessed if the queue is removed.
+4. Revoke runner API keys with scope `emails.smtp_runner:run`. If the machine
+   API was enabled only for the runner, disable it under Settings → API. Remove
+   host calls to `PhoenixKit.Modules.Emails.Verification` and its submodules;
+   they have no replacement API in this package.
+
+Hosts that never used verification can update directly; remove any configured
+verification cron entries or queue as well.
+
+Existing verification tables and their rows are preserved, including batch,
+domain-cache, SMTP-queue and runner records. Migrations V4 and V5 retain their
+version numbers but create nothing; fresh installs get no verification tables,
+and repair no longer manages them. Old `email_verify_*` settings and
+`:phoenix_kit_emails` `:verification_*` configuration keys are no longer read.
+
 ## ⚠️ Email templates are files now (core 3.0)
 
 Message templates no longer live in the database. They are files a host owns in

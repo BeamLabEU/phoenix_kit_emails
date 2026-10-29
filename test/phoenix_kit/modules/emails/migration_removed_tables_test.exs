@@ -255,8 +255,11 @@ defmodule PhoenixKit.Modules.Emails.MigrationRemovedTablesTest do
     rows
   end
 
-  defp count(table),
-    do: Repo.query!("SELECT count(*) FROM #{@schema}.#{table}").rows |> hd() |> hd()
+  defp legacy_rows do
+    Map.new(@legacy_tables, fn {table, _create, _insert} ->
+      {table, Repo.query!("SELECT * FROM #{@schema}.#{table} ORDER BY 1").rows}
+    end)
+  end
 
   defp seed_legacy_tables do
     Repo.query!("CREATE EXTENSION IF NOT EXISTS citext SCHEMA public")
@@ -288,6 +291,7 @@ defmodule PhoenixKit.Modules.Emails.MigrationRemovedTablesTest do
     before_tables = tables()
     before_indexes = indexes()
     before_constraints = constraints()
+    before_rows = legacy_rows()
 
     for version <- 1..Migrations.current_version() do
       run_chain(version)
@@ -298,9 +302,7 @@ defmodule PhoenixKit.Modules.Emails.MigrationRemovedTablesTest do
       assert constraints() == before_constraints,
              "up at version #{version} changed the constraints"
 
-      for {table, _create, _insert} <- @legacy_tables do
-        assert count(table) == 1, "up at version #{version} lost rows of #{table}"
-      end
+      assert legacy_rows() == before_rows, "up at version #{version} changed verification data"
     end
 
     assert Repo.query!("SELECT awaiting_smtp FROM #{@schema}.phoenix_kit_email_verify_batches").rows ==
@@ -314,6 +316,7 @@ defmodule PhoenixKit.Modules.Emails.MigrationRemovedTablesTest do
     before_tables = tables()
     before_indexes = indexes()
     before_constraints = constraints()
+    before_rows = legacy_rows()
 
     for target <- 0..Migrations.current_version() do
       for statement <- Migrations.down_statements(@schema, target), do: Repo.query!(statement)
@@ -322,9 +325,7 @@ defmodule PhoenixKit.Modules.Emails.MigrationRemovedTablesTest do
       assert indexes() == before_indexes, "down to #{target} changed the indexes"
       assert constraints() == before_constraints, "down to #{target} changed the constraints"
 
-      for {table, _create, _insert} <- @legacy_tables do
-        assert count(table) == 1, "down to #{target} lost rows of #{table}"
-      end
+      assert legacy_rows() == before_rows, "down to #{target} changed verification data"
     end
   end
 end
