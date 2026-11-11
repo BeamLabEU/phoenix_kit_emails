@@ -12,6 +12,11 @@ defmodule PhoenixKitEmailsTest do
     assert Emails.module_name() == "Emails"
   end
 
+  test "version matches the package version in mix.exs" do
+    assert Emails.version() == Mix.Project.config()[:version]
+    assert Emails.version() == to_string(Application.spec(:phoenix_kit_emails, :vsn))
+  end
+
   test "required_modules is empty" do
     assert Emails.required_modules() == []
   end

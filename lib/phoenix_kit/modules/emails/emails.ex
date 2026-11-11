@@ -120,6 +120,10 @@ defmodule PhoenixKit.Modules.Emails do
   require Logger
 
   # See aws_ses_credentials/0's comment for why this exists.
+  # Read from mix.exs at compile time, so `version/0` can never drift from the
+  # published package version (it used to be a hardcoded "0.1.0").
+  @version Mix.Project.config()[:version]
+
   @aws_credentials_cache_name :emails_aws_credentials
   @aws_credentials_cache_ttl_ms 60_000
 
@@ -906,7 +910,7 @@ defmodule PhoenixKit.Modules.Emails do
   def module_name, do: "Emails"
 
   @impl PhoenixKit.Module
-  def version, do: "0.1.0"
+  def version, do: @version
 
   @impl PhoenixKit.Module
   def permission_metadata do
