@@ -65,6 +65,7 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport do
 
   alias PhoenixKit.Modules.Emails.Template
   alias PhoenixKit.Modules.Emails.TemplateExport.Body
+  alias PhoenixKit.Modules.Emails.Templates
 
   @default_out "priv/phoenix_kit_templates"
   @raw_html_min_version "0.2.0"
@@ -219,10 +220,7 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport do
     import Ecto.Query, only: [from: 2]
     repo = PhoenixKit.RepoHelper.repo()
 
-    %{rows: [[present?]]} =
-      repo.query!("SELECT to_regclass('phoenix_kit_email_templates') IS NOT NULL", [])
-
-    if present? do
+    if Templates.legacy_table_exists?() do
       repo.one(from(t in Template, where: t.name == ^name and t.status == "active", limit: 1))
     end
   rescue

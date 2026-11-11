@@ -36,11 +36,17 @@ defmodule PhoenixKit.Modules.Emails.Templates do
   @doc """
   Whether the legacy `phoenix_kit_email_templates` table exists. Hosts that
   upgraded from core 2.x still have it; a fresh core 3.0 install never creates it.
+
+  Defaults to the template schema's configured prefix. An explicit prefix
+  checks only that schema; `nil` follows the connection's search path.
   """
-  @spec legacy_table_exists?() :: boolean()
-  def legacy_table_exists? do
+  @spec legacy_table_exists?(String.t() | nil) :: boolean()
+  def legacy_table_exists?(prefix \\ Template.__schema__(:prefix)) do
     %{rows: [[present?]]} =
-      repo().query!("SELECT to_regclass('phoenix_kit_email_templates') IS NOT NULL", [])
+      repo().query!(
+        "SELECT to_regclass(concat_ws('.', quote_ident($1), quote_ident($2))) IS NOT NULL",
+        [prefix, Template.__schema__(:source)]
+      )
 
     present?
   end

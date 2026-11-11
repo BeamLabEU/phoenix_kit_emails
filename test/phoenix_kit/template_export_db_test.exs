@@ -8,6 +8,7 @@ defmodule PhoenixKit.Modules.Emails.TemplateExportDBTest do
   alias PhoenixKit.Modules.Emails.TemplateExport
   alias PhoenixKit.Modules.Emails.Templates
   alias PhoenixKitEmails.Test.LegacyTemplates
+  alias PhoenixKitEmails.Test.Repo
 
   test "a seeded row loaded back from the database is not reported as edited" do
     # If JSONB decoding produced maps that compared unequal to the shipped
@@ -71,5 +72,44 @@ defmodule PhoenixKit.Modules.Emails.TemplateExportDBTest do
   test "the legacy table is absent unless a test builds it, and listing it is empty" do
     refute Templates.legacy_table_exists?()
     assert Templates.list_templates() == []
+  end
+
+  describe "legacy table schema lookup" do
+    test "finds a named-schema table outside the search path" do
+      LegacyTemplates.create_table!()
+      Repo.query!(~s(CREATE SCHEMA "Legacy ""Templates"))
+
+      Repo.query!(
+        ~s(ALTER TABLE public.phoenix_kit_email_templates SET SCHEMA "Legacy ""Templates")
+      )
+
+      assert Templates.legacy_table_exists?(~s(Legacy "Templates))
+      refute Templates.legacy_table_exists?("public")
+      refute Templates.legacy_table_exists?()
+    end
+
+    test "a table on the search path does not count for another schema" do
+      LegacyTemplates.create_table!()
+      Repo.query!("CREATE SCHEMA legacy_templates_scratch")
+
+      assert Templates.legacy_table_exists?()
+      refute Templates.legacy_table_exists?("legacy_templates_scratch")
+      refute Templates.legacy_table_exists?("missing_schema")
+    end
+
+    test "an unconfigured prefix keeps search-path resolution" do
+      LegacyTemplates.seed!()
+      Repo.query!("CREATE SCHEMA legacy_templates_scratch")
+
+      Repo.query!(
+        "ALTER TABLE public.phoenix_kit_email_templates SET SCHEMA legacy_templates_scratch"
+      )
+
+      Repo.query!("SET LOCAL search_path TO legacy_templates_scratch, public")
+
+      assert Templates.legacy_table_exists?()
+      assert Enum.any?(Templates.list_templates(), &(&1.name == "register"))
+      assert %{name: "register"} = TemplateExport.active_template("register")
+    end
   end
 end

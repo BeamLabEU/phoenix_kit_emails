@@ -502,14 +502,14 @@ defmodule PhoenixKit.Modules.Emails.Web.Emails do
   # Apply URL parameters to socket assigns
   defp apply_params(socket, params) do
     filters = %{
-      search: params["search"] || "",
-      status: params["status"] || "",
-      message_tag: params["message_tag"] || "",
-      campaign_id: params["campaign_id"] || "",
-      category: params["category"] || "",
-      source_module: params["source_module"] || "",
-      from_date: params["from_date"] || "",
-      to_date: params["to_date"] || ""
+      search: Utils.string_param(params["search"]),
+      status: Utils.string_param(params["status"]),
+      message_tag: Utils.string_param(params["message_tag"]),
+      campaign_id: Utils.string_param(params["campaign_id"]),
+      category: Utils.string_param(params["category"]),
+      source_module: Utils.string_param(params["source_module"]),
+      from_date: Utils.string_param(params["from_date"]),
+      to_date: Utils.string_param(params["to_date"])
     }
 
     page = Utils.parse_page(params["page"])

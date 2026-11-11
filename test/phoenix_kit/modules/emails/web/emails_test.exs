@@ -105,4 +105,23 @@ defmodule PhoenixKit.Modules.Emails.Web.EmailsTest do
     assert assigns.per_page == 2
     assert length(assigns.logs) == 1
   end
+
+  describe "nested query filters" do
+    for field <-
+          ~w(search status message_tag campaign_id category source_module from_date to_date)a,
+        value <- [%{"nested" => "value"}, ["value"]] do
+      test "#{field}=#{inspect(value)} renders with an empty filter" do
+        {assigns, html} =
+          visit(%{
+            unquote(Atom.to_string(field)) => unquote(Macro.escape(value)),
+            "per_page" => "2"
+          })
+
+        assert Map.fetch!(assigns.filters, unquote(field)) == ""
+        assert assigns.total_count == 3
+        assert assigns.per_page == 2
+        assert html =~ "Page param subject"
+      end
+    end
+  end
 end
