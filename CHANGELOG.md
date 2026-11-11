@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.8.0 - 2026-11-11
+
+### Removed
+
+- **Address verification is removed from this package** (#61). Gone: the `PhoenixKit.Modules.Emails.Verification` API and its workers (`BatchStartWorker`, `VerifyEmailWorker`, `QueueSweepWorker`, `LocalRunnerWorker`), the "Mailbox verification (SMTP)" settings section, the SMTP runner script and its download route, the machine-API tools `emails.claim_smtp_jobs` and `emails.report_smtp_results`, and the `email_verification` Oban queue. Newsletters uses a host-configured verification engine instead. Old `email_verify_*` settings and `:verification_*` config keys are no longer read.
+- **The migration chain no longer creates the verification tables.** V4 and V5 keep their version numbers but add nothing; fresh installs get no verification tables and `mix phoenix_kit.repair` no longer manages them. Existing tables and their rows are kept — never dropped by `up/1` or `down/1`.
+
+### Upgrade note
+
+If you used address verification, prepare the host **before** updating this dependency: switch the SMTP mode off, remove verification workers from `Oban.Plugins.Cron` (a cron entry for a removed worker stops Oban from starting), let in-flight batches finish and cancel the remaining verification jobs, then remove the `email_verification` queue and revoke `emails.smtp_runner:run` API keys. The README's "Upgrading after address verification was removed" section has the full steps.
+
+### Fixed
+
+- The legacy template table check (`Templates.legacy_table_exists?/1`, used by `TemplateExport.active_template/1` and `mix phoenix_kit_emails.templates.export`) now looks in the configured `:phoenix_kit` schema prefix. It used to probe only the search path, so a host installed under a named schema got an empty export.
+- The emails list no longer crashes on nested or list URL filters (e.g. `?status[]=sent`, `?from_date[x]=y`); the eight string filters fall back to empty.
+
+### Changed
+
+- Dependency updates for security advisories: `ecto` 3.14.3, `phoenix_html` 4.4.0, `saxy` 1.7.0, `ssl_verify_fun` 1.1.9.
+
 ## 0.7.0 - 2026-10-27
 
 ### Removed
