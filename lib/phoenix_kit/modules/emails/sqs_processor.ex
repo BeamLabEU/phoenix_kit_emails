@@ -166,6 +166,19 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
       {:ok, %{type: "delivery", log_uuid: "019...", updated: true}}
   """
   def process_email_event(event_data) when is_map(event_data) do
+    # With the module off nothing is tracked, so there is no log to update and
+    # no blocklist to maintain. Returned as an error rather than `:ok` so a
+    # queue-backed caller keeps the message instead of deleting it.
+    if Emails.enabled?() do
+      dispatch_email_event(event_data)
+    else
+      {:error, :system_disabled}
+    end
+  end
+
+  def process_email_event(_), do: {:error, :invalid_event_data}
+
+  defp dispatch_email_event(event_data) do
     case determine_event_type(event_data) do
       "send" ->
         process_send_event(event_data)
@@ -202,8 +215,6 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
         {:error, {:unknown_event_type, unknown_type}}
     end
   end
-
-  def process_email_event(_), do: {:error, :invalid_event_data}
 
   ## --- Private Helper Functions ---
 
@@ -387,6 +398,12 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
 
           {:ok, %{type: "send", log_uuid: log.uuid, updated: true}}
         end)
+
+      # Anything else the lookup can return (a missing/invalid message id,
+      # a disabled system): nothing to update, and it must not crash the
+      # caller.
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -460,6 +477,12 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
               {:error, reason}
           end
         end)
+
+      # Anything else the lookup can return (a missing/invalid message id,
+      # a disabled system): nothing to update, and it must not crash the
+      # caller.
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -665,6 +688,12 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
 
           {:ok, %{type: "open", log_uuid: log.uuid, updated: true}}
         end)
+
+      # Anything else the lookup can return (a missing/invalid message id,
+      # a disabled system): nothing to update, and it must not crash the
+      # caller.
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -756,6 +785,12 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
               {:error, reason}
           end
         end)
+
+      # Anything else the lookup can return (a missing/invalid message id,
+      # a disabled system): nothing to update, and it must not crash the
+      # caller.
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -876,6 +911,12 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
 
             {:error, :email_log_not_found}
         end
+
+      # Anything else the lookup can return (a missing/invalid message id,
+      # a disabled system): nothing to update, and it must not crash the
+      # caller.
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -932,6 +973,12 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
 
             {:error, :email_log_not_found}
         end
+
+      # Anything else the lookup can return (a missing/invalid message id,
+      # a disabled system): nothing to update, and it must not crash the
+      # caller.
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -1003,6 +1050,12 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
       {:error, :not_found} ->
         Logger.warning("#{event_type} event for unknown email", %{message_id: message_id})
         {:error, :email_log_not_found}
+
+      # Anything else the lookup can return (a missing/invalid message id,
+      # a disabled system): nothing to update, and it must not crash the
+      # caller.
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 

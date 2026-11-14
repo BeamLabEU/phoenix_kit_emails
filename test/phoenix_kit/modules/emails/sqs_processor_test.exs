@@ -203,4 +203,30 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessorTest do
       refute RateLimiter.is_blocked?("notspam@example.com")
     end
   end
+
+  describe "process_email_event/1 — lookups that find nothing to update" do
+    test "with the module off the event is skipped, not crashed on, and nothing is blocklisted" do
+      Emails.disable_system()
+
+      recipients = [%{"emailAddress" => "module-off@example.com"}]
+
+      for event <- [
+            complaint_event(recipients, unique_message_id()),
+            bounce_event("Permanent", recipients, unique_message_id())
+          ] do
+        assert {:error, :system_disabled} = SQSProcessor.process_email_event(event)
+      end
+
+      refute RateLimiter.is_blocked?("module-off@example.com")
+    end
+
+    test "an event without a message id returns an error instead of raising" do
+      event =
+        [%{"emailAddress" => "no-id@example.com"}]
+        |> complaint_event(unique_message_id())
+        |> put_in(["mail", "messageId"], nil)
+
+      assert {:error, :invalid_message_id} = SQSProcessor.process_email_event(event)
+    end
+  end
 end
