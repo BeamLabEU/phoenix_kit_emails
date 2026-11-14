@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.9.0 - 2026-11-14
+
+Needs PhoenixKit 3.5.0. No migration.
+
+### Fixed
+
+- **Spam complaints now add the recipient to the blocklist**, with reason `complaint`, the same way hard bounces do. SES complaints and Brevo `spam` events were recorded but the address stayed mailable. A `not-spam` report does not block.
+- **The SNS webhook blocklists too.** Hard bounces and complaints arriving over the HTTP webhook (`Emails.process_webhook_event/1`) never reached the blocklist; only the SQS and Brevo paths did.
+- **The SNS webhook records SES events again.** SES publishes event types capitalized (`Bounce`, `Delivery`, `DeliveryDelay`); the webhook parser matched only lowercase, so every real event was refused as `unknown`.
+- **Removing an address from the blocklist sticks.** A replayed bounce or complaint (a redelivered SQS message, a Brevo re-poll, "sync status" on the email) put the address back and overwrote the entry's reason and expiry. An event already recorded for the email no longer touches the blocklist.
+- `SQSProcessor.process_email_event/1` no longer raises `CaseClauseError` when the module is off or the event has no message id. It returns `{:error, :system_disabled}` (nothing is recorded or blocklisted) or `{:error, :invalid_message_id}`.
+- `PhoenixKit.Modules.Emails.version/0` returns the package version. It returned `"0.1.0"` whatever was installed.
+
+### Changed
+
+- **Core pin is `>= 3.5.0 and < 4.0.0`** (was `>= 3.0.0`). The fallbacks for cores without `PhoenixKit.Email.Layout` are gone: `mix phoenix_kit_emails.templates.export --html auto` is always `body`, and `TemplateExport.Body.local_document?/1` is removed.
+- Dependency updates.
+
 ## 0.8.0 - 2026-11-11
 
 ### Removed
