@@ -800,9 +800,8 @@ defmodule PhoenixKit.Modules.Emails.TemplateExportTest do
   end
 
   describe "default_html_mode/0" do
-    test "is :body exactly when the loaded core has the email layout" do
-      expected = if Code.ensure_loaded?(PhoenixKit.Email.Layout), do: :body, else: :document
-      assert TemplateExport.default_html_mode() == expected
+    test "is :body" do
+      assert TemplateExport.default_html_mode() == :body
     end
   end
 

@@ -93,6 +93,8 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport.Body do
       the block are trimmed (so the rest of that block keeps its indentation).
   """
 
+  alias PhoenixKit.Email.Layout
+
   @type note :: {:body_fallback | :chrome_dropped | :style_placeholder, [String.t()]}
 
   @void ~w(area base br col embed hr img input link meta param source track wbr)
@@ -117,50 +119,17 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport.Body do
   @doc """
   Whether `html` is a whole document — the test core's own layout applies.
 
-  Delegates to `PhoenixKit.Email.Layout.document?/1` when the loaded core has
-  it, so the answer is never different from what the send will do. On an older
-  core it falls back to the same rule written out here: after a BOM,
-  whitespace, comments and an `<?xml ?>` prolog, `<!doctype` or an `<html` tag.
+  Delegates to `PhoenixKit.Email.Layout.document?/1`, so the answer is never
+  different from what the send will do.
   """
   @spec document?(String.t()) :: boolean()
-  def document?(html) when is_binary(html) do
-    # Called through a variable: this package accepts cores that predate the
-    # layout, where a literal call would be a compile warning.
-    layout = PhoenixKit.Email.Layout
-
-    if Code.ensure_loaded?(layout) and function_exported?(layout, :document?, 1),
-      # credo:disable-for-next-line Credo.Check.Refactor.Apply
-      do: apply(layout, :document?, [html]),
-      else: local_document?(html)
-  end
-
-  @doc false
-  @spec local_document?(String.t()) :: boolean()
-  def local_document?(html) when is_binary(html) do
-    html |> skip_prolog() |> document_start?()
-  end
-
-  defp skip_prolog(<<0xEF, 0xBB, 0xBF, rest::binary>>), do: skip_prolog(rest)
-
-  defp skip_prolog(html) do
-    case String.trim_leading(html) do
-      "<!--" <> rest -> rest |> after_marker("-->") |> skip_prolog()
-      "<?xml" <> rest -> rest |> after_marker("?>") |> skip_prolog()
-      ^html -> html
-      trimmed -> skip_prolog(trimmed)
-    end
-  end
+  def document?(html) when is_binary(html), do: Layout.document?(html)
 
   defp after_marker(rest, marker) do
     case :binary.match(rest, marker) do
       {at, size} -> binary_part(rest, at + size, byte_size(rest) - at - size)
       :nomatch -> ""
     end
-  end
-
-  defp document_start?(html) do
-    lower = html |> :binary.part(0, min(byte_size(html), 16)) |> String.downcase(:ascii)
-    String.starts_with?(lower, "<!doctype") or Regex.match?(~r/\A<html[\s>\/]/, lower)
   end
 
   @doc """

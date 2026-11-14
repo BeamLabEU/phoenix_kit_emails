@@ -792,10 +792,10 @@ defmodule PhoenixKit.Modules.Emails.Event do
 
   # Parse AWS SES webhook data into event attributes
   defp parse_ses_webhook_data(webhook_data) do
-    event_type = webhook_data["eventType"] || "unknown"
+    event_type = normalize_event_type(webhook_data["eventType"])
 
     base_attrs = %{
-      event_type: normalize_event_type(event_type),
+      event_type: event_type,
       occurred_at: parse_timestamp(webhook_data),
       event_data: webhook_data
     }
@@ -844,13 +844,20 @@ defmodule PhoenixKit.Modules.Emails.Event do
     end
   end
 
-  # Normalize AWS SES event types to our internal types
-  defp normalize_event_type("send"), do: "send"
-  defp normalize_event_type("delivery"), do: "delivery"
-  defp normalize_event_type("bounce"), do: "bounce"
-  defp normalize_event_type("complaint"), do: "complaint"
-  defp normalize_event_type("open"), do: "open"
-  defp normalize_event_type("click"), do: "click"
+  # Normalize AWS SES event types to our internal types. SES publishes them
+  # capitalized ("Bounce", "DeliveryDelay", "Rendering Failure"); matching only
+  # the lowercase spelling turned every real event into "unknown", which the
+  # changeset then refused.
+  @ses_event_types ~w(send delivery bounce complaint open click reject delivery_delay subscription rendering_failure)
+
+  defp normalize_event_type(type) when is_binary(type) do
+    case type |> String.downcase() |> String.replace(" ", "_") do
+      "deliverydelay" -> "delivery_delay"
+      known when known in @ses_event_types -> known
+      _ -> "unknown"
+    end
+  end
+
   defp normalize_event_type(_), do: "unknown"
 
   # Parse timestamp from webhook data

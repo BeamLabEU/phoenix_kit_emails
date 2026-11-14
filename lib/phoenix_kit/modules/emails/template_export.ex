@@ -232,19 +232,14 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport do
   def active_template(_name), do: nil
 
   @doc """
-  The `:html` mode the mix task uses when it is not told one: `:body` when the
-  loaded core has `PhoenixKit.Email.Layout` to wrap a fragment, `:document`
-  otherwise.
+  The `:html` mode the mix task uses when it is not told one: `:body`, a
+  fragment that core's `PhoenixKit.Email.Layout` wraps.
 
-  A bare fragment on a core without the layout would be sent as it is — no
-  `<html>`, no chrome — so on such a core the stored document is the only safe
-  thing to write. Core never wraps a whole document, so a `:document` file
-  keeps working after the upgrade too; it just keeps its old chrome.
+  Core never wraps a whole document, so a `:document` file keeps working too;
+  it just keeps its old chrome.
   """
   @spec default_html_mode() :: html_mode()
-  def default_html_mode do
-    if Code.ensure_loaded?(PhoenixKit.Email.Layout), do: :body, else: :document
-  end
+  def default_html_mode, do: :body
 
   @doc """
   Whether `template` still matches what this package ships under its name.

@@ -18,7 +18,7 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessorTest do
     :ok
   end
 
-  defp unique_message_id, do: "msg-\#{System.unique_integer([:positive, :monotonic])}"
+  defp unique_message_id, do: "msg-#{System.unique_integer([:positive, :monotonic])}"
 
   defp bounce_event(bounce_type, recipients, message_id) do
     %{
@@ -201,6 +201,111 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessorTest do
       SQSProcessor.process_email_event(event)
 
       refute RateLimiter.is_blocked?("notspam@example.com")
+    end
+  end
+
+  describe "process_email_event/1 — replayed events" do
+    test "a replayed complaint does not put back an address removed from the blocklist" do
+      message_id = unique_message_id()
+      create_log_for(message_id, "replayed-complaint@example.com")
+      event = complaint_event([%{"emailAddress" => "replayed-complaint@example.com"}], message_id)
+
+      assert {:ok, _} = SQSProcessor.process_email_event(event)
+      assert RateLimiter.is_blocked?("replayed-complaint@example.com")
+
+      RateLimiter.remove_from_blocklist("replayed-complaint@example.com")
+
+      assert {:ok, _} = SQSProcessor.process_email_event(event)
+      refute RateLimiter.is_blocked?("replayed-complaint@example.com")
+    end
+
+    test "a replayed hard bounce does not put back an address removed from the blocklist" do
+      message_id = unique_message_id()
+      create_log_for(message_id, "replayed-bounce@example.com")
+
+      event =
+        bounce_event(
+          "Permanent",
+          [%{"emailAddress" => "replayed-bounce@example.com"}],
+          message_id
+        )
+
+      assert {:ok, _} = SQSProcessor.process_email_event(event)
+      assert RateLimiter.is_blocked?("replayed-bounce@example.com")
+
+      RateLimiter.remove_from_blocklist("replayed-bounce@example.com")
+
+      assert {:ok, _} = SQSProcessor.process_email_event(event)
+      refute RateLimiter.is_blocked?("replayed-bounce@example.com")
+    end
+
+    test "a first complaint still blocks when another event type is already recorded" do
+      message_id = unique_message_id()
+      create_log_for(message_id, "bounce-then-complaint@example.com")
+      recipients = [%{"emailAddress" => "bounce-then-complaint@example.com"}]
+
+      assert {:ok, _} =
+               SQSProcessor.process_email_event(bounce_event("Transient", recipients, message_id))
+
+      refute RateLimiter.is_blocked?("bounce-then-complaint@example.com")
+
+      assert {:ok, _} = SQSProcessor.process_email_event(complaint_event(recipients, message_id))
+      assert RateLimiter.is_blocked?("bounce-then-complaint@example.com")
+    end
+  end
+
+  describe "Emails.process_webhook_event/1 — the SNS webhook path" do
+    setup do
+      Emails.set_ses_events(true)
+      :ok
+    end
+
+    test "a hard bounce blocklists the recipient" do
+      message_id = unique_message_id()
+      create_log_for(message_id, "webhook-bounce@example.com")
+
+      event =
+        bounce_event("Permanent", [%{"emailAddress" => "webhook-bounce@example.com"}], message_id)
+
+      # SES publishes the type capitalized ("Bounce"); it is recorded as "bounce".
+      assert {:ok, %{event_type: "bounce", bounce_type: "hard"}} =
+               Emails.process_webhook_event(event)
+
+      assert [%{reason: "hard_bounce"}] =
+               RateLimiter.list_blocklist(%{search: "webhook-bounce@example.com"})
+    end
+
+    test "a complaint blocklists the recipient, even without a matching log" do
+      event =
+        complaint_event(
+          [%{"emailAddress" => "webhook-complaint@example.com"}],
+          unique_message_id()
+        )
+
+      assert {:error, :email_log_not_found} = Emails.process_webhook_event(event)
+
+      assert [%{reason: "complaint"}] =
+               RateLimiter.list_blocklist(%{search: "webhook-complaint@example.com"})
+    end
+
+    test "a transient bounce and a not-spam report do not blocklist" do
+      recipients = [%{"emailAddress" => "webhook-clean@example.com"}]
+
+      Emails.process_webhook_event(bounce_event("Transient", recipients, unique_message_id()))
+
+      Emails.process_webhook_event(complaint_event(recipients, unique_message_id(), "not-spam"))
+
+      refute RateLimiter.is_blocked?("webhook-clean@example.com")
+    end
+
+    test "nothing is blocklisted while SES events are off" do
+      Emails.set_ses_events(false)
+
+      event =
+        complaint_event([%{"emailAddress" => "webhook-off@example.com"}], unique_message_id())
+
+      assert {:ok, :skipped} = Emails.process_webhook_event(event)
+      refute RateLimiter.is_blocked?("webhook-off@example.com")
     end
   end
 

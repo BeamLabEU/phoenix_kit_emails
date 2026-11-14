@@ -1,5 +1,3 @@
-require Logger
-
 # Start the embedded test repo and bring it to the current PhoenixKit
 # schema version, so tests exercising Settings/Integrations (e.g. B2/B4
 # AWS SES credential resolution) have a real DB to round-trip against.
@@ -48,31 +46,4 @@ repo_available =
 
 exclude = if repo_available, do: [], else: [:integration]
 
-# The builds-alone test needs `PhoenixKit.TestSupport.ModuleChainCheck`, which
-# ships in the first core release after 2.64.1; against an older core it is
-# excluded.
-exclude =
-  if Code.ensure_loaded?(PhoenixKit.TestSupport.ModuleChainCheck),
-    do: exclude,
-    else: [:requires_module_chain_check | exclude]
-
-if Code.ensure_loaded?(PhoenixKit.Dashboard.Tab) and
-     function_exported?(PhoenixKit.Dashboard.Tab, :localized_label, 1) do
-  ExUnit.start(exclude: exclude)
-else
-  Logger.info(
-    "[test_helper] PhoenixKit.Dashboard.Tab.localized_label/1 not available — " <>
-      "i18n tests excluded. They will run automatically once `phoenix_kit` is " <>
-      "upgraded to a release that ships the gettext_backend API."
-  )
-
-  ExUnit.start(exclude: [:requires_phoenix_kit_i18n_api | exclude])
-end
-
-# The manifest test builds the module's tables with `ModuleChainCheck.build_alone/4`
-# and hands the manifest to repair (`PhoenixKit.Module.expected_schema/0`); both
-# arrive in the first core release after 2.64.1.
-unless Code.ensure_loaded?(PhoenixKit.TestSupport.ModuleChainCheck) and
-         function_exported?(PhoenixKit.TestSupport.ModuleChainCheck, :build_alone, 4) do
-  ExUnit.configure(exclude: [:requires_core_expected_schema | ExUnit.configuration()[:exclude]])
-end
+ExUnit.start(exclude: exclude)

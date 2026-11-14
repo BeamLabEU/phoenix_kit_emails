@@ -901,19 +901,10 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport.BodyTest do
     ]
 
     test "on the shapes that tripped the first version" do
-      if Code.ensure_loaded?(PhoenixKit.Email.Layout) do
-        for sample <- @samples do
-          assert Body.document?(sample) == Layout.document?(sample),
-                 "disagrees on #{inspect(sample)}"
-        end
+      for sample <- @samples do
+        assert Body.document?(sample) == Layout.document?(sample),
+               "disagrees on #{inspect(sample)}"
       end
-    end
-
-    test "its own fallback rule gives the right answer on the plain cases" do
-      assert Body.local_document?("<!DOCTYPE html><html></html>")
-      assert Body.local_document?("\uFEFF \n<!-- c --><?xml version=\"1.0\"?>\n<html>")
-      refute Body.local_document?("<p>x</p>")
-      refute Body.local_document?("<htmlish>")
     end
   end
 end

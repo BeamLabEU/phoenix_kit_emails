@@ -53,45 +53,12 @@ defmodule PhoenixKitEmails.MixProject do
     [
       # Core
       {:hackney, "~> 4.0"},
-      # 1.7.231 is the floor: that release ships `PhoenixKitWeb.Live.UrlState`,
-      # which one LiveView here (web/blocklist.ex) `use`s. Anything below it
-      # resolves a core with no such module, and `use` of a missing module is a
-      # compile error — one that surfaces in the *consumer's* build, never here,
-      # since this repo's own lockfile is always well above the floor. That is
-      # what makes a stale floor invisible; do not lower this pin.
-      #
-      # Superseded requirements, kept so a future raise knows what it covers:
-      # 1.7.217 for the optional `maybe_enqueue/2` provider callback the send
-      # queue hangs off (Emails.Queue / Emails.SendJob) — below it the callback
-      # is not in the behaviour, so `@impl` on the implementation warns and this
-      # package's `--warnings-as-errors` precommit fails. 1.7.190 before that,
-      # for email_settings_sections/0.
-      #
-      # All of the above floors are now historical: this module requires core
-      # 2.x, which is well above every one of them. They are kept because they
-      # record *which* core API each dependency rests on, which is what a future
-      # raise needs to know.
-      #
-      # Keep this a TWO-segment `~> 2.0`. A three-segment `~> 2.0.x` expands to
-      # `< 2.1.0` and would block resolution the moment core ships 2.1 —
-      # stranding every host on old core until this module cuts a coordinated
-      # release. That is the same failure the old `~> 1.7.231` pin had against
-      # core 2.0.0, which is what PR #29 was opened to fix.
-      # Floor raised to 2.21.3: that release renamed the website-wide
-      # Integrations page from `/admin/settings/integrations/website` to
-      # `/admin/settings/integrations`, which the Amazon SES section links to.
-      # Below it the link is wrong rather than merely missing — 2.19.0 moved
-      # the PERSONAL integrations page off `/admin/settings/integrations` to
-      # `/profile/settings/integrations`, so on core < 2.19.0 that path opens
-      # the per-user page instead, and on 2.19.0–2.21.2 it is unrouted.
-      # Spelled as an explicit range, not `~> 2.21.3`: a three-segment `~>`
-      # expands to `< 2.22.0` and would strand hosts the moment core ships
-      # 2.22, which is the upper-bound trap the note above warns about.
-      # Floor 3.0.0: the database layer for email templates was retired. Core 3.0
-      # no longer calls this module's template provider callbacks, and core 2.x
-      # still does, so this module cannot run on a 2.x core. The ceiling is open
-      # through core 3.x.
-      {:phoenix_kit, ">= 3.0.0 and < 4.0.0"},
+      # PhoenixKit core. Floor 3.5.0, the ecosystem-wide minimum; core 3.x no
+      # longer calls this module's template provider callbacks (the database
+      # layer for email templates was retired in 3.0), so no 2.x core can run
+      # it. Patch-precise floor in the compound form, so the ceiling stays open
+      # through every core 3.x (see test/core_pin_conformance_test.exs).
+      {:phoenix_kit, ">= 3.5.0 and < 4.0.0"},
       {:gettext, "~> 1.0"},
       {:phoenix_live_view, "~> 1.1"},
       {:oban, "~> 2.20"},

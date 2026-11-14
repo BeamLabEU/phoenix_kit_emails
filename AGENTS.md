@@ -58,7 +58,7 @@ The `Supervisor` kicks off Oban polling at boot conditionally based on settings 
 
 ### Outgoing Send Queue
 
-Core offers every outgoing message to `Provider.maybe_enqueue/2` (optional `PhoenixKit.Email.Provider` callback, floor `phoenix_kit ~> 1.7.217`) right after interception, on both delivery paths:
+Core offers every outgoing message to `Provider.maybe_enqueue/2` (optional `PhoenixKit.Email.Provider` callback) right after interception, on both delivery paths:
 
 1. **Queue** — decides inline-vs-queued and serializes the `Swoosh.Email` into JSON job args. Every decline is `:continue` ("send it now"), never an error. Never queues when the system is off, `email_queue_enabled` is off, the host declared no `:emails` Oban queue (`runnable?/0`), the caller passed `queue: false`, the message has attachments, or it is authentication mail (unless `email_queue_auth_mail`)
 2. **SendJob** — Oban worker (`queue: :emails`, `max_attempts: 5`) that rebuilds the email and re-sends it with `skip_queue: true` + `already_intercepted: true`, so tracking is not duplicated and the job is not offered back to its own queue. Delivery is at-least-once
@@ -263,7 +263,7 @@ Additional files per PR directory:
 
 ## External Dependencies
 
-- **PhoenixKit** (`~> 1.7`) — Module behaviour, Settings API, shared components, RepoHelper, Utils (Date, UUID, Routes), Users.Auth.User, Users.Roles
+- **PhoenixKit** (`>= 3.5.0 and < 4.0.0`) — Module behaviour, Settings API, shared components, RepoHelper, Utils (Date, UUID, Routes), Users.Auth.User, Users.Roles
 - **Phoenix LiveView** (`~> 1.1`) — Admin LiveViews
 - **Oban** (`~> 2.20`) — Background job processing (SQS polling)
 - **ExAws** (`~> 2.4`) + SQS/SNS/STS/S3 — AWS integration

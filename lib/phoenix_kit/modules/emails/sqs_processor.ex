@@ -178,6 +178,41 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
 
   def process_email_event(_), do: {:error, :invalid_event_data}
 
+  @doc """
+  Runs `process` (which records the event) and then blocklists the recipients
+  the event reports: every recipient of a hard bounce (reason `"hard_bounce"`)
+  and of a spam complaint (reason `"complaint"`), so future sends to them are
+  rejected at the source. Returns what `process` returned.
+
+  Blocklisting does not depend on that result: the provider's report stands
+  even when no internal log matches the message. It is skipped only for a
+  replay, an event already recorded for the email before `process` ran (a
+  redelivered SQS message, a Brevo re-poll, a manual "sync status"). Otherwise
+  each replay would put back an address an admin removed from the blocklist and
+  overwrite the entry's reason and expiry.
+
+  `process_email_event/1` goes through this itself; it is public for callers
+  that record events on their own path (the SNS webhook).
+  """
+  @spec with_blocklisting(map(), (-> result)) :: result when result: term()
+  def with_blocklisting(event_data, process)
+      when is_map(event_data) and is_function(process, 0) do
+    case blocklist_target(event_data) do
+      nil ->
+        process.()
+
+      {event_type, block_reason, recipients} ->
+        replay? = event_recorded?(get_in(event_data, ["mail", "messageId"]), event_type)
+        result = process.()
+
+        if not replay? do
+          recipients |> List.wrap() |> Enum.each(&blocklist_recipient(&1, block_reason))
+        end
+
+        result
+    end
+  end
+
   defp dispatch_email_event(event_data) do
     case determine_event_type(event_data) do
       "send" ->
@@ -187,10 +222,10 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
         process_delivery_event(event_data)
 
       "bounce" ->
-        process_bounce_event(event_data)
+        with_blocklisting(event_data, fn -> process_bounce_event(event_data) end)
 
       "complaint" ->
-        process_complaint_event(event_data)
+        with_blocklisting(event_data, fn -> process_complaint_event(event_data) end)
 
       "open" ->
         process_open_event(event_data)
@@ -523,14 +558,6 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
       maybe_update_newsletters_delivery(message_id, "Bounce", UtilsDate.utc_now())
     end
 
-    # Hard (Permanent) bounces mean the address is undeliverable -- blocklist it
-    # so future sends are rejected at the source (Mailer enforcement, E2).
-    # Independent of `result`/log lookup above: SES's bounce report is
-    # authoritative even when we have no matching internal log for this send.
-    if status == "hard_bounced" do
-      blocklist_bounced_recipients(bounce_data)
-    end
-
     result
   end
 
@@ -545,28 +572,48 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
     end
   end
 
-  # Adds every bounced recipient to the rate limiter's blocklist. Best-effort:
-  # a failure here (invalid email, DB error, etc.) must never break bounce
-  # event processing, so each recipient is handled independently and errors
-  # are caught and logged rather than propagated.
-  defp blocklist_bounced_recipients(bounce_data) do
-    bounce_data
-    |> get_in(["bouncedRecipients"])
-    |> List.wrap()
-    |> Enum.each(&blocklist_recipient(&1, "hard_bounce"))
+  # Which recipients an event puts on the blocklist, if any:
+  # `{event_type, block_reason, recipients}` or `nil`.
+  #
+  # Hard (Permanent) bounces: the address is undeliverable. Spam complaints:
+  # mailing someone who reported us again is what costs sender reputation, so
+  # it is as permanent as a hard bounce. "not-spam" is the one feedback type
+  # that is the opposite of a complaint (the recipient moved the message *out*
+  # of their spam folder), so it must not block.
+  defp blocklist_target(%{"eventType" => type} = event_data) when is_binary(type) do
+    blocklist_target(String.downcase(type), event_data)
   end
 
-  # Adds every recipient named in a spam complaint to the blocklist. Mailing
-  # someone who reported us as spam again is what costs sender reputation, so
-  # this is as permanent as a hard bounce. Same best-effort contract as
-  # `blocklist_bounced_recipients/1`.
-  defp blocklist_complained_recipients(complaint_data) do
-    complaint_data
-    |> get_in(["complainedRecipients"])
-    |> List.wrap()
-    |> Enum.each(&blocklist_recipient(&1, "complaint"))
+  defp blocklist_target(_event_data), do: nil
+
+  defp blocklist_target("bounce", %{"bounce" => %{} = bounce}) do
+    if determine_bounce_status(bounce["bounceType"]) == "hard_bounced",
+      do: {"bounce", "hard_bounce", bounce["bouncedRecipients"]}
   end
 
+  defp blocklist_target("complaint", %{"complaint" => %{} = complaint}) do
+    if String.downcase(complaint["complaintFeedbackType"] || "") != "not-spam",
+      do: {"complaint", "complaint", complaint["complainedRecipients"]}
+  end
+
+  defp blocklist_target(_type, _event_data), do: nil
+
+  # Whether an event of this type is already recorded for the email, i.e. this
+  # delivery is a replay. Without a matching log there is nothing to compare
+  # against, so the event counts as new.
+  defp event_recorded?(message_id, event_type) when is_binary(message_id) do
+    with {:error, _} <- Emails.get_log_by_message_id(message_id),
+         {:error, _} <- Log.find_by_aws_message_id(message_id) do
+      false
+    else
+      {:ok, log} -> Event.event_exists?(log.uuid, event_type)
+    end
+  end
+
+  defp event_recorded?(_message_id, _event_type), do: false
+
+  # Best-effort: a blocklist failure is logged but never fails event processing
+  # (the log/status update has already happened or been attempted).
   defp blocklist_recipient(%{"emailAddress" => email}, block_reason) when is_binary(email) do
     case RateLimiter.add_to_blocklist(email, block_reason) do
       :ok ->
@@ -606,28 +653,16 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
     extra_log_data = %{complaint_type: complaint_type}
     placeholder_opts = %{event_data: event_data, status: "complaint"}
 
-    result =
-      process_ses_event(
-        message_id,
-        mail_data,
-        update_attrs,
-        complaint_data,
-        "complaint",
-        &create_complaint_event/2,
-        extra_log_data,
-        placeholder_opts
-      )
-
-    # Blocklist whoever complained so future sends are rejected at the source.
-    # Like the hard-bounce path, independent of `result`: the provider's report
-    # stands even when no internal log matches. "not-spam" is the one feedback
-    # type that is the opposite of a complaint (the recipient moved the message
-    # *out* of their spam folder), so it must not block.
-    if String.downcase(complaint_type || "") != "not-spam" do
-      blocklist_complained_recipients(complaint_data)
-    end
-
-    result
+    process_ses_event(
+      message_id,
+      mail_data,
+      update_attrs,
+      complaint_data,
+      "complaint",
+      &create_complaint_event/2,
+      extra_log_data,
+      placeholder_opts
+    )
   end
 
   # Processes email open event

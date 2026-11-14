@@ -119,11 +119,11 @@ defmodule PhoenixKit.Modules.Emails do
 
   require Logger
 
-  # See aws_ses_credentials/0's comment for why this exists.
   # Read from mix.exs at compile time, so `version/0` can never drift from the
   # published package version (it used to be a hardcoded "0.1.0").
   @version Mix.Project.config()[:version]
 
+  # See aws_ses_credentials/0's comment for why this exists.
   @aws_credentials_cache_name :emails_aws_credentials
   @aws_credentials_cache_ttl_ms 60_000
 
@@ -2450,24 +2450,30 @@ defmodule PhoenixKit.Modules.Emails do
   """
   def process_webhook_event(webhook_data) when is_map(webhook_data) do
     if enabled?() and ses_events_enabled?() do
-      case extract_message_id(webhook_data) do
-        nil ->
-          {:error, :message_id_not_found}
-
-        message_id ->
-          case get_log_by_message_id(message_id) do
-            {:error, :not_found} ->
-              {:error, :email_log_not_found}
-
-            {:ok, email_log} ->
-              process_event_for_log(email_log, webhook_data)
-
-            {:error, reason} ->
-              {:error, reason}
-          end
-      end
+      # Hard bounces and spam complaints blocklist the recipient here too, the
+      # same as on the SQS and Brevo paths.
+      SQSProcessor.with_blocklisting(webhook_data, fn -> record_webhook_event(webhook_data) end)
     else
       {:ok, :skipped}
+    end
+  end
+
+  defp record_webhook_event(webhook_data) do
+    case extract_message_id(webhook_data) do
+      nil ->
+        {:error, :message_id_not_found}
+
+      message_id ->
+        case get_log_by_message_id(message_id) do
+          {:error, :not_found} ->
+            {:error, :email_log_not_found}
+
+          {:ok, email_log} ->
+            process_event_for_log(email_log, webhook_data)
+
+          {:error, reason} ->
+            {:error, reason}
+        end
     end
   end
 

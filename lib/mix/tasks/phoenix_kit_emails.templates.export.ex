@@ -63,9 +63,8 @@ defmodule Mix.Tasks.PhoenixKitEmails.Templates.Export do
     * `--force` — overwrite existing files. Refused by default, so a
       hand-written override is never clobbered by a re-run.
     * `--out DIR` — target directory (default `priv/phoenix_kit_templates`).
-    * `--html MODE` — `body`, `document` or `auto` (default). `auto` is `body`
-      when the loaded core has `PhoenixKit.Email.Layout`, `document` otherwise —
-      a fragment on a core without the layout would be sent bare.
+    * `--html MODE` — `body`, `document` or `auto` (default). `auto` is `body`:
+      core's `PhoenixKit.Email.Layout` wraps the fragment.
   """
 
   use Mix.Task
