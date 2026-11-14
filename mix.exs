@@ -49,6 +49,19 @@ defmodule PhoenixKitEmails.MixProject do
     ]
   end
 
+  # phoenix_kit deps resolve from Hex by default. For cross-repo work against a
+  # local checkout, export <APP>_PATH — e.g. PHOENIX_KIT_PATH=../phoenix_kit.
+  # Unset => the published pin, so mix hex.publish is unaffected.
+  defp pk_dep(app, requirement, opts \\ []) do
+    env_var = String.upcase(Atom.to_string(app)) <> "_PATH"
+
+    case System.get_env(env_var) do
+      nil when opts == [] -> {app, requirement}
+      nil -> {app, requirement, opts}
+      path -> {app, [path: path, override: true] ++ opts}
+    end
+  end
+
   defp deps do
     [
       # Core
@@ -58,7 +71,7 @@ defmodule PhoenixKitEmails.MixProject do
       # layer for email templates was retired in 3.0), so no 2.x core can run
       # it. Patch-precise floor in the compound form, so the ceiling stays open
       # through every core 3.x (see test/core_pin_conformance_test.exs).
-      {:phoenix_kit, ">= 3.5.0 and < 4.0.0"},
+      pk_dep(:phoenix_kit, ">= 3.5.0 and < 4.0.0"),
       {:gettext, "~> 1.0"},
       {:phoenix_live_view, "~> 1.1"},
       {:oban, "~> 2.20"},

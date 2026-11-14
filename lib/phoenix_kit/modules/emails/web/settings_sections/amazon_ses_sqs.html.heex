@@ -211,7 +211,13 @@
         </div>
       </div>
 
-      <form phx-submit="save_tracking_account" phx-target={@myself}>
+      <.account_policies account={account} id={"#{@id}-policies-#{account.uuid}"} />
+
+      <form
+        id={"#{@id}-tracking-#{account.uuid}"}
+        phx-submit="save_tracking_account"
+        phx-target={@myself}
+      >
         <input type="hidden" name="uuid" value={account.uuid} />
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <fieldset class="fieldset md:col-span-2">
@@ -274,6 +280,25 @@
             />
             <p class="text-xs text-base-content/60">
               {gettext("Must exist in THIS AWS account — SES publishes events only through it")}
+            </p>
+          </fieldset>
+
+          <fieldset :if={open_click_choice_supported?()} class="fieldset md:col-span-2">
+            <input type="hidden" name="tracking[track_opens_and_clicks]" value="" />
+            <label class="label cursor-pointer justify-start gap-3">
+              <input
+                type="checkbox"
+                name="tracking[track_opens_and_clicks]"
+                value="true"
+                checked={Emails.aws_tracking_opens_and_clicks?(account.tracking)}
+                class="checkbox checkbox-sm"
+              />
+              <span class="font-semibold">{gettext("Track opens and clicks")}</span>
+            </label>
+            <p class="text-xs text-base-content/60">
+              {gettext(
+                "With this on, Amazon SES adds a tracking pixel to every message and rewrites every link through its own redirect address, the links of sign-in and password-reset mail included. Saving records the choice; Setup Infrastructure applies it in AWS, so run it after changing this. An account set up before this option existed tracks opens and clicks until the setup is run again."
+              )}
             </p>
           </fieldset>
         </div>

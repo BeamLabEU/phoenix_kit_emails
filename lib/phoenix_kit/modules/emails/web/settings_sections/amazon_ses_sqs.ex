@@ -287,11 +287,15 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
       connections
       |> Enum.filter(&MapSet.member?(assigned, &1.uuid))
       |> Enum.map(fn connection ->
+        tracking = Emails.get_aws_tracking(connection.uuid) || %{}
+
         %{
           uuid: connection.uuid,
           name: connection.name,
           active?: MapSet.member?(active, connection.uuid),
-          tracking: Emails.get_aws_tracking(connection.uuid) || %{}
+          tracking: tracking,
+          # What the policies shown for this account are filled in with.
+          region: tracking[:region] || connection_region(connection.uuid)
         }
       end)
 
@@ -455,22 +459,27 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
   # `aws_*` settings — the whole point of the per-account model: resources
   # created with account A's credentials only ever exist in account A.
   defp run_account_setup(socket, uuid) do
+    # The account's saved choice, read before the setup: the setup applies it,
+    # and the row written afterwards must still carry it.
+    track? = Emails.aws_tracking_opens_and_clicks?(Emails.get_aws_tracking(uuid))
+
     with {:ok, creds} <- AwsIntegrations.resolve_credentials(uuid),
-         {:ok, config} <- setup_infrastructure(creds) do
+         {:ok, config} <- setup_infrastructure(creds, track?) do
       tracking = %{
         "queue_url" => config["aws_sqs_queue_url"],
         "dlq_url" => config["aws_sqs_dlq_url"],
         "queue_arn" => config["aws_sqs_queue_arn"],
         "sns_topic_arn" => config["aws_sns_topic_arn"],
         "configuration_set" => config["aws_ses_configuration_set"],
-        "region" => config["aws_region"]
+        "region" => config["aws_region"],
+        "track_opens_and_clicks" => if(track?, do: "true")
       }
 
       case Emails.set_aws_tracking(uuid, tracking) do
         {:ok, _setting} ->
           socket
           |> after_tracking_change()
-          |> put_flash(:info, gettext("AWS infrastructure created for this account"))
+          |> put_flash(:info, setup_done_message())
 
         {:error, _reason} ->
           socket
@@ -513,15 +522,123 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
   # creates an SNS topic, a queue, a DLQ and a configuration set — in a guessed
   # region that is four real AWS resources in the wrong place, invisible to the
   # account that actually sends, and removable only by hand in a console.
-  defp setup_infrastructure(%{region: nil}), do: {:error, :missing_region}
+  defp setup_infrastructure(%{region: nil}, _track?), do: {:error, :missing_region}
 
-  defp setup_infrastructure(creds) do
-    InfrastructureSetup.run(
+  defp setup_infrastructure(creds, track?) do
+    InfrastructureSetup.run(setup_opts(creds, track?))
+  end
+
+  @doc false
+  # Public for the tests: what the setup is asked for. The open/click choice
+  # is passed only to a core that knows the option. Given, the setup brings an
+  # existing event destination in line with it; an older core ignores unknown
+  # options and creates the destination its own way.
+  def setup_opts(creds, track?) do
+    opts = [
       project_name: project_name(),
       region: creds.region,
       access_key_id: creds.access_key,
       secret_access_key: creds.secret_key
-    )
+    ]
+
+    if open_click_choice_supported?(),
+      do: Keyword.put(opts, :track_opens_and_clicks, track? == true),
+      else: opts
+  end
+
+  defp setup_done_message do
+    if iam_policies_supported?() do
+      gettext(
+        "AWS infrastructure created for this account. You can now replace the setup policy on the key with the running policy shown with the account."
+      )
+    else
+      gettext("AWS infrastructure created for this account")
+    end
+  end
+
+  # --- what the core this runs on can do -----------------------------------
+  #
+  # The policy text, the shared resource names and the open/click option
+  # arrived in core after this package's floor (3.5.0). On an older core the
+  # panel shows what it always did.
+
+  @doc false
+  def iam_policies_supported? do
+    Code.ensure_loaded?(PhoenixKit.AWS.IamPolicy) and
+      Code.ensure_loaded?(PhoenixKitWeb.Components.Core.IntegrationsUI) and
+      function_exported?(PhoenixKitWeb.Components.Core.IntegrationsUI, :aws_ses_policies, 1)
+  end
+
+  @doc false
+  def open_click_choice_supported? do
+    Code.ensure_loaded?(PhoenixKit.AWS.SESv2) and
+      function_exported?(PhoenixKit.AWS.SESv2, :event_types, 1)
+  end
+
+  # The two policies of one account, drawn by core's component. Before the
+  # setup the names come from the project title (the ones the setup will
+  # create); after it, from what it saved, so an account set up under an
+  # earlier title still gets a policy that matches its queues.
+  attr(:account, :map, required: true)
+  attr(:id, :string, required: true)
+
+  defp account_policies(assigns) do
+    if iam_policies_supported?() do
+      render_account_policies(assigns)
+    else
+      # An older core has neither the component nor the module behind it.
+      ~H""
+    end
+  end
+
+  defp render_account_policies(assigns) do
+    assigns =
+      assigns
+      |> assign(:component, PhoenixKitWeb.Components.Core.IntegrationsUI)
+      |> assign(:component_assigns, %{
+        # A function component called outside HEEx needs the key HEEx adds.
+        __changed__: nil,
+        policies: [:setup, :running],
+        region: Map.get(assigns.account, :region),
+        names: saved_names(Map.get(assigns.account, :tracking)),
+        id: assigns.id
+      })
+
+    ~H"""
+    <details
+      id={@id}
+      phx-mounted={Phoenix.LiveView.JS.ignore_attributes(["open"])}
+      class="text-sm"
+    >
+      <summary class="cursor-pointer select-none link link-primary">
+        {gettext("IAM policies for this account's key")}
+      </summary>
+      <p class="mt-2 text-xs text-base-content/60">
+        {gettext(
+          "Attach the setup policy before Setup Infrastructure. Once it has succeeded, replace it with the running policy. The key needs nothing else."
+        )}
+      </p>
+      {@component.aws_ses_policies(@component_assigns)}
+    </details>
+    """
+  end
+
+  defp saved_names(tracking) when is_map(tracking) do
+    # `apply/3`: the module is not there on an older core, and a literal call
+    # would warn when this package compiles against one.
+    # credo:disable-for-next-line Credo.Check.Refactor.Apply
+    apply(PhoenixKit.AWS.IamPolicy, :names_from_tracking, [tracking])
+  end
+
+  defp saved_names(_tracking), do: nil
+
+  # The region the connection itself carries, for an account that has not
+  # been set up yet. Goes through the per-account credentials cache.
+  defp connection_region(uuid) do
+    case AwsIntegrations.resolve_credentials(uuid) do
+      {:ok, %{region: region}} -> region
+      _ -> nil
+    end
   end
 
   # Is the send path still running on the global, pre-Integrations key pair?
@@ -532,11 +649,20 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
     end
   end
 
+  # Core's own derivation when it has one (the same function names the
+  # resources and the policy), this package's copy of it on an older core.
   defp project_name do
-    Settings.get_setting("project_title", "myapp")
-    |> String.downcase()
-    |> String.replace(~r/[^a-z0-9-]/, "-")
-    |> String.trim("-")
+    if Code.ensure_loaded?(InfrastructureSetup) and
+         function_exported?(InfrastructureSetup, :project_name, 0) do
+      # `apply/3`, for the same reason as in `saved_names/1`.
+      # credo:disable-for-next-line Credo.Check.Refactor.Apply
+      apply(InfrastructureSetup, :project_name, [])
+    else
+      Settings.get_setting("project_title", "myapp")
+      |> String.downcase()
+      |> String.replace(~r/[^a-z0-9-]/, "-")
+      |> String.trim("-")
+    end
   end
 
   defp mailer_config_snippet(%{config_app: app, config_module: mod}) do

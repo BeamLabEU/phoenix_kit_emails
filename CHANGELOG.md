@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+Works on PhoenixKit 3.5.0 as before. The three additions below appear on a core that has `PhoenixKit.AWS.IamPolicy` (the release after 3.5.0); on an older core the panel shows what it did.
+
+### Added
+
+- **Each Amazon SES account shows the IAM policies its key needs.** Under Delivery Event Tracking, an account has "IAM policies for this account's key": the setup policy (attach before Setup Infrastructure) and the running policy (replace it with this afterwards), each with a Copy button. Before the setup the resource names come from the project title; after it, from what the setup saved, so an account set up under an earlier title gets a policy that matches its queues. The success message of the setup says the key can now be narrowed.
+- **"Track opens and clicks" per account**, off unless ticked. With it on, SES adds a tracking pixel to every message and rewrites every link through its own redirect address, sign-in and password-reset links included. Saving records the choice and Setup Infrastructure applies it in AWS, to a new event destination or an existing one. ⚠️ An account set up earlier tracks opens and clicks in AWS although its box shows unticked; run the setup once to bring AWS in line with the box.
+- `mix.exs` takes `PHOENIX_KIT_PATH`, so the suite can run against a local core checkout, as the other modules' suites do.
+
+### Changed
+
+- The project name the AWS resources are named from is core's (`InfrastructureSetup.project_name/0`) where core has it; this package's own copy stays for older cores.
+- When AWS refuses the poller's read of a queue, the log now says what that means: the key needs the running policy, and where it is shown.
+- The poller's log names the settings page "Emails Transactional", as core does.
+
+### Fixed
+
+- Translations: four Estonian and Russian strings the catalogue served with another message's text (the S3 archive errors and the retired-template note), and one untranslated Estonian sentence.
+
 ## 0.9.0 - 2026-11-14
 
 Needs PhoenixKit 3.5.0. No migration.

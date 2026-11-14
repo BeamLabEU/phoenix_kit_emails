@@ -510,7 +510,7 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
         Logger.warning(
           "SQS Polling Job: #{length(uuids)} active SES account(s) have no queue of their own " <>
             "(#{Enum.join(uuids, ", ")}) — falling back to the single global queue. Configure " <>
-            "each account under Settings -> Email Sending -> Delivery Event Tracking -> expand the Amazon SES row."
+            "each account under Settings -> Emails Transactional -> Delivery Event Tracking -> expand the Amazon SES row."
         )
     end
   end
@@ -786,8 +786,33 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
           queue_url: config.queue_url
         })
 
+        warn_if_permission_refused(error, config.queue_url)
+
         {:error, error}
     end
+  end
+
+  # AWS refusing the read is not a transient fault: the key lacks the two SQS
+  # actions of the running policy, or its policy names another queue. Said in
+  # words, because the raw error names an action and not what to do about it.
+  defp warn_if_permission_refused(error, queue_url) do
+    if permission_refused?(error) do
+      Logger.error(
+        "SQS Polling Job: AWS refused to read #{queue_url}. The key needs the running policy " <>
+          "(sqs:ReceiveMessage and sqs:DeleteMessage on this queue and its dead-letter queue): " <>
+          "it is shown with the account under Settings -> Emails Transactional -> " <>
+          "Delivery Event Tracking -> Amazon SES."
+      )
+    end
+  end
+
+  @doc false
+  # Public for the tests. AWS words a refusal differently per service
+  # (AccessDenied, AccessDeniedException, AuthorizationError), but always
+  # with "not authorized to perform".
+  def permission_refused?(error) do
+    text = inspect(error)
+    String.contains?(text, ["AccessDenied", "not authorized to perform"])
   end
 
   # Process message list in parallel

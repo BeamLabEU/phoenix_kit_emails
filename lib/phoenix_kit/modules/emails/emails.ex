@@ -1999,7 +1999,11 @@ defmodule PhoenixKit.Modules.Emails do
 
   @aws_tracking_prefix "aws_tracking:"
 
-  @aws_tracking_fields ~w(queue_url dlq_url queue_arn sns_topic_arn configuration_set region)
+  @aws_tracking_fields ~w(queue_url dlq_url queue_arn sns_topic_arn configuration_set region track_opens_and_clicks)
+
+  # Fields that say something about an account without being part of its
+  # pipeline: where it lives, and a choice Setup Infrastructure applies.
+  @aws_tracking_non_pipeline_fields ~w(region track_opens_and_clicks)
 
   @doc """
   The per-account SES/SQS tracking pipeline for one `aws_ses` integration —
@@ -2098,7 +2102,21 @@ defmodule PhoenixKit.Modules.Emails do
   # WHERE an account lives rather than WHAT tracking pipeline it has — see
   # `seed_aws_tracking_from_legacy/0`. A function, not an attribute, only
   # because its one caller is defined earlier in the file than this.
-  defp aws_tracking_pipeline_fields, do: @aws_tracking_fields -- ["region"]
+  defp aws_tracking_pipeline_fields,
+    do: @aws_tracking_fields -- @aws_tracking_non_pipeline_fields
+
+  @doc """
+  Whether an account's tracking settings ask for SES open and click events.
+
+  The choice is the account's `track_opens_and_clicks` field (`"true"` when
+  ticked) and is applied by Setup Infrastructure, not by saving it: SES keeps
+  the event list on the event destination. Off unless ticked, because with it
+  on SES adds a tracking pixel to every message and rewrites every link
+  through its own redirect host, sign-in and password-reset links included.
+  """
+  @spec aws_tracking_opens_and_clicks?(map() | nil) :: boolean()
+  def aws_tracking_opens_and_clicks?(%{track_opens_and_clicks: "true"}), do: true
+  def aws_tracking_opens_and_clicks?(_tracking), do: false
 
   defp decode_aws_tracking(json) do
     Map.new(@aws_tracking_fields, fn field ->

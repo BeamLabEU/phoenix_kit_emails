@@ -321,6 +321,139 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqsTest do
     })
   end
 
+  # The policies, the shared names and the open/click option live in core and
+  # arrived after this package's floor. Each test says what it expects on a
+  # core that has them and on one that does not, so the suite is meaningful
+  # against the published pin and against a local core alike.
+  describe "an account's IAM policies and its open/click choice" do
+    setup do
+      {:ok, %{uuid: uuid}} = Integrations.add_connection("aws_ses", "tracked")
+
+      {:ok, _} =
+        Integrations.save_setup(uuid, %{
+          "access_key" => "AKIATEST",
+          "secret_key" => "secret",
+          "aws_region" => "eu-north-1"
+        })
+
+      %{uuid: uuid}
+    end
+
+    test "the choice is saved with the account and read back", %{uuid: uuid} do
+      {:ok, _} = Emails.set_aws_tracking(uuid, %{"track_opens_and_clicks" => "true"})
+      assert Emails.aws_tracking_opens_and_clicks?(Emails.get_aws_tracking(uuid))
+
+      {:ok, _} = Emails.set_aws_tracking(uuid, %{"track_opens_and_clicks" => ""})
+      refute Emails.aws_tracking_opens_and_clicks?(Emails.get_aws_tracking(uuid))
+
+      refute Emails.aws_tracking_opens_and_clicks?(nil)
+      refute Emails.aws_tracking_opens_and_clicks?(%{})
+    end
+
+    test "the choice alone is not a pipeline: the account still awaits its queue", %{uuid: uuid} do
+      {:ok, _} = Emails.set_aws_tracking(uuid, %{"track_opens_and_clicks" => "true"})
+
+      assert Emails.get_aws_tracking(uuid).queue_url == nil
+    end
+
+    test "the save form's unticked box clears it", %{uuid: uuid} do
+      {:ok, _} = Emails.set_aws_tracking(uuid, %{"track_opens_and_clicks" => "true"})
+
+      assert {:noreply, _socket} =
+               SesSection.handle_event(
+                 "save_tracking_account",
+                 %{"uuid" => uuid, "tracking" => %{"track_opens_and_clicks" => ""}},
+                 bare_socket()
+               )
+
+      refute Emails.aws_tracking_opens_and_clicks?(Emails.get_aws_tracking(uuid))
+    end
+
+    test "the setup is told the choice only by a core that knows the option" do
+      creds = %{region: "eu-north-1", access_key: "AKIATEST", secret_key: "secret"}
+
+      if SesSection.open_click_choice_supported?() do
+        assert SesSection.setup_opts(creds, true)[:track_opens_and_clicks] == true
+        # `false` is a choice too: the setup then switches an existing
+        # destination off, which leaving the option out would not.
+        assert SesSection.setup_opts(creds, false)[:track_opens_and_clicks] == false
+      else
+        refute Keyword.has_key?(SesSection.setup_opts(creds, true), :track_opens_and_clicks)
+      end
+
+      assert SesSection.setup_opts(creds, false)[:region] == "eu-north-1"
+    end
+
+    test "the account row shows the box and the policies, on a core that has them", %{uuid: uuid} do
+      {:ok, _} = Emails.set_aws_tracking(uuid, %{})
+      html = render_section()
+
+      if SesSection.open_click_choice_supported?() do
+        assert html =~ ~s(name="tracking[track_opens_and_clicks]")
+        assert html =~ "Track opens and clicks"
+      else
+        refute html =~ "track_opens_and_clicks"
+      end
+
+      if SesSection.iam_policies_supported?() do
+        assert html =~ "IAM policies for this account"
+        assert html =~ "SetupInfrastructure"
+        # Not set up yet: the region is the connection's.
+        assert html =~ "arn:aws:sqs:eu-north-1:*:"
+        refute html =~ "&lt;region&gt;"
+      else
+        refute html =~ "IAM policies for this account"
+      end
+    end
+
+    test "after a setup the policies carry the saved names, not the title's", %{uuid: uuid} do
+      {:ok, _} =
+        Emails.set_aws_tracking(uuid, %{
+          "queue_url" => "https://sqs.eu-west-1.amazonaws.com/1/old-email-queue",
+          "dlq_url" => "https://sqs.eu-west-1.amazonaws.com/1/old-email-dlq",
+          "queue_arn" => "arn:aws:sqs:eu-west-1:1:old-email-queue",
+          "sns_topic_arn" => "arn:aws:sns:eu-west-1:1:old-email-events",
+          "configuration_set" => "old-emailing",
+          "region" => "eu-west-1"
+        })
+
+      html = render_section()
+
+      if SesSection.iam_policies_supported?() do
+        assert html =~ "arn:aws:sqs:eu-west-1:*:old-email-queue"
+        assert html =~ "arn:aws:sqs:eu-west-1:*:old-email-dlq"
+        assert html =~ "configuration-set/old-emailing"
+      end
+    end
+
+    test "the box is ticked for an account that chose tracking", %{uuid: uuid} do
+      {:ok, _} = Emails.set_aws_tracking(uuid, %{"track_opens_and_clicks" => "true"})
+      html = render_section()
+
+      if SesSection.open_click_choice_supported?() do
+        assert html =~ ~r/name="tracking\[track_opens_and_clicks\]"[^>]*value="true"[^>]*checked/
+      end
+    end
+  end
+
+  describe "the poller says what a refused read means" do
+    alias PhoenixKit.Modules.Emails.SQSPollingJob
+
+    test "AWS's wordings of a refusal are recognised" do
+      assert SQSPollingJob.permission_refused?(
+               {"AccessDeniedException",
+                "User: arn:aws:iam::1:user/x is not authorized to perform: sqs:receivemessage on resource: arn:aws:sqs:eu-north-1:1:q"}
+             )
+
+      assert SQSPollingJob.permission_refused?({:http_error, 403, %{code: "AccessDenied"}})
+    end
+
+    test "other failures are not" do
+      refute SQSPollingJob.permission_refused?({:http_error, 500, %{body: "boom"}})
+      refute SQSPollingJob.permission_refused?(:timeout)
+    end
+  end
+
   describe "the panel tells its row when it changed something" do
     test "a tracking change sends the parent an update" do
       uuid = create_ses_connection_with_queue()
