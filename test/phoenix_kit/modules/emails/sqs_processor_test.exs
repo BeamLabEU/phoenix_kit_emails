@@ -39,6 +39,24 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessorTest do
     }
   end
 
+  defp complaint_event(recipients, message_id, feedback_type \\ "abuse") do
+    %{
+      "eventType" => "Complaint",
+      "mail" => %{
+        "messageId" => message_id,
+        "destination" => Enum.map(recipients, & &1["emailAddress"]),
+        "source" => "sender@example.com",
+        "commonHeaders" => %{"subject" => "Test"},
+        "timestamp" => "2026-07-12T10:00:00.000Z"
+      },
+      "complaint" => %{
+        "complainedRecipients" => recipients,
+        "complaintFeedbackType" => feedback_type,
+        "timestamp" => "2026-07-12T10:00:00.000Z"
+      }
+    }
+  end
+
   defp create_log_for(message_id, to_email) do
     {:ok, log} =
       Log.create_log(%{
@@ -143,6 +161,46 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessorTest do
                SQSProcessor.process_email_event(bounce_event("Permanent", recipients, message_id))
 
       refute RateLimiter.is_blocked?(oversized_email)
+    end
+  end
+
+  describe "process_email_event/1 — complaint" do
+    test "a spam complaint adds the complaining recipient to the blocklist as complaint" do
+      message_id = unique_message_id()
+      create_log_for(message_id, "complainer@example.com")
+
+      event = complaint_event([%{"emailAddress" => "Complainer@example.com"}], message_id)
+
+      assert {:ok, _} = SQSProcessor.process_email_event(event)
+
+      assert RateLimiter.is_blocked?("complainer@example.com")
+
+      assert [%{reason: "complaint"}] =
+               RateLimiter.list_blocklist(%{search: "complainer@example.com"})
+    end
+
+    test "a complaint blocklists the recipient even when no matching email log exists" do
+      event =
+        complaint_event(
+          [%{"emailAddress" => "orphan-complaint@example.com"}],
+          unique_message_id()
+        )
+
+      SQSProcessor.process_email_event(event)
+
+      assert RateLimiter.is_blocked?("orphan-complaint@example.com")
+    end
+
+    test "a not-spam report does not blocklist the recipient" do
+      message_id = unique_message_id()
+      create_log_for(message_id, "notspam@example.com")
+
+      event =
+        complaint_event([%{"emailAddress" => "notspam@example.com"}], message_id, "not-spam")
+
+      SQSProcessor.process_email_event(event)
+
+      refute RateLimiter.is_blocked?("notspam@example.com")
     end
   end
 end

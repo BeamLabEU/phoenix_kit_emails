@@ -94,8 +94,14 @@ defmodule PhoenixKit.Modules.Emails.BrevoEventNormalizer do
      %{"timestamp" => date, "link" => brevo_event["link"], "ipAddress" => brevo_event["ip"]}}
   end
 
-  defp build("spam", _brevo_event, date) do
-    {"complaint", "complaint", %{"timestamp" => date}}
+  # `complainedRecipients` mirrors the SES shape so SQSProcessor blocklists
+  # the address, the same way `bouncedRecipients` does for hard bounces.
+  defp build("spam", brevo_event, date) do
+    {"complaint", "complaint",
+     %{
+       "timestamp" => date,
+       "complainedRecipients" => [%{"emailAddress" => brevo_event["email"]}]
+     }}
   end
 
   defp build("deferred", brevo_event, date) do

@@ -96,6 +96,9 @@ defmodule PhoenixKit.Modules.Emails.BrevoEventNormalizerTest do
   test "spam -> complaint" do
     assert {:ok, event_data} = Normalizer.normalize(brevo_event("spam"))
     assert event_data["eventType"] == "complaint"
+
+    assert [%{"emailAddress" => email}] = event_data["complaint"]["complainedRecipients"]
+    assert email == brevo_event("spam")["email"]
   end
 
   test "deferred -> delivery_delay, carries the Brevo reason" do

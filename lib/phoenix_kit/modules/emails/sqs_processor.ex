@@ -530,29 +530,42 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
     bounce_data
     |> get_in(["bouncedRecipients"])
     |> List.wrap()
-    |> Enum.each(&blocklist_recipient/1)
+    |> Enum.each(&blocklist_recipient(&1, "hard_bounce"))
   end
 
-  defp blocklist_recipient(%{"emailAddress" => email}) when is_binary(email) do
-    case RateLimiter.add_to_blocklist(email, "hard_bounce") do
+  # Adds every recipient named in a spam complaint to the blocklist. Mailing
+  # someone who reported us as spam again is what costs sender reputation, so
+  # this is as permanent as a hard bounce. Same best-effort contract as
+  # `blocklist_bounced_recipients/1`.
+  defp blocklist_complained_recipients(complaint_data) do
+    complaint_data
+    |> get_in(["complainedRecipients"])
+    |> List.wrap()
+    |> Enum.each(&blocklist_recipient(&1, "complaint"))
+  end
+
+  defp blocklist_recipient(%{"emailAddress" => email}, block_reason) when is_binary(email) do
+    case RateLimiter.add_to_blocklist(email, block_reason) do
       :ok ->
         :ok
 
       {:error, reason} ->
-        Logger.error("Failed to add hard-bounced recipient to blocklist", %{
+        Logger.error("Failed to add recipient to blocklist", %{
           email: email,
+          block_reason: block_reason,
           reason: inspect(reason)
         })
     end
   rescue
     error ->
-      Logger.error("Error adding hard-bounced recipient to blocklist", %{
+      Logger.error("Error adding recipient to blocklist", %{
         email: email,
+        block_reason: block_reason,
         error: inspect(error)
       })
   end
 
-  defp blocklist_recipient(_), do: :ok
+  defp blocklist_recipient(_, _), do: :ok
 
   # Processes complaint event
   defp process_complaint_event(event_data) do
@@ -570,16 +583,28 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
     extra_log_data = %{complaint_type: complaint_type}
     placeholder_opts = %{event_data: event_data, status: "complaint"}
 
-    process_ses_event(
-      message_id,
-      mail_data,
-      update_attrs,
-      complaint_data,
-      "complaint",
-      &create_complaint_event/2,
-      extra_log_data,
-      placeholder_opts
-    )
+    result =
+      process_ses_event(
+        message_id,
+        mail_data,
+        update_attrs,
+        complaint_data,
+        "complaint",
+        &create_complaint_event/2,
+        extra_log_data,
+        placeholder_opts
+      )
+
+    # Blocklist whoever complained so future sends are rejected at the source.
+    # Like the hard-bounce path, independent of `result`: the provider's report
+    # stands even when no internal log matches. "not-spam" is the one feedback
+    # type that is the opposite of a complaint (the recipient moved the message
+    # *out* of their spam folder), so it must not block.
+    if String.downcase(complaint_type || "") != "not-spam" do
+      blocklist_complained_recipients(complaint_data)
+    end
+
+    result
   end
 
   # Processes email open event
