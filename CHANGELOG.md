@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.10.0 - 2026-11-15
 
 Works on PhoenixKit 3.5.0 as before; tested against 3.6.0. No migration. The IAM policies and the open/click choice below appear on PhoenixKit 3.6.0 and later (`PhoenixKit.AWS.IamPolicy`, `SESv2.event_types/1`); on 3.5.x the panel shows what it did.
 
