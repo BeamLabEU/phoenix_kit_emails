@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-Works on PhoenixKit 3.5.0 as before. The three additions below appear on a core that has `PhoenixKit.AWS.IamPolicy` (the release after 3.5.0); on an older core the panel shows what it did.
+Works on PhoenixKit 3.5.0 as before; tested against 3.6.0. No migration. The IAM policies and the open/click choice below appear on PhoenixKit 3.6.0 and later (`PhoenixKit.AWS.IamPolicy`, `SESv2.event_types/1`); on 3.5.x the panel shows what it did.
 
 ### Added
 
@@ -16,8 +16,11 @@ Works on PhoenixKit 3.5.0 as before. The three additions below appear on a core 
 - When AWS refuses the poller's read of a queue, the log now says what that means: the key needs the running policy, and where it is shown.
 - The poller's log names the settings page "Emails Transactional", as core does.
 
+- Dependencies updated: `mix.lock` now resolves PhoenixKit 3.6.0 and `phoenix_kit_templates` 0.2.5, and no longer carries `ex_aws_ec2` (dropped by core 3.6.0).
+
 ### Fixed
 
+- **On PhoenixKit 3.5.x, a project title with no ASCII letter or digit** (e.g. "Фотки") no longer names the AWS resources `-email-queue`, `-emailing`: this package's copy of the project name falls back to `myapp`, as core 3.6.0's `InfrastructureSetup.project_name/1` does. On 3.6.0 core's own function is used.
 - Translations: four Estonian and Russian strings the catalogue served with another message's text (the S3 archive errors and the retired-template note), and one untranslated Estonian sentence.
 
 ## 0.9.0 - 2026-11-14

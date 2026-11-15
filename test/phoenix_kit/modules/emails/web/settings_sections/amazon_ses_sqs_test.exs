@@ -384,6 +384,24 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqsTest do
       assert SesSection.setup_opts(creds, false)[:region] == "eu-north-1"
     end
 
+    # On a core without `InfrastructureSetup.project_name/1` the resources are
+    # named by this package's copy: it must name them as core does.
+    test "the fallback project name never leaves an empty prefix" do
+      assert SesSection.fallback_project_name("My App!") == "my-app"
+      assert SesSection.fallback_project_name("Фотки") == "myapp"
+      assert SesSection.fallback_project_name("---") == "myapp"
+      assert SesSection.fallback_project_name(nil) == "myapp"
+
+      setup = PhoenixKit.AWS.InfrastructureSetup
+
+      if function_exported?(setup, :project_name, 1) do
+        for title <- ["My App!", "Фотки", "a_b.c", "", "--x--"] do
+          # credo:disable-for-next-line Credo.Check.Refactor.Apply
+          assert SesSection.fallback_project_name(title) == apply(setup, :project_name, [title])
+        end
+      end
+    end
+
     test "the account row shows the box and the policies, on a core that has them", %{uuid: uuid} do
       {:ok, _} = Emails.set_aws_tracking(uuid, %{})
       html = render_section()

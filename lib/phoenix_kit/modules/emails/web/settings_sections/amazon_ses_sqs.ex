@@ -658,12 +658,26 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
       # credo:disable-for-next-line Credo.Check.Refactor.Apply
       apply(InfrastructureSetup, :project_name, [])
     else
-      Settings.get_setting("project_title", "myapp")
+      fallback_project_name(Settings.get_setting("project_title", "myapp"))
+    end
+  end
+
+  @doc false
+  # Public for the tests. Core 3.6's `InfrastructureSetup.project_name/1`,
+  # for a core without it: a title that leaves nothing (no ASCII letter or
+  # digit, e.g. "Фотки") is "myapp", never "" — which would name the
+  # resources `-email-queue`, `-emailing`.
+  def fallback_project_name(title) when is_binary(title) do
+    name =
+      title
       |> String.downcase()
       |> String.replace(~r/[^a-z0-9-]/, "-")
       |> String.trim("-")
-    end
+
+    if name == "", do: "myapp", else: name
   end
+
+  def fallback_project_name(_title), do: "myapp"
 
   defp mailer_config_snippet(%{config_app: app, config_module: mod}) do
     """
