@@ -16,7 +16,11 @@ defmodule PhoenixKit.Modules.Emails.BrevoEventsIntegrationTest do
      was already doing for SES, now working for Brevo too.
   """
 
-  use PhoenixKitEmails.DataCase, async: true
+  # Not async: it writes settings rows. Each sandboxed test holds the rows it
+  # wrote until it ends, and core's settings write (3.6: the row read under
+  # a lock, then the value and its history) makes two async tests that write
+  # the same keys in another order deadlock.
+  use PhoenixKitEmails.DataCase, async: false
 
   import Ecto.Query
 
