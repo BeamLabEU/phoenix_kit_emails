@@ -17,7 +17,7 @@ mix format                  # Format code
 mix credo --strict          # Lint / code quality (strict mode)
 mix dialyzer                # Static type checking
 mix docs                    # Generate documentation
-mix precommit               # compile + format + credo --strict + dialyzer
+mix precommit               # compile + unused-deps + hex.audit + format + credo --strict + dialyzer + docs --warnings-as-errors
 mix quality                 # format + credo --strict + dialyzer
 mix quality.ci              # format --check-formatted + credo --strict + dialyzer
 ```

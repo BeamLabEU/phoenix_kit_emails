@@ -44,7 +44,10 @@ defmodule PhoenixKitEmails.MixProject do
         # process — the hex.* archive tasks aren't resolvable via Mix.Task.run
         # inside an alias.
         "cmd mix hex.audit",
-        "quality.ci"
+        "quality.ci",
+        # `mix hex.publish` builds the docs: a broken reference fails here,
+        # not in the middle of a release.
+        "docs --warnings-as-errors"
       ]
     ]
   end
@@ -131,7 +134,15 @@ defmodule PhoenixKitEmails.MixProject do
       # points at a tag that does not exist and 404s every HexDocs source link.
       source_ref: @version,
       source_url: @source_url,
-      extras: ["README.md", "CHANGELOG.md", "LICENSE.md"]
+      extras: ["README.md", "CHANGELOG.md", "LICENSE.md"],
+      # Hidden on purpose, named in the CHANGELOG and in `expected_schema/0`'s
+      # doc: the manifest is generated with `@moduledoc false`, and
+      # `version/0` is a callback with no doc of its own. Shown as code, not
+      # linked, so `mix docs` (and `mix hex.publish`) builds without warnings.
+      skip_code_autolink_to: [
+        "PhoenixKit.Modules.Emails.ExpectedSchema",
+        "PhoenixKit.Modules.Emails.version/0"
+      ]
     ]
   end
 end
