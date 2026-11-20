@@ -330,6 +330,8 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingManager do
     )
     |> repo.one()
   rescue
-    _ -> 0
+    error ->
+      Logger.warning("Brevo polling status: pending count unavailable", %{error: inspect(error)})
+      0
   end
 end

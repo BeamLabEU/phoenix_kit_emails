@@ -143,6 +143,20 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
     else
       email
     end
+  rescue
+    # Core calls intercept_before_send without its own rescue around it
+    # (PhoenixKit.Mailer.deliver_email/2), so a raise here — a DB blip inside
+    # create_email_log after enabled?/0 answered from cache, a settings read
+    # failing mid-send — would propagate into deliver_email/2 and the message
+    # would never be sent. A logging problem must never break a send: log and
+    # return the email untouched so it goes out untracked.
+    error ->
+      Logger.error("Email interception failed before send; sending untracked", %{
+        error: inspect(error),
+        stacktrace: Exception.format_stacktrace(__STACKTRACE__)
+      })
+
+      email
   end
 
   @doc """
@@ -306,8 +320,14 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
         if(is_map(provider_response), do: Map.keys(provider_response), else: "not_map")
     })
 
+    # The queue is at-least-once: a retried job can re-succeed after a SES
+    # delivery/open event already moved the row past "sent". Downgrading that
+    # row back to "sent" (and writing a second "send" event) loses the richer
+    # state, so only transition to "sent" from a pre-delivery status.
+    past_send? = past_send_status?(log.status)
+
     update_attrs = %{
-      status: "sent",
+      status: if(past_send?, do: log.status, else: "sent"),
       sent_at: UtilsDate.utc_now(),
       # Clear the failure trail left by earlier attempts — see
       # clear_failure_trail/1 for why it is there and why retry_count stays.
@@ -326,8 +346,10 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
           status: updated_log.status
         })
 
-        # Create send event
-        Event.create_send_event(updated_log.uuid, updated_log.provider)
+        # Create send event (only on the first transition to "sent")
+        if past_send?,
+          do: :ok,
+          else: Event.create_send_event(updated_log.uuid, updated_log.provider)
 
         clear_failure_trail(updated_log)
 
@@ -343,6 +365,22 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
         {:error, reason}
     end
   end
+
+  # Statuses a log reaches only after SES has reported back — never overwrite
+  # these with a bare "sent" on a duplicate delivery.
+  defp past_send_status?(status)
+       when status in [
+              "delivered",
+              "opened",
+              "clicked",
+              "bounced",
+              "complaint",
+              "rejected",
+              "delayed"
+            ],
+       do: true
+
+  defp past_send_status?(_), do: false
 
   @doc """
   Updates an email log after send failure.
@@ -659,14 +697,20 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
   defp extract_sender(email) when is_binary(email), do: email
   defp extract_sender(_), do: "unknown@example.com"
 
-  # Extract and clean headers
+  # Extract and clean headers. Honors `email_save_headers`: when the operator
+  # turned header saving off, store an empty map (the inbound/SQS path already
+  # does this at sqs_processor.ex) instead of the full header set.
   defp extract_headers(%Email{headers: headers}, _opts) when is_map(headers) do
-    # Remove sensitive headers and normalize
-    headers
-    |> Enum.reject(fn {key, _} ->
-      key in ["Authorization", "Authentication-Results", "X-Password", "X-API-Key"]
-    end)
-    |> Enum.into(%{})
+    if Emails.save_headers_enabled?() do
+      # Remove sensitive headers and normalize
+      headers
+      |> Enum.reject(fn {key, _} ->
+        key in ["Authorization", "Authentication-Results", "X-Password", "X-API-Key"]
+      end)
+      |> Enum.into(%{})
+    else
+      %{}
+    end
   end
 
   defp extract_headers(_, _opts), do: %{}

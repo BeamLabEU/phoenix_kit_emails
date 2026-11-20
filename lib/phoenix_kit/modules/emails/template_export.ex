@@ -270,6 +270,11 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport do
   """
   @spec files_for(Template.t(), Path.t()) :: [{Path.t(), String.t()}]
   def files_for(%Template{} = template, out \\ @default_out) do
+    # The name becomes a path segment under `out`; a legacy row whose name
+    # contains "/", "\\", or ".." would otherwise write outside the export dir
+    # (and `--force` would overwrite anywhere). Refuse loudly instead.
+    validate_name!(template.name)
+
     Enum.flat_map(@parts, fn {field, stem, extension} ->
       case Map.get(template, field) do
         map when is_map(map) -> part_files(map, template.name, stem, extension, out)
@@ -277,6 +282,21 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport do
       end
     end)
   end
+
+  @safe_template_name ~r/^[A-Za-z0-9][A-Za-z0-9_-]{0,99}$/
+
+  defp validate_name!(name) when is_binary(name) do
+    unless name =~ @safe_template_name do
+      raise ArgumentError,
+            "refusing to export template with unsafe name #{inspect(name)} " <>
+              "(must match #{inspect(@safe_template_name)})"
+    end
+
+    :ok
+  end
+
+  defp validate_name!(other),
+    do: raise(ArgumentError, "refusing to export template with non-string name #{inspect(other)}")
 
   @doc """
   Writes planned `{path, content}` pairs, returning `{path, outcome}` for each.

@@ -23,7 +23,33 @@ defmodule PhoenixKit.Modules.Emails.Web.ExportController do
   use PhoenixKitWeb, :controller
 
   alias PhoenixKit.Modules.Emails
+  alias PhoenixKit.Modules.Emails.RateLimiter
+  alias PhoenixKit.Users.Auth.Scope
+  alias PhoenixKit.Users.Permissions
   alias PhoenixKit.Utils.Routes
+
+  # The route already gates on the admin role (`:phoenix_kit_admin_only`); this
+  # plug adds the per-module gate the admin LiveViews get from core's
+  # live_session hook, so a role that lacks the "emails" permission (or a host
+  # with the module disabled) cannot pull the export even though it is admin.
+  plug(:require_emails_module)
+
+  @export_limit 1_000_000
+
+  defp require_emails_module(conn, _opts) do
+    scope = conn.assigns[:phoenix_kit_current_scope]
+    enabled = Permissions.enabled_module_keys()
+
+    if not is_nil(scope) and Scope.has_module_access?(scope, "emails") and
+         MapSet.member?(enabled, "emails") do
+      conn
+    else
+      conn
+      |> put_flash(:error, "Email management is not enabled")
+      |> redirect(to: Routes.path("/admin"))
+      |> halt()
+    end
+  end
 
   ## --- Email Logs Export ---
 
@@ -45,23 +71,14 @@ defmodule PhoenixKit.Modules.Emails.Web.ExportController do
   """
   def export_logs(conn, params) do
     if Emails.enabled?() do
-      # Build filters from query parameters
-      filters = build_export_filters(params)
+      format = params["format"] || "csv"
+      filters = build_export_filters(params) |> Map.put(:limit, @export_limit)
 
-      # Generate filename with timestamp
-      filename = "email_logs_#{Date.utc_today()}.csv"
-
-      # Get logs data
+      # Lift the list's default 50-row pagination cap: an export that silently
+      # truncates to the first page is worse than no export.
       logs = Emails.list_logs(filters)
 
-      # Generate CSV content
-      csv_content = generate_logs_csv(logs)
-
-      # Send CSV file
-      conn
-      |> put_resp_content_type("text/csv")
-      |> put_resp_header("content-disposition", "attachment; filename=\"#{filename}\"")
-      |> send_resp(200, csv_content)
+      send_export(conn, format, "email_logs_#{Date.utc_today()}", generate_logs_csv(logs), logs)
     else
       conn
       |> put_flash(:error, "Email management is not enabled")
@@ -83,23 +100,21 @@ defmodule PhoenixKit.Modules.Emails.Web.ExportController do
   """
   def export_metrics(conn, params) do
     if Emails.enabled?() do
+      format = params["format"] || "csv"
       # Get metrics based on parameters
       period = validate_period(params["period"])
       group_by = params["group_by"] || "day"
 
-      filename = "email_metrics_#{period}_#{Date.utc_today()}.csv"
-
       # Get metrics data
       metrics = Emails.get_engagement_metrics(period)
 
-      # Generate CSV content
-      csv_content = generate_metrics_csv(metrics, group_by)
-
-      # Send CSV file
-      conn
-      |> put_resp_content_type("text/csv")
-      |> put_resp_header("content-disposition", "attachment; filename=\"#{filename}\"")
-      |> send_resp(200, csv_content)
+      send_export(
+        conn,
+        format,
+        "email_metrics_#{period}_#{Date.utc_today()}",
+        generate_metrics_csv(metrics, group_by),
+        metrics
+      )
     else
       conn
       |> put_flash(:error, "Email management is not enabled")
@@ -118,17 +133,26 @@ defmodule PhoenixKit.Modules.Emails.Web.ExportController do
 
   Returns CSV file with blocked email addresses and metadata.
   """
-  def export_blocklist(conn, _params) do
+  def export_blocklist(conn, params) do
     if Emails.enabled?() do
-      # For now, return empty CSV as blocklist API is not fully implemented
-      filename = "email_blocklist_#{Date.utc_today()}.csv"
-      csv_content = "Email,Reason,Blocked At,Block Count,Last Attempt,Notes\n"
+      format = params["format"] || "csv"
 
-      # Send CSV file
-      conn
-      |> put_resp_content_type("text/csv")
-      |> put_resp_header("content-disposition", "attachment; filename=\"#{filename}\"")
-      |> send_resp(200, csv_content)
+      opts = %{include_expired: true}
+
+      opts =
+        if is_binary(params["reason"]) and params["reason"] != "",
+          do: Map.put(opts, :reason, params["reason"]),
+          else: opts
+
+      blocked = RateLimiter.list_blocklist(opts)
+
+      send_export(
+        conn,
+        format,
+        "email_blocklist_#{Date.utc_today()}",
+        generate_blocklist_csv(blocked),
+        blocked
+      )
     else
       conn
       |> put_flash(:error, "Email management is not enabled")
@@ -147,23 +171,22 @@ defmodule PhoenixKit.Modules.Emails.Web.ExportController do
 
   Returns CSV file with detailed email information and events.
   """
-  def export_email_details(conn, %{"id" => email_uuid}) do
+  def export_email_details(conn, %{"id" => email_uuid} = params) do
     if Emails.enabled?() do
+      format = params["format"] || "csv"
+
       try do
         log = Emails.get_log!(email_uuid)
         # Get events for this email - use the log's uuid for Event query
         events = Emails.list_events_for_log(log.uuid)
 
-        filename = "email_#{email_uuid}_details_#{Date.utc_today()}.csv"
-
-        # Generate CSV content
-        csv_content = generate_email_details_csv(log, events)
-
-        # Send CSV file
-        conn
-        |> put_resp_content_type("text/csv")
-        |> put_resp_header("content-disposition", "attachment; filename=\"#{filename}\"")
-        |> send_resp(200, csv_content)
+        send_export(
+          conn,
+          format,
+          "email_#{email_uuid}_details_#{Date.utc_today()}",
+          generate_email_details_csv(log, events),
+          %{email: log, events: events}
+        )
       rescue
         Ecto.NoResultsError ->
           conn
@@ -180,6 +203,53 @@ defmodule PhoenixKit.Modules.Emails.Web.ExportController do
       |> put_flash(:error, "Email management is not enabled")
       |> redirect(to: Routes.path("/admin"))
     end
+  end
+
+  # Send an export in the requested format. `csv_content` is always built (it
+  # is cheap and defines the canonical columns); `json_value` is encoded for
+  # "json". Anything else is a 400, not a silent CSV.
+  defp send_export(conn, format, filename_base, csv_content, json_value) do
+    case format do
+      "csv" ->
+        conn
+        |> put_resp_content_type("text/csv")
+        |> put_resp_header("content-disposition", "attachment; filename=\"#{filename_base}.csv\"")
+        |> send_resp(200, csv_content)
+
+      "json" ->
+        conn
+        |> put_resp_content_type("application/json")
+        |> put_resp_header(
+          "content-disposition",
+          "attachment; filename=\"#{filename_base}.json\""
+        )
+        |> send_resp(200, JSON.encode!(json_value))
+
+      other ->
+        conn
+        |> put_resp_content_type("text/plain")
+        |> send_resp(
+          400,
+          "Unsupported export format: #{inspect(other)}. Use \"csv\" or \"json\"."
+        )
+    end
+  end
+
+  # Generate CSV content for the blocklist
+  defp generate_blocklist_csv(blocked) do
+    headers = ["Email", "Reason", "Expires At", "Blocked At", "User UUID"]
+    rows = Enum.map(blocked, &blocklist_to_csv_row/1)
+    format_csv_output(headers, rows)
+  end
+
+  defp blocklist_to_csv_row(entry) do
+    [
+      entry.email || "",
+      entry.reason || "",
+      format_datetime_for_csv(entry.expires_at),
+      format_datetime_for_csv(entry.inserted_at),
+      entry.user_uuid || ""
+    ]
   end
 
   ## --- Private Helper Functions ---

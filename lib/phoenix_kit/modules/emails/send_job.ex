@@ -64,8 +64,10 @@ defmodule PhoenixKit.Modules.Emails.SendJob do
       {:error, {:blocked, _} = reason} ->
         Logger.info("[Emails.SendJob] recipient blocked, cancelling: #{inspect(reason)}")
         # A readable sentence, not an inspected tuple: this lands in the log
-        # row's error_message column, which an operator reads in the UI.
-        fail_log(args, "Recipient is on the blocklist")
+        # row's error_message column, which an operator reads in the UI. The row
+        # is "rejected" (a permanent block), not "failed" (a retryable error) —
+        # analytics count failed as a transient failure rate.
+        reject_log(args, "Recipient is on the blocklist")
         {:cancel, :recipient_blocked}
 
       {:error, reason} ->
@@ -113,6 +115,22 @@ defmodule PhoenixKit.Modules.Emails.SendJob do
   rescue
     error ->
       Logger.warning("[Emails.SendJob] could not close the log row: #{Exception.message(error)}")
+      :ok
+  end
+
+  # Same as fail_log/2 but closes the row as "rejected" — the recipient was
+  # blocklisted between enqueue and dequeue, a permanent state, not a
+  # retryable failure.
+  defp reject_log(args, reason) do
+    with log_uuid when is_binary(log_uuid) <- args_log_uuid(args),
+         %Emails.Log{} = log <- Emails.get_log(log_uuid) do
+      Emails.Log.mark_as_rejected(log, reason)
+    end
+
+    :ok
+  rescue
+    error ->
+      Logger.warning("[Emails.SendJob] could not reject the log row: #{Exception.message(error)}")
       :ok
   end
 

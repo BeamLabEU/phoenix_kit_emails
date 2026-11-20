@@ -1,5 +1,36 @@
 # Changelog
 
+## Unreleased
+
+No migration. Fixes found in a full post-0.10.0 code review; the dependency bump after 0.10.0 (mix.lock only) is unchanged by this.
+
+### Fixed
+
+- **CSV/JSON export works end to end.** The public route dispatched to a nonexistent `export/2` action (every request 500'd), and the admin "Export CSV" buttons linked to `/admin/emails/export…`, a path no route matches (404). Routes now register the four real actions (`/emails/export/logs|metrics|blocklist/:format`, `/emails/export/email/:id/:format`), each action serves `csv` and `json` (anything else is a 400), the links point at them via new `Paths.export_*` helpers built with `locale: :none` so they match the root-scoped mount, the logs export no longer truncates to the list's 50-row default, the blocklist export returns the real blocklist instead of an empty stub, and every export requires the `emails` module permission (not just the admin role).
+- **SQS no longer poison-loops on `DeliveryDelay` / `Rendering Failure`.** The SQS path downcased `eventType` only, so AWS's capitalized `"DeliveryDelay"` / `"Rendering Failure"` never matched the dispatch clauses and were refused as `unknown` — the message was never deleted and redelivered forever. Both paths now share `Event.normalize_event_type/1` (public), which also maps the concatenated spelling and turns a non-binary `eventType` into `"unknown"` instead of raising.
+- **Placeholder logs respect `email_create_placeholder_logs` on every path.** `delivery_delay` and `subscription` events created placeholder logs directly, bypassing the setting; all paths now go through one gated helper.
+- **The before-send interceptor can no longer abort a send.** Core calls `intercept_before_send/2` without a rescue; a raise inside logging (DB blip, settings read) now logs and returns the email untouched instead of propagating into `deliver_email/2`.
+- **Sampling is applied once, not twice.** `Emails.create_log/1` rolled its own random `email_sampling_rate` on top of the interceptor's deterministic per-recipient gate, so the effective rate was rate² and system/error mails could be dropped. The roll now lives only in the interceptor.
+- **`email_save_headers` is honored on outgoing mail**, not just inbound: outgoing logs store an empty header map when the toggle is off.
+- **A duplicate (at-least-once) delivery no longer downgrades a log.** `update_after_send/2` set `status: "sent"` unconditionally, resetting `delivered`/`opened`/… back to `sent` on a retried queue job; it now leaves post-delivery statuses alone and skips the duplicate `send` event.
+- **A blocklisted recipient is logged as `rejected`, not `failed`** when a queued job is cancelled, so analytics don't count a permanent block as a retryable failure.
+- **Archiver re-runs no longer destroy compressed bodies.** `compress_old_bodies` selected already-compressed rows (`H4sI…`) and, since gzip-of-base64 doesn't shrink, nil'd them out; the query and the compressor now both skip them. `Archiver.critical_email?/1` no longer raises `KeyError` on an `%EmailLogData{}` (no `:status` key) — it uses `Map.get`. `Log.cleanup_old_logs` clamps a 0/negative/non-integer retention to the 1-day floor instead of `FunctionClauseError`.
+- **Webhook hardening (all 400s, never 500s):** a `Message` that decodes to a non-object JSON value, a non-binary `Timestamp`, and a far-future `Timestamp` (symmetric replay window that still tolerates sub-second clock skew) are rejected cleanly; nested `mail`/`delivery`/… access uses `get_in` so a malformed section can't raise; the success/warning log lines no longer `List.first` a binary. The source-IP check no longer hard-403s legitimate AWS deliveries when SNS signature verification is on (the default) — the bundled range list is a stale IPv4-only subset and rejected every IPv6 peer; it still hard-fails when signature verification is off, where it is the only gate.
+- **Manual SQS status sync no longer deletes unparseable messages** (they stay in the queue for the poller instead of being lost).
+- **Rate limiter:** `check_limits/1`/`check_recipient_limit/1`/`check_sender_limit/1` tolerate a nil recipient/sender (`:ok`, no raise), the per-recipient/per-sender counters compare case-insensitively (matching the blocklist's downcasing — case rotation no longer bypasses the limit), and `get_time_window/1` has a fallback instead of `CaseClauseError`.
+- **Unknown analytics periods no longer crash:** `Metrics.get_dashboard_data/1` (and friends) and `Log.get_engagement_metrics/1`/`get_daily_delivery_trends/1` default an unknown period instead of `CaseClauseError`; dashboard sub-queries run inside a guarded helper so one failing query degrades to an empty card instead of exiting the caller via `Task.await_many`.
+- **`Details` "Sync Status" on a queued/unsent log** (no message id) flashes an error instead of crashing the LiveView with `FunctionClauseError`.
+- **Blocklist CSV import** has a fallback event clause and logs the real error in its rescue (a DB failure was misreported as "Invalid CSV format").
+- **`mix phoenix_kit_emails.templates.export` refuses a template `name`** containing `/`, `\`, or `..` (path traversal via the legacy table) instead of writing outside `--out`.
+- The test-tracking email HTML-escapes the recipient address.
+- Removed a dead `reset_rate_limits` handler in the Queue LiveView (no button wired to it; it claimed success while doing nothing).
+
+### Changed
+
+- Bare `rescue _ ->` fallbacks in status/count helpers (`Status`, `EventTracker`, `SQSPollingManager`, `BrevoPollingManager`, the S3-connection picker) now log the rescued error, so a real DB failure is distinguishable from "no jobs / not running".
+- The boot reconcile `Task` is a named, `:temporary`, fully guarded child (logged on crash) instead of a bare anonymous one.
+- User-facing AWS-credentials error message builds its settings URL via `Paths.settings/0` instead of a hardcoded `/admin/settings/email-sending`.
+
 ## 0.10.0 - 2026-11-15
 
 Works on PhoenixKit 3.5.0 as before; tested against 3.6.0. No migration. The IAM policies and the open/click choice below appear on PhoenixKit 3.6.0 and later (`PhoenixKit.AWS.IamPolicy`, `SESv2.event_types/1`); on 3.5.x the panel shows what it did.

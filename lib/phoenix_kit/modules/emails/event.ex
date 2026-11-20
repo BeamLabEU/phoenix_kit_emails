@@ -800,10 +800,12 @@ defmodule PhoenixKit.Modules.Emails.Event do
       event_data: webhook_data
     }
 
-    # Add event-specific attributes
+    # Add event-specific attributes. `map_section/2` coerces a non-map section
+    # (a malformed webhook where e.g. "bounce" is a JSON array) to %{} so the
+    # `section["key"]` reads below return nil instead of raising.
     case event_type do
       "bounce" ->
-        bounce_data = webhook_data["bounce"] || %{}
+        bounce_data = map_section(webhook_data, "bounce")
 
         Map.merge(base_attrs, %{
           bounce_type: determine_bounce_type(bounce_data),
@@ -816,14 +818,14 @@ defmodule PhoenixKit.Modules.Emails.Event do
         })
 
       "complaint" ->
-        complaint_data = webhook_data["complaint"] || %{}
+        complaint_data = map_section(webhook_data, "complaint")
 
         Map.merge(base_attrs, %{
           complaint_type: determine_complaint_type(complaint_data)
         })
 
       "click" ->
-        click_data = webhook_data["click"] || %{}
+        click_data = map_section(webhook_data, "click")
 
         Map.merge(base_attrs, %{
           link_url: click_data["link"],
@@ -832,7 +834,7 @@ defmodule PhoenixKit.Modules.Emails.Event do
         })
 
       "open" ->
-        open_data = webhook_data["open"] || %{}
+        open_data = map_section(webhook_data, "open")
 
         Map.merge(base_attrs, %{
           ip_address: open_data["ipAddress"],
@@ -844,13 +846,33 @@ defmodule PhoenixKit.Modules.Emails.Event do
     end
   end
 
+  defp map_section(data, key) do
+    case data do
+      %{^key => value} when is_map(value) -> value
+      _ -> %{}
+    end
+  end
+
   # Normalize AWS SES event types to our internal types. SES publishes them
   # capitalized ("Bounce", "DeliveryDelay", "Rendering Failure"); matching only
   # the lowercase spelling turned every real event into "unknown", which the
   # changeset then refused.
   @ses_event_types ~w(send delivery bounce complaint open click reject delivery_delay subscription rendering_failure)
 
-  defp normalize_event_type(type) when is_binary(type) do
+  @doc """
+  Normalizes an AWS SES `eventType` to the internal type.
+
+  SES publishes them capitalized (`"Bounce"`, `"DeliveryDelay"`,
+  `"Rendering Failure"`); this lowercases, turns spaces into underscores, and
+  maps the concatenated `"DeliveryDelay"` to `"delivery_delay"`. Non-binary
+  values (a malformed webhook payload) become `"unknown"` rather than raising.
+
+  Public so the SQS path (`SQSProcessor`) normalizes identically to the
+  webhook path — two different spellings of the same event was how real
+  `DeliveryDelay`/`Rendering Failure` events slipped through as `unknown` and
+  then poisoned the queue (never deleted, redelivered forever).
+  """
+  def normalize_event_type(type) when is_binary(type) do
     case type |> String.downcase() |> String.replace(" ", "_") do
       "deliverydelay" -> "delivery_delay"
       known when known in @ses_event_types -> known
@@ -858,16 +880,18 @@ defmodule PhoenixKit.Modules.Emails.Event do
     end
   end
 
-  defp normalize_event_type(_), do: "unknown"
+  def normalize_event_type(_), do: "unknown"
 
-  # Parse timestamp from webhook data
+  # Parse timestamp from webhook data. `get_in` so a malformed payload where a
+  # section is a list/scalar (not a map) reads as nil instead of raising
+  # KeyError out of the webhook.
   defp parse_timestamp(webhook_data) do
     timestamp_str =
-      webhook_data["delivery"]["timestamp"] ||
-        webhook_data["bounce"]["timestamp"] ||
-        webhook_data["complaint"]["timestamp"] ||
-        webhook_data["open"]["timestamp"] ||
-        webhook_data["click"]["timestamp"] ||
+      get_in(webhook_data, ["delivery", "timestamp"]) ||
+        get_in(webhook_data, ["bounce", "timestamp"]) ||
+        get_in(webhook_data, ["complaint", "timestamp"]) ||
+        get_in(webhook_data, ["open", "timestamp"]) ||
+        get_in(webhook_data, ["click", "timestamp"]) ||
         UtilsDate.utc_now() |> DateTime.to_iso8601()
 
     case DateTime.from_iso8601(timestamp_str) do

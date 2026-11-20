@@ -183,15 +183,6 @@ defmodule PhoenixKit.Modules.Emails.Web.Queue do
   end
 
   @impl true
-  def handle_event("reset_rate_limits", _params, socket) do
-    # This would reset rate limit counters (implementation would depend on storage)
-    {:noreply,
-     socket
-     |> put_flash(:info, gettext("Rate limits reset"))
-     |> load_queue_data()}
-  end
-
-  @impl true
   def handle_info(:refresh_queue, socket) do
     # Schedule next refresh
     Process.send_after(self(), :refresh_queue, @refresh_interval)

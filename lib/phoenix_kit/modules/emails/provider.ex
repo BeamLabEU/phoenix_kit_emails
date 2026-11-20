@@ -92,7 +92,7 @@ defmodule PhoenixKit.Modules.Emails.Provider do
       |> Swoosh.Email.html_body("""
       <h1>Test Email</h1>
       <p>This is a test tracking email sent at #{timestamp}.</p>
-      <p>Recipient: #{recipient_email}</p>
+      <p>Recipient: #{escape_html(recipient_email)}</p>
       """)
       |> Swoosh.Email.text_body("Test Email\nSent at #{timestamp}\nRecipient: #{recipient_email}")
 
@@ -110,4 +110,17 @@ defmodule PhoenixKit.Modules.Emails.Provider do
       Logger.error("Failed to send test tracking email: #{inspect(error)}")
       {:error, error}
   end
+
+  # The recipient address is operator-supplied and lands in an HTML body, so
+  # escape it — an address like `a<b@c.d` would otherwise inject markup into
+  # the recipient's mail client.
+  defp escape_html(value) when is_binary(value) do
+    value
+    |> String.replace("&", "&amp;")
+    |> String.replace("<", "&lt;")
+    |> String.replace(">", "&gt;")
+    |> String.replace("\"", "&quot;")
+  end
+
+  defp escape_html(other), do: to_string(other)
 end

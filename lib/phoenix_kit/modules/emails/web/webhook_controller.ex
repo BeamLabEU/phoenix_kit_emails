@@ -92,7 +92,10 @@ defmodule PhoenixKit.Modules.Emails.Web.WebhookController do
   # 50KB
   @max_payload_size 50_000
 
-  # AWS IP ranges for SNS (these should be updated periodically)
+  # A subset of AWS's published SNS IP ranges. Deliberately NOT the authority:
+  # the list is IPv4-only and goes stale as AWS rotates ranges, so verify_aws_ip
+  # only hard-fails on a miss when signature verification is off. With signature
+  # verification on (default) a miss is a warning — see verify_aws_ip/1.
   @aws_sns_ip_ranges [
     # US East (N. Virginia)
     "54.240.217.0/24",
@@ -228,7 +231,23 @@ defmodule PhoenixKit.Modules.Emails.Web.WebhookController do
       if ip_in_aws_ranges?(remote_ip) do
         :ok
       else
-        {:error, :invalid_aws_ip}
+        # The bundled @aws_sns_ip_ranges is a stale, IPv4-only subset of AWS's
+        # published ranges, so a hard 403 here rejects legitimate SNS
+        # deliveries — including every IPv6 peer. When SNS signature
+        # verification is on (the default, and the cryptographic proof of
+        # origin), the IP list is only defense-in-depth: warn, don't block.
+        # When signature verification is off, the list is the only gate, so it
+        # stays a hard failure.
+        if signature_verification_enabled?() do
+          Logger.warning(
+            "Webhook source IP not in bundled AWS SNS ranges; signature verification will still authenticate the message",
+            %{ip: remote_ip}
+          )
+
+          :ok
+        else
+          {:error, :invalid_aws_ip}
+        end
       end
     else
       :ok
@@ -243,12 +262,17 @@ defmodule PhoenixKit.Modules.Emails.Web.WebhookController do
       nil ->
         {:error, :missing_timestamp}
 
-      timestamp_str ->
+      timestamp_str when is_binary(timestamp_str) ->
         case parse_timestamp(timestamp_str) do
           {:ok, request_time} ->
             age_seconds = DateTime.diff(UtilsDate.utc_now(), request_time, :second)
 
-            if age_seconds <= @max_request_age_seconds do
+            # Bound both directions: a timestamp far in the future (negative
+            # age) would pass a bare `<= max` and defeat the replay window when
+            # signature verification is off, while sub-second clock skew makes
+            # a fresh request read as -1s — so accept a symmetric window
+            # rather than `age >= 0`.
+            if abs(age_seconds) <= @max_request_age_seconds do
               :ok
             else
               {:error, :request_too_old}
@@ -257,6 +281,9 @@ defmodule PhoenixKit.Modules.Emails.Web.WebhookController do
           {:error, _} ->
             {:error, :invalid_timestamp}
         end
+
+      _other ->
+        {:error, :invalid_timestamp}
     end
   end
 
@@ -343,10 +370,16 @@ defmodule PhoenixKit.Modules.Emails.Web.WebhookController do
   end
 
   # Process email event notification
-  defp process_email_event_notification(%{"Message" => message_json}) do
+  defp process_email_event_notification(%{"Message" => message_json})
+       when is_binary(message_json) do
     case JSON.decode(message_json) do
-      {:ok, event_data} ->
+      {:ok, event_data} when is_map(event_data) ->
         process_email_event(event_data)
+
+      # A Message that decodes to a list/scalar is not an SES event payload.
+      {:ok, other} ->
+        Logger.warning("SNS Message JSON is not an object", %{decoded_type: json_type(other)})
+        {:error, :invalid_message}
 
       {:error, reason} ->
         Logger.error("Failed to parse SNS message JSON", %{
@@ -362,6 +395,26 @@ defmodule PhoenixKit.Modules.Emails.Web.WebhookController do
     {:error, :missing_message}
   end
 
+  defp json_type(v) when is_map(v), do: "map"
+  defp json_type(v) when is_list(v), do: "list"
+  defp json_type(_), do: "scalar"
+
+  # `mail` may be a list/scalar in a malformed payload; reading its keys or the
+  # "to" list must not raise inside a Logger call.
+  defp mail_keys(event_data) do
+    case event_data do
+      %{"mail" => mail} when is_map(mail) -> Map.keys(mail)
+      _ -> []
+    end
+  end
+
+  defp first_recipient(event_data) do
+    case get_in(event_data, ["mail", "commonHeaders", "to"]) do
+      list when is_list(list) -> List.first(list)
+      other -> other
+    end
+  end
+
   # Process individual email event
   defp process_email_event(event_data) do
     if Emails.enabled?() and Emails.ses_events_enabled?() do
@@ -374,7 +427,7 @@ defmodule PhoenixKit.Modules.Emails.Web.WebhookController do
             event_type: event_data["eventType"],
             message_id: get_in(event_data, ["mail", "messageId"]),
             event_id: event.uuid,
-            recipient: get_in(event_data, ["mail", "commonHeaders", "to"]) |> List.first()
+            recipient: first_recipient(event_data)
           })
 
           {:ok, :event_processed}
@@ -383,7 +436,7 @@ defmodule PhoenixKit.Modules.Emails.Web.WebhookController do
           Logger.warning("Email log not found for webhook event", %{
             event_type: event_data["eventType"],
             message_id: get_in(event_data, ["mail", "messageId"]),
-            available_mail_fields: Map.keys(event_data["mail"] || %{}),
+            available_mail_fields: mail_keys(event_data),
             timestamp: event_data["timestamp"]
           })
 
@@ -506,8 +559,10 @@ defmodule PhoenixKit.Modules.Emails.Web.WebhookController do
     end
   end
 
-  # Parse ISO8601 timestamp
-  defp parse_timestamp(timestamp_str) do
+  # Parse ISO8601 timestamp. Callers (verify_request_age/1) guard `is_binary`
+  # before calling, so a non-binary `"Timestamp": 123` is rejected there as
+  # :invalid_timestamp rather than raising inside `DateTime.from_iso8601/1`.
+  defp parse_timestamp(timestamp_str) when is_binary(timestamp_str) do
     case DateTime.from_iso8601(timestamp_str) do
       {:ok, datetime, _offset} -> {:ok, datetime}
       {:error, reason} -> {:error, reason}

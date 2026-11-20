@@ -232,8 +232,34 @@ defmodule PhoenixKit.Modules.Emails.Supervisor do
   # "Boot reconcile".
   defp build_oban_starter do
     [
-      {Task, fn -> start_polling_when_oban_ready() end}
+      %{
+        id: :emails_oban_boot_reconcile,
+        # One-shot boot reconcile: `:temporary` (a map child_spec defaults to
+        # `:permanent`, which would re-run it forever on normal completion).
+        # The body is fully guarded so a crash is logged, not an untrapped
+        # error in the supervisor. Correctness is backstopped by the
+        # EventTrackerReconcileWorker cron, so a missed boot reconcile
+        # self-heals.
+        start: {Task, :start_link, [fn -> boot_reconcile_safely() end]},
+        restart: :temporary
+      }
     ]
+  end
+
+  defp boot_reconcile_safely do
+    start_polling_when_oban_ready()
+  rescue
+    error ->
+      Logger.error("Email Supervisor: boot reconcile failed", %{
+        error: inspect(error),
+        stacktrace: Exception.format_stacktrace(__STACKTRACE__)
+      })
+  catch
+    kind, reason ->
+      Logger.error("Email Supervisor: boot reconcile exited", %{
+        kind: kind,
+        reason: inspect(reason)
+      })
   end
 
   defp start_polling_when_oban_ready do

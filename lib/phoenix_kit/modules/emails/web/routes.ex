@@ -25,10 +25,15 @@ defmodule PhoenixKit.Modules.Emails.Web.Routes do
         post("/webhooks/ses", unquote(webhook_controller), :handle)
       end
 
-      # Export requires admin authentication
+      # Export requires admin authentication. One route per action — the
+      # controller has no catch-all `export/2`, so a single `:export` action
+      # here 500s on every request.
       scope unquote(url_prefix) do
         pipe_through([:browser, :phoenix_kit_admin_only])
-        get("/emails/export/:format", unquote(export_controller), :export)
+        get("/emails/export/logs/:format", unquote(export_controller), :export_logs)
+        get("/emails/export/metrics/:format", unquote(export_controller), :export_metrics)
+        get("/emails/export/blocklist/:format", unquote(export_controller), :export_blocklist)
+        get("/emails/export/email/:id/:format", unquote(export_controller), :export_email_details)
       end
     end
   end

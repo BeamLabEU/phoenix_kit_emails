@@ -332,7 +332,13 @@ defmodule PhoenixKit.Modules.Emails.Archiver do
       from(l in Log,
         where: l.sent_at < ^cutoff_date,
         where: not is_nil(l.body_full),
-        where: l.body_full != ""
+        where: l.body_full != "",
+        # Never re-select an already-compressed body: base64-gzip starts with
+        # "H4sI" (the rest of the module detects compressed rows this way). On a
+        # second run the re-compressed blob would not shrink (ratio ~1.0), so
+        # the "not worth it" branch would nil out body_full and destroy the
+        # archive.
+        where: not fragment("? LIKE 'H4sI%'", l.body_full)
       )
 
     if preserve_errors do
@@ -401,7 +407,10 @@ defmodule PhoenixKit.Modules.Emails.Archiver do
   end
 
   defp compress_email_body(%Log{} = log) do
-    if log.body_full && String.length(log.body_full) > 100 do
+    # Defense in depth: even if a caller selects a compressed row directly, never
+    # re-compress it (see build_compression_query/2 for why that loses data).
+    if log.body_full && not String.starts_with?(log.body_full, "H4sI") &&
+         String.length(log.body_full) > 100 do
       original_size = byte_size(log.body_full)
 
       # Compress with gzip
@@ -804,12 +813,22 @@ defmodule PhoenixKit.Modules.Emails.Archiver do
   ## --- Sampling Implementation ---
 
   defp critical_email?(email_attrs) do
-    # Check if this is a critical email that should always be stored fully
+    # Check if this is a critical email that should always be stored fully.
+    # `Map.get` (not Access): the interceptor builds an `%EmailLogData{}` struct,
+    # which has no `:status` key — `struct[:status]` raises KeyError, so the
+    # Access form only ever worked for plain maps / %Log{}.
     cond do
-      email_attrs[:status] in ["bounced", "failed", "complained"] -> true
-      String.contains?(email_attrs[:subject] || "", ["password", "reset", "verify"]) -> true
-      email_attrs[:template_name] in ["password_reset", "email_confirmation"] -> true
-      true -> false
+      Map.get(email_attrs, :status) in ["bounced", "failed", "complained"] ->
+        true
+
+      String.contains?(Map.get(email_attrs, :subject) || "", ["password", "reset", "verify"]) ->
+        true
+
+      Map.get(email_attrs, :template_name) in ["password_reset", "email_confirmation"] ->
+        true
+
+      true ->
+        false
     end
   end
 

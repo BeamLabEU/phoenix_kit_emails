@@ -31,7 +31,7 @@
 
             <div class="flex gap-2 mt-4 lg:mt-0">
               <.link
-                href={Routes.path("/admin/emails/#{@email_uuid}/export")}
+                href={Paths.export_email(@email_uuid, "csv")}
                 target="_blank"
                 class="btn btn-outline btn-sm"
               >

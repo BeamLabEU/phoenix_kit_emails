@@ -45,6 +45,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Details do
   alias PhoenixKit.Modules.Emails
   alias PhoenixKit.Modules.Emails.BrevoOnDemandSync
   alias PhoenixKit.Modules.Emails.Log
+  alias PhoenixKit.Modules.Emails.Paths
   alias PhoenixKit.Modules.Emails.Web.SourceBadges
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Routes
@@ -114,30 +115,40 @@ defmodule PhoenixKit.Modules.Emails.Web.Details do
           {socket.assigns.email_log.message_id, "internal message ID"}
         end
 
-      socket = assign(socket, :syncing, true)
+      # A queued/unsent log has neither id; sync_email_status/1 only accepts a
+      # binary, so guard here instead of crashing the LiveView with a
+      # FunctionClauseError.
+      if is_nil(message_id) or message_id == "" do
+        {:noreply,
+         socket
+         |> assign(:syncing, false)
+         |> put_flash(:error, gettext("No message ID available for this email yet"))}
+      else
+        socket = assign(socket, :syncing, true)
 
-      case Emails.sync_email_status(message_id) do
-        {:ok, result} ->
-          flash_message = build_sync_flash_message(result, id_type)
-          flash_type = determine_flash_type(result)
+        case Emails.sync_email_status(message_id) do
+          {:ok, result} ->
+            flash_message = build_sync_flash_message(result, id_type)
+            flash_type = determine_flash_type(result)
 
-          socket =
-            socket
-            |> assign(:syncing, false)
-            |> put_flash(flash_type, flash_message)
-            |> load_email_data()
+            socket =
+              socket
+              |> assign(:syncing, false)
+              |> put_flash(flash_type, flash_message)
+              |> load_email_data()
 
-          {:noreply, socket}
+            {:noreply, socket}
 
-        {:error, reason} ->
-          flash_message = build_error_flash_message(reason, message_id, socket, id_type)
+          {:error, reason} ->
+            flash_message = build_error_flash_message(reason, message_id, socket, id_type)
 
-          socket =
-            socket
-            |> assign(:syncing, false)
-            |> put_flash(:error, flash_message)
+            socket =
+              socket
+              |> assign(:syncing, false)
+              |> put_flash(:error, flash_message)
 
-          {:noreply, socket}
+            {:noreply, socket}
+        end
       end
     else
       {:noreply, put_flash(socket, :error, "❌ " <> gettext("Email log not found"))}

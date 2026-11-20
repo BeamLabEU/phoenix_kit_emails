@@ -367,7 +367,8 @@ defmodule PhoenixKit.Modules.Emails.Web.Blocklist do
   end
 
   @impl true
-  def handle_event("import_csv", %{"csv_content" => csv_content}, socket) do
+  def handle_event("import_csv", %{"csv_content" => csv_content}, socket)
+      when is_binary(csv_content) do
     case import_blocklist_csv(csv_content) do
       {:ok, imported_count} ->
         {:noreply,
@@ -384,6 +385,11 @@ defmodule PhoenixKit.Modules.Emails.Web.Blocklist do
          socket
          |> put_flash(:error, gettext("Import failed: %{reason}", reason: reason))}
     end
+  end
+
+  # A crafted event without a binary csv_content must not crash the LiveView.
+  def handle_event("import_csv", _params, socket) do
+    {:noreply, socket |> put_flash(:error, gettext("Invalid CSV format"))}
   end
 
   @impl true
@@ -605,7 +611,15 @@ defmodule PhoenixKit.Modules.Emails.Web.Blocklist do
 
     {:ok, imported_count}
   rescue
-    _ -> {:error, "Invalid CSV format"}
+    # Log the real error: this clause also catches DB failures from
+    # `RateLimiter.add_to_blocklist/3`, which "Invalid CSV format" mislabels.
+    error ->
+      Logger.error("Blocklist CSV import failed", %{
+        error: Exception.message(error),
+        stacktrace: Exception.format_stacktrace(__STACKTRACE__)
+      })
+
+      {:error, "Invalid CSV format"}
   end
 
   defp parse_csv_line(line) do

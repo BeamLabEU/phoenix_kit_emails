@@ -402,11 +402,17 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
     end
   end
 
-  # Determines event type based on eventType field
+  # Determines event type based on eventType field. Delegates to
+  # `Event.normalize_event_type/1` so the SQS and webhook paths agree: AWS
+  # publishes "DeliveryDelay" and "Rendering Failure" (capitalized, with a
+  # space), which a bare downcase turned into "deliverydelay"/"rendering
+  # failure" — never matching the dispatch clauses, so the event was refused
+  # as unknown and the message never deleted (a poison-message redelivery
+  # loop). A non-binary eventType becomes "unknown" instead of raising.
   defp determine_event_type(event_data) do
     event_data
     |> Map.get("eventType", "unknown")
-    |> String.downcase()
+    |> Event.normalize_event_type()
   end
 
   ## --- Event Processing Functions ---
@@ -919,7 +925,7 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
           }
         )
 
-        case create_placeholder_log_from_event(event_data, "delayed") do
+        case create_placeholder_if_enabled(event_data, "delayed", "delivery_delay", message_id) do
           {:ok, log} ->
             # Create event record for created log
             create_delivery_delay_event(log, delay_data)
@@ -937,6 +943,9 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
                updated: true,
                created_placeholder: true
              }}
+
+          {:error, :placeholder_logs_disabled} ->
+            {:error, :email_log_not_found}
 
           {:error, reason} ->
             Logger.error("Failed to create placeholder log for delay event", %{
@@ -986,7 +995,7 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
           }
         )
 
-        case create_placeholder_log_from_event(event_data, "sent") do
+        case create_placeholder_if_enabled(event_data, "sent", "subscription", message_id) do
           {:ok, log} ->
             # Create event record for created log
             create_subscription_event(log, subscription_data)
@@ -999,6 +1008,9 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
 
             {:ok,
              %{type: "subscription", log_uuid: log.uuid, updated: true, created_placeholder: true}}
+
+          {:error, :placeholder_logs_disabled} ->
+            {:error, :email_log_not_found}
 
           {:error, reason} ->
             Logger.error("Failed to create placeholder log for subscription event", %{
@@ -1345,6 +1357,10 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
   # Converts AWS SES bounce types to internal bounce types
   defp normalize_bounce_type("Permanent"), do: "hard"
   defp normalize_bounce_type("Transient"), do: "soft"
+  # Brevo's aggregate "bounces" event carries no bounceType; an unspecified
+  # bounce is stored as soft, not hard — blocklisting keys off
+  # `determine_bounce_status/1`, so this only labels the Event row correctly.
+  defp normalize_bounce_type(nil), do: "soft"
   defp normalize_bounce_type(_), do: "hard"
 
   # Creates event record for complaint
@@ -1527,6 +1543,24 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
 
   # Creates placeholder email log from event data for cases
   # when we receive events without a pre-created log
+  # `email_create_placeholder_logs` gates every placeholder creation. The
+  # delivery_delay and subscription paths used to call
+  # `create_placeholder_log_from_event/2` directly, so they created placeholder
+  # logs even with the setting off (the default) — the exact behavior the
+  # setting exists to suppress. Route every path through here instead.
+  defp create_placeholder_if_enabled(event_data, status, event_type, message_id) do
+    if Emails.placeholder_logs_enabled?() do
+      create_placeholder_log_from_event(event_data, status)
+    else
+      Logger.debug(
+        "Placeholder logs disabled; not creating a log for #{event_type} event",
+        %{message_id: message_id}
+      )
+
+      {:error, :placeholder_logs_disabled}
+    end
+  end
+
   defp create_placeholder_log_from_event(event_data, initial_status) do
     mail_data = event_data["mail"] || %{}
     message_id = get_in(mail_data, ["messageId"])
@@ -1687,7 +1721,7 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
         _ -> {nil, %{}}
       end
 
-    if status do
+    if status && function_exported?(newsletters_mod, :update_delivery_status, 3) do
       newsletters_mod.update_delivery_status(delivery, status, attrs)
       increment_broadcast_counter(newsletters_mod, delivery.broadcast_uuid, event_type)
     end

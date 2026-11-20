@@ -115,23 +115,26 @@ defmodule PhoenixKit.Modules.Emails.Metrics do
       }
   """
   def get_dashboard_data(period \\ :last_7_days) do
-    # Get overview metrics
-    overview_task = Task.async(fn -> get_overview_metrics(period) end)
+    # Get overview metrics. Each query runs inside `safe/2` so one failing
+    # query degrades to its empty default instead of exiting the caller through
+    # `Task.await_many/2` (a DB blip would otherwise take the whole dashboard
+    # down rather than one card).
+    overview_task = Task.async(fn -> safe(fn -> get_overview_metrics(period) end, %{}) end)
 
     # Get time series data
-    time_series_task = Task.async(fn -> get_time_series_data(period) end)
+    time_series_task = Task.async(fn -> safe(fn -> get_time_series_data(period) end, %{}) end)
 
     # Get geographic data
-    geo_task = Task.async(fn -> get_geographic_metrics("open", period) end)
+    geo_task = Task.async(fn -> safe(fn -> get_geographic_metrics("open", period) end, []) end)
 
     # Get alerts and issues
-    alerts_task = Task.async(fn -> get_metric_alerts(period) end)
+    alerts_task = Task.async(fn -> safe(fn -> get_metric_alerts(period) end, []) end)
 
     # Get top performing campaigns/templates
-    top_performers_task = Task.async(fn -> get_top_performers(period) end)
+    top_performers_task = Task.async(fn -> safe(fn -> get_top_performers(period) end, %{}) end)
 
     # Get provider performance
-    provider_task = Task.async(fn -> get_provider_performance(period) end)
+    provider_task = Task.async(fn -> safe(fn -> get_provider_performance(period) end, %{}) end)
 
     # Wait for all results
     [overview, time_series, geographic, alerts, top_performers, provider_performance] =
@@ -156,6 +159,24 @@ defmodule PhoenixKit.Modules.Emails.Metrics do
       provider_performance: provider_performance,
       generated_at: UtilsDate.utc_now()
     }
+  end
+
+  defp safe(fun, default) do
+    fun.()
+  rescue
+    error ->
+      Logger.warning("Dashboard metric query failed; using empty default", %{
+        error: inspect(error)
+      })
+
+      default
+  catch
+    :exit, reason ->
+      Logger.warning("Dashboard metric query exited; using empty default", %{
+        reason: inspect(reason)
+      })
+
+      default
   end
 
   ## --- Alerting ---
@@ -227,6 +248,9 @@ defmodule PhoenixKit.Modules.Emails.Metrics do
         :last_7_days -> DateTime.add(end_time, -7, :day)
         :last_30_days -> DateTime.add(end_time, -30, :day)
         :last_90_days -> DateTime.add(end_time, -90, :day)
+        # Unknown period: default to 7 days instead of CaseClauseError out of
+        # the public get_dashboard_data/1 & friends.
+        _ -> DateTime.add(end_time, -7, :day)
       end
 
     {start_time, end_time}

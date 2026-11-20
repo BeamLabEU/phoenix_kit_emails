@@ -107,6 +107,7 @@ defmodule PhoenixKit.Modules.Emails do
     AwsIntegrations,
     Event,
     Log,
+    Paths,
     SQSPollingJob,
     SQSProcessor,
     Utils
@@ -399,7 +400,7 @@ defmodule PhoenixKit.Modules.Emails do
         end
       else
         {:error,
-         "AWS credentials not configured. Configure via Web UI at /admin/settings/email-sending or set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables."}
+         "AWS credentials not configured. Configure via Web UI at #{Paths.settings()} or set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables."}
       end
     else
       {:error, "Email system is disabled. Please enable it in settings."}
@@ -720,8 +721,15 @@ defmodule PhoenixKit.Modules.Emails do
               {[event_data | matching], [message | to_delete]}
 
             {:error, reason} ->
-              Logger.warning("Failed to parse matching SQS message: #{inspect(reason)}")
-              {matching, [message | to_delete]}
+              # Never delete a message we could not parse: deleting it here
+              # would lose the event permanently (the normal SQS worker never
+              # gets another chance at it). Leave it in the queue so the
+              # visibility timeout returns it to the poller.
+              Logger.warning(
+                "Failed to parse matching SQS message; leaving in queue: #{inspect(reason)}"
+              )
+
+              {matching, to_delete}
           end
 
         false ->
@@ -2348,6 +2356,14 @@ defmodule PhoenixKit.Modules.Emails do
   @doc """
   Creates an email log if system is enabled.
 
+  Sampling (`email_sampling_rate`) is applied exactly once, by
+  `Interceptor.should_log_email?/2` (a deterministic per-recipient hash) on
+  the outgoing-send path — the only caller of this function. It is NOT rolled
+  again here: a second random roll made the effective rate rate² and could
+  drop the system/error mails the interceptor explicitly guarantees. Inbound
+  placeholder logs go through `Log.create_log/1` directly and are never
+  sampled.
+
   ## Examples
 
       iex> PhoenixKit.Modules.Emails.create_log(%{
@@ -2360,7 +2376,7 @@ defmodule PhoenixKit.Modules.Emails do
   def create_log(attrs \\ %{}) do
     attrs = if is_struct(attrs), do: Map.from_struct(attrs), else: attrs
 
-    if enabled?() and should_log_email?(attrs) do
+    if enabled?() do
       # Add system-level defaults
       attrs =
         Map.merge(attrs, %{
@@ -2812,26 +2828,15 @@ defmodule PhoenixKit.Modules.Emails do
     end
   end
 
-  # Determine if an email should be logged based on sampling rate
-  defp should_log_email?(_attrs) do
-    sampling_rate = get_sampling_rate()
-
-    if sampling_rate >= 100 do
-      true
-    else
-      # Use deterministic sampling based on message_id or random
-      :rand.uniform(100) <= sampling_rate
-    end
-  end
-
   # Gets the configured repository for database operations
   defp repo do
     PhoenixKit.RepoHelper.repo()
   end
 
-  # Extract message ID from webhook data
+  # Extract message ID from webhook data. `get_in` for the "mail" section so a
+  # scalar/list there reads as nil instead of raising out of the webhook.
   defp extract_message_id(webhook_data) do
-    webhook_data["mail"]["messageId"] ||
+    get_in(webhook_data, ["mail", "messageId"]) ||
       webhook_data["messageId"] ||
       get_in(webhook_data, ["mail", "commonHeaders", "messageId"])
   end

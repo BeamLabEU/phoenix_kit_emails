@@ -519,7 +519,9 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingManager do
     )
     |> repo.one()
   rescue
-    _ -> 0
+    error ->
+      Logger.warning("SQS polling status: pending count unavailable", %{error: inspect(error)})
+      0
   end
 
   # Get the last completed job
@@ -538,6 +540,11 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingManager do
     )
     |> repo.one()
   rescue
-    _ -> nil
+    error ->
+      Logger.warning("SQS polling status: last completed job unavailable", %{
+        error: inspect(error)
+      })
+
+      nil
   end
 end

@@ -177,7 +177,9 @@ defmodule PhoenixKit.Modules.Emails.RateLimiter do
       iex> RateLimiter.check_recipient_limit("high-volume@example.com")  
       {:blocked, :recipient_limit}
   """
-  def check_recipient_limit(recipient_email, period \\ :hour) do
+  def check_recipient_limit(recipient_email, period \\ :hour)
+
+  def check_recipient_limit(recipient_email, period) when is_binary(recipient_email) do
     limit = get_recipient_limit()
     count = get_recipient_count(recipient_email, period)
 
@@ -188,6 +190,10 @@ defmodule PhoenixKit.Modules.Emails.RateLimiter do
     end
   end
 
+  # A missing/invalid recipient cannot be rate-limited by address; the
+  # blocklist and global limit still apply.
+  def check_recipient_limit(_recipient_email, _period), do: :ok
+
   @doc """
   Check if sender email address is within rate limits.
 
@@ -196,7 +202,9 @@ defmodule PhoenixKit.Modules.Emails.RateLimiter do
       iex> RateLimiter.check_sender_limit("app@mysite.com")
       :ok
   """
-  def check_sender_limit(sender_email, period \\ :hour) do
+  def check_sender_limit(sender_email, period \\ :hour)
+
+  def check_sender_limit(sender_email, period) when is_binary(sender_email) do
     limit = get_sender_limit()
     count = get_sender_count(sender_email, period)
 
@@ -206,6 +214,8 @@ defmodule PhoenixKit.Modules.Emails.RateLimiter do
       :ok
     end
   end
+
+  def check_sender_limit(_sender_email, _period), do: :ok
 
   @doc """
   Check global system-wide rate limits.
@@ -786,24 +796,30 @@ defmodule PhoenixKit.Modules.Emails.RateLimiter do
 
   ## --- Count Helpers ---
 
-  defp get_recipient_count(email, period) do
+  # Case-insensitive: the blocklist stores and matches `String.downcase(email)`,
+  # so the per-recipient counter must key the same way — a case-sensitive
+  # `l.to == ^email` let `User@x.com` and `user@x.com` get separate counters and
+  # the per-recipient limit was bypassable by case rotation. Non-binary (nil
+  # recipient) counts as zero rather than raising `l.to == ^nil`.
+  defp get_recipient_count(email, period) when is_binary(email) do
     {start_time, _end_time} = get_time_window(period)
 
     query =
       from(l in Log,
-        where: l.to == ^email and l.sent_at >= ^start_time,
+        where: fragment("lower(?)", l.to) == ^String.downcase(email) and l.sent_at >= ^start_time,
         select: count(l.uuid)
       )
 
     repo().one(query) || 0
   end
 
-  defp get_sender_count(email, period) do
+  defp get_sender_count(email, period) when is_binary(email) do
     {start_time, _end_time} = get_time_window(period)
 
     query =
       from(l in Log,
-        where: l.from == ^email and l.sent_at >= ^start_time,
+        where:
+          fragment("lower(?)", l.from) == ^String.downcase(email) and l.sent_at >= ^start_time,
         select: count(l.uuid)
       )
 
@@ -834,6 +850,10 @@ defmodule PhoenixKit.Modules.Emails.RateLimiter do
     {day_ago, now}
   end
 
+  # Any other period falls back to the hour window instead of raising
+  # CaseClauseError out of the public check_*_limit/2 functions.
+  defp get_time_window(_period), do: get_time_window(:hour)
+
   ## --- Pattern Detection Helpers ---
 
   defp high_frequency_sender?(from_email) when is_binary(from_email) do
@@ -842,7 +862,9 @@ defmodule PhoenixKit.Modules.Emails.RateLimiter do
 
     query =
       from(l in Log,
-        where: l.from == ^from_email and l.sent_at >= ^ten_minutes_ago,
+        where:
+          fragment("lower(?)", l.from) == ^String.downcase(from_email) and
+            l.sent_at >= ^ten_minutes_ago,
         select: count(l.uuid)
       )
 

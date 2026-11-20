@@ -60,6 +60,8 @@ defmodule PhoenixKit.Modules.Emails.EventTracker do
   implies it, never retracted by one that does not.
   """
 
+  require Logger
+
   @typedoc "A tracker module implementing this behaviour."
   @type t :: module()
 
@@ -235,7 +237,9 @@ defmodule PhoenixKit.Modules.Emails.EventTracker do
     )
     |> repo.one()
   rescue
-    _ -> 0
+    error ->
+      Logger.warning("EventTracker: pending job count unavailable", %{error: inspect(error)})
+      0
   end
 
   @doc """
@@ -284,7 +288,9 @@ defmodule PhoenixKit.Modules.Emails.EventTracker do
     )
     |> repo.one()
   rescue
-    _ -> nil
+    error ->
+      Logger.warning("EventTracker: last completed job unavailable", %{error: inspect(error)})
+      nil
   end
 
   @doc """

@@ -1040,6 +1040,16 @@ defmodule PhoenixKit.Modules.Emails.Log do
     |> repo().delete_all()
   end
 
+  # The retention setting is clamped to >= 1 by `Emails.set_retention_days/1`,
+  # but it can be written directly through the Settings API as 0 (or a caller
+  # can pass 0/negative/non-integer directly). Rather than crash the retention
+  # path with a FunctionClauseError, clamp 0/negative integers to the 1-day
+  # floor and no-op on non-integers — keeping the `{count, nil}` return shape.
+  def cleanup_old_logs(days_old, opts) when is_integer(days_old),
+    do: cleanup_old_logs(max(days_old, 1), opts)
+
+  def cleanup_old_logs(_days_old, _opts), do: {0, nil}
+
   # With S3 archival switched on, retention cleanup and the archival job share
   # a cutoff, and whichever runs first wins. Losing that race deletes rows the
   # operator believed were being shipped to cold storage — silently, because
@@ -1294,6 +1304,10 @@ defmodule PhoenixKit.Modules.Emails.Log do
     end_datetime = DateTime.new!(end_date, ~T[23:59:59])
     {start_datetime, end_datetime}
   end
+
+  # Unknown period: default to 30 days instead of CaseClauseError out of the
+  # public get_engagement_metrics/1 / get_daily_delivery_trends/1.
+  defp get_period_dates(_other), do: get_period_dates(:last_30_days)
 
   # Get daily engagement statistics for trend analysis
   defp get_daily_engagement_stats(start_date, end_date) do

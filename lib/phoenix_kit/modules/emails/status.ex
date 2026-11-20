@@ -19,6 +19,8 @@ defmodule PhoenixKit.Modules.Emails.Status do
 
   import Ecto.Query
 
+  require Logger
+
   alias PhoenixKit.Modules.Emails
   alias PhoenixKit.Modules.Emails.Log
   alias PhoenixKit.Modules.Emails.Queue
@@ -165,8 +167,12 @@ defmodule PhoenixKit.Modules.Emails.Status do
     }
   rescue
     # Oban's table may live in another prefix, or Oban may not be running at
-    # all in a host that only uses the logging half of this package.
-    _ -> %{pending: 0, executing: 0, retryable: 0}
+    # all in a host that only uses the logging half of this package — those are
+    # legitimate zeros. Log any other failure so a real DB error is not
+    # indistinguishable from "no jobs".
+    error ->
+      Logger.warning("Queue status: job counts unavailable", %{error: inspect(error)})
+      %{pending: 0, executing: 0, retryable: 0}
   end
 
   defp today_counts do
@@ -188,6 +194,8 @@ defmodule PhoenixKit.Modules.Emails.Status do
       queued: Map.get(rows, "queued", 0)
     }
   rescue
-    _ -> %{logged: 0, sent: 0, failed: 0, queued: 0}
+    error ->
+      Logger.warning("Queue status: today's counts unavailable", %{error: inspect(error)})
+      %{logged: 0, sent: 0, failed: 0, queued: 0}
   end
 end

@@ -13,6 +13,8 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTracking do
   use PhoenixKitWeb, :live_component
   use Gettext, backend: PhoenixKit.Modules.Emails.Gettext
 
+  require Logger
+
   alias PhoenixKit.Integrations.Providers
   alias PhoenixKit.Modules.Emails
   alias PhoenixKit.Modules.Emails.EventTrackerReconciler
@@ -501,7 +503,11 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTracking do
     end)
     |> Enum.sort_by(fn {_uuid, label} -> String.downcase(label) end)
   rescue
-    _ -> []
+    error ->
+      # A DB/Integrations failure here must not render as "no connections" with
+      # no trace — log it so the picker's empty state is distinguishable.
+      Logger.warning("S3 connection list unavailable", %{error: inspect(error)})
+      []
   end
 
   # Falls back to the raw key when core doesn't recognize it — this package's

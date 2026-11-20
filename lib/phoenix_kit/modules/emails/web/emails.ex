@@ -44,6 +44,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Emails do
 
   alias PhoenixKit.Modules.Emails
   alias PhoenixKit.Modules.Emails.BrevoOnDemandSync
+  alias PhoenixKit.Modules.Emails.Paths
   alias PhoenixKit.Modules.Emails.TableColumns
   alias PhoenixKit.Modules.Emails.Utils
   alias PhoenixKit.Users.Auth.Scope
@@ -760,7 +761,10 @@ defmodule PhoenixKit.Modules.Emails.Web.Emails do
       |> Enum.into(%{})
       |> URI.encode_query()
 
-    base_url = Routes.path("/admin/emails/export")
+    # The export controller is mounted on the public (root-scoped) route, not
+    # under /admin/emails — Paths.export_logs/1 builds it with locale: :none so
+    # the link matches the mounted route instead of 404ing.
+    base_url = Paths.export_logs("csv")
 
     if params != "" do
       "#{base_url}?#{params}"
