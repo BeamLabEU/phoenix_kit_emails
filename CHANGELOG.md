@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.10.1 - 2026-11-23
 
 No migration. Fixes found in a full post-0.10.0 code review (see `dev_docs/reports/2026-11-20-post-release-code-review.md`), plus a follow-up review pass over those fixes.
 
