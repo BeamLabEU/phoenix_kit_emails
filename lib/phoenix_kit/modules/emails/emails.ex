@@ -2928,6 +2928,11 @@ defmodule PhoenixKit.Modules.Emails do
     {start_datetime, end_datetime}
   end
 
+  # Unknown period: default to 30 days (the function's own default) instead of
+  # FunctionClauseError out of the public get_system_stats/1 and everything
+  # built on it (Metrics.get_metric_alerts/1, the dashboard cards).
+  defp get_period_dates(_other), do: get_period_dates(:last_30_days)
+
   # Calculate safe percentage
   defp safe_percentage(numerator, denominator) when denominator > 0 do
     (numerator / denominator * 100) |> Float.round(1)

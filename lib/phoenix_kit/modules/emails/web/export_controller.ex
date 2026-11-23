@@ -87,23 +87,24 @@ defmodule PhoenixKit.Modules.Emails.Web.ExportController do
   end
 
   @doc """
-  Export email metrics data to CSV.
+  Export email metrics data to CSV or JSON.
 
   ## Parameters
 
   - `period` - Time period (last_7_days, last_30_days, last_90_days, etc.)
-  - `group_by` - Grouping option (day, week, month, campaign, provider)
+  - `format` - `csv` or `json` (route param)
 
   ## Response
 
-  Returns CSV file with email metrics and analytics data.
+  Returns a file with email metrics and analytics data. The CSV carries the
+  summary scalars as `Metric,Value` rows followed by the daily series; the
+  JSON is the raw `Emails.get_engagement_metrics/1` map.
   """
   def export_metrics(conn, params) do
     if Emails.enabled?() do
       format = params["format"] || "csv"
       # Get metrics based on parameters
       period = validate_period(params["period"])
-      group_by = params["group_by"] || "day"
 
       # Get metrics data
       metrics = Emails.get_engagement_metrics(period)
@@ -112,7 +113,7 @@ defmodule PhoenixKit.Modules.Emails.Web.ExportController do
         conn,
         format,
         "email_metrics_#{period}_#{Date.utc_today()}",
-        generate_metrics_csv(metrics, group_by),
+        generate_metrics_csv(metrics),
         metrics
       )
     else
@@ -366,52 +367,46 @@ defmodule PhoenixKit.Modules.Emails.Web.ExportController do
     ]
   end
 
-  # Generate CSV content for metrics
-  defp generate_metrics_csv(metrics, group_by) do
-    headers = get_metrics_csv_headers(group_by)
-    rows = Enum.map(metrics, &metric_to_csv_row/1)
-    format_csv_output(headers, rows)
+  # Generate CSV content for metrics. `Emails.get_engagement_metrics/1` returns
+  # a map of scalar summary stats plus a `daily_stats` list of per-day maps —
+  # the old row mapper assumed every value was a stats map and crashed on the
+  # scalars (`Access.get` on a float), 500ing every metrics CSV export. Emit
+  # the scalars as Metric,Value rows, then the daily series as its own table.
+  defp generate_metrics_csv(metrics) when is_map(metrics) do
+    summary_rows =
+      metrics
+      |> Enum.reject(fn {_key, value} -> is_list(value) or is_map(value) end)
+      |> Enum.map(fn {key, value} -> [Atom.to_string(key), to_string(value)] end)
+      |> Enum.sort()
+
+    daily_rows =
+      case Map.get(metrics, :daily_stats) do
+        list when is_list(list) -> Enum.map(list, &daily_stat_to_csv_row/1)
+        _ -> []
+      end
+
+    summary = format_csv_output(["Metric", "Value"], summary_rows)
+
+    if daily_rows == [] do
+      summary
+    else
+      daily =
+        format_csv_output(["Date", "Total Sent", "Delivered", "Opened", "Clicked"], daily_rows)
+
+      summary <> "\n" <> daily
+    end
   end
 
-  # Get CSV headers for metrics based on grouping
-  defp get_metrics_csv_headers("campaign") do
-    ["Campaign" | get_base_metrics_headers()]
-  end
-
-  defp get_metrics_csv_headers("provider") do
-    ["Provider" | get_base_metrics_headers()]
-  end
-
-  defp get_metrics_csv_headers(_) do
-    ["Date" | get_base_metrics_headers()]
-  end
-
-  # Base metrics headers
-  defp get_base_metrics_headers do
+  defp daily_stat_to_csv_row(stat) when is_map(stat) do
     [
-      "Total Sent",
-      "Delivered",
-      "Bounced",
-      "Opened",
-      "Clicked",
-      "Delivery Rate",
-      "Open Rate",
-      "Click Rate"
-    ]
-  end
-
-  # Convert metric to CSV row
-  defp metric_to_csv_row(metric) do
-    [
-      metric[:label] || metric[:date] || "",
-      metric[:total_sent] || 0,
-      metric[:delivered] || 0,
-      metric[:bounced] || 0,
-      metric[:opened] || 0,
-      metric[:clicked] || 0,
-      "#{metric[:delivery_rate] || 0}%",
-      "#{metric[:open_rate] || 0}%",
-      "#{metric[:click_rate] || 0}%"
+      case Map.get(stat, :date) do
+        %Date{} = date -> Date.to_iso8601(date)
+        other -> to_string(other || "")
+      end,
+      Map.get(stat, :total_sent, 0),
+      Map.get(stat, :delivered, 0),
+      Map.get(stat, :opened, 0),
+      Map.get(stat, :clicked, 0)
     ]
   end
 
