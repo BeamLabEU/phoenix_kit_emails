@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **The admin pages work under a nonce-based `Content-Security-Policy`** (`script-src 'self' 'nonce-…'`, no `'unsafe-inline'`; see core's `guides/content-security-policy.md`). The module rendered seven inline event handlers, which no nonce can cover:
+  - the filter dropdowns of the Emails list (status, category, module) and the Blocklist (reason, status) closed after a choice with `onclick="document.activeElement.blur()"`; they now carry core's `data-pk-blur`, handled by `phoenix_kit.js`. On a core that has no such listener yet (3.9.0 and older) the filter still applies, but the dropdown stays open until a click elsewhere.
+  - the checkbox and the Retry button of a failed e-mail on the Queue page sat in a wrapper with `onclick="event.stopPropagation()"`. The wrapper now has an empty `phx-click` JS command instead. LiveView runs only the closest `phx-click`, so a click there still does not open the row's details; the old handler also stopped the click before LiveView's own listener saw it.
+- The `<style>` blocks of the e-mail bodies are unchanged: a message is not a page, and a mail client does not apply the host's policy.
+- New `test/csp_inline_tags_test.exs` fails on an inline handler, or an inline `<script>`/`<style>` without a nonce, in `lib/`.
+
 ## 0.10.1 - 2026-11-23
 
 No migration. Fixes found in a full post-0.10.0 code review (see `dev_docs/reports/2026-11-20-post-release-code-review.md`), plus a follow-up review pass over those fixes.

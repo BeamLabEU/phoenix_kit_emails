@@ -260,9 +260,12 @@
               phx-value-uuid={email.uuid}
             >
               <.table_default_cell>
-                <%!-- stopPropagation so selecting a row doesn't also trigger
-                     the row's view_details navigation. --%>
-                <div onclick="event.stopPropagation()">
+                <%!-- An empty JS command: a click on the wrapper is its own
+                     (LiveView runs the closest phx-click only), so it does not
+                     reach the row's view_details. No inline handler: a
+                     Content-Security-Policy with a nonce blocks those, and a
+                     stopPropagation here also hid the click from LiveView. --%>
+                <div phx-click={%Phoenix.LiveView.JS{}}>
                   <input
                     type="checkbox"
                     class="checkbox checkbox-sm"
@@ -285,7 +288,7 @@
                 {UtilsDate.format_datetime_with_user_format(email.sent_at)}
               </.table_default_cell>
               <.table_default_cell>
-                <div onclick="event.stopPropagation()">
+                <div phx-click={%Phoenix.LiveView.JS{}}>
                   <button
                     phx-click="retry_email"
                     phx-value-email_uuid={email.uuid}

@@ -137,7 +137,7 @@
                 </div>
                 <ul
                   tabindex="0"
-                  onclick="document.activeElement.blur()"
+                  data-pk-blur
                   class="dropdown-content menu bg-base-100 rounded-box z-20 w-52 p-2 shadow border border-base-200 max-h-96 overflow-y-auto flex-nowrap"
                 >
                   <%= for {val, label} <- status_options do %>
@@ -173,7 +173,7 @@
                 </div>
                 <ul
                   tabindex="0"
-                  onclick="document.activeElement.blur()"
+                  data-pk-blur
                   class="dropdown-content menu bg-base-100 rounded-box z-20 w-52 p-2 shadow border border-base-200"
                 >
                   <%= for {val, label} <- category_options do %>
@@ -209,7 +209,7 @@
                 </div>
                 <ul
                   tabindex="0"
-                  onclick="document.activeElement.blur()"
+                  data-pk-blur
                   class="dropdown-content menu bg-base-100 rounded-box z-20 w-52 p-2 shadow border border-base-200"
                 >
                   <%= for {val, label} <- source_module_options do %>

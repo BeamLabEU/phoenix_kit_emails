@@ -160,6 +160,14 @@ lib/
 - **Settings via PhoenixKit Settings** — all config is stored in the PhoenixKit settings system, not in application env; use `Emails.get_config/0` and related functions
 - **LiveView assigns** available in admin pages: `@phoenix_kit_current_scope`, `@current_locale`, `@url_path`
 
+## Content-Security-Policy
+
+The admin pages must work under a host policy that allows inline code by nonce only (core: `guides/content-security-policy.md`). `test/csp_inline_tags_test.exs` enforces it.
+
+- **No inline event handlers** (`onclick=` …): no nonce covers an attribute. Use a `phx-` binding or a `Phoenix.LiveView.JS` command. A daisyUI dropdown that closes after a choice takes core's `data-pk-blur` on its `<ul>` (a listener in `phoenix_kit.js`; absent from core 3.9.0 and older, where the dropdown just stays open). A wrapper that keeps a click away from a clickable row takes `phx-click={%Phoenix.LiveView.JS{}}`: never `event.stopPropagation()`, which also hides the click from LiveView.
+- **An inline `<script>` / `<style>` on a page needs the nonce**, feature-detected because the core floor has no `PhoenixKitWeb.CSP`: `Code.ensure_loaded?(PhoenixKitWeb.CSP) and function_exported?(PhoenixKitWeb.CSP, :nonce, 1)`, then `apply/3`. There is none today, and the module ships no JavaScript.
+- **E-mail bodies are exempt** (`templates.ex`): a message is not a page. Never put a nonce into one.
+
 ## Tailwind CSS Scanning
 
 This module implements `css_sources/0` returning `[:phoenix_kit_emails]` so PhoenixKit's installer adds the correct `@source` directive to the parent's `app.css`. Without this, Tailwind purges CSS classes unique to this module's templates.
